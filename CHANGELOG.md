@@ -5,6 +5,43 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed (BREAKING)
+
+- **Schema bumped to version 2.** v0.1.0 databases must be rebuilt from disk
+  (`wenji rebuild --db <path>`); migration is not provided since v0.1.0 had no
+  external users.
+- `articles_meta` now declares `path TEXT UNIQUE NOT NULL` and uses it as the
+  article identity key. Re-ingesting the same path with changed content now
+  cleanly removes the prior row and its derived data (FTS, vectors, axes).
+- `articles_meta` adds `source_urls_json TEXT NOT NULL DEFAULT ''` for
+  multi-source citation (populated when frontmatter provides `source_urls`).
+
+### Fixed
+
+- **L1**: Search result `chunk_hits` no longer counts title-only matches.
+  The chunk-level FTS query is now column-restricted to `chunk_text`, so
+  `chunk_hits` reports only chunks whose content matches the query.
+- **L2**: Snippet plain-text extraction switched from regex stripping to
+  Markdown AST walking. URLs containing `_` (e.g. `wikipedia.org/wiki/Foo_bar`)
+  and code spans are no longer mangled.
+- **L3**: `source_url` frontmatter now accepts `string`, `list[str]` (first
+  non-empty entry used), or `dict` with a `url` field; previously a list/dict
+  produced a weird `repr()` string.
+- **L4**: Title fallback (when frontmatter lacks `title`) now extracts via
+  Markdown AST, supporting Setext headings (`Title\n===`) and stripping inline
+  formatting (e.g. `# **Bold** Title` → `Bold Title`).
+- **L5**: Same path with changed content no longer leaks the previous
+  `article_id` row; `articles_meta.path` is now a UNIQUE column and ingest
+  performs a path-based DELETE before INSERT.
+
+### UI
+
+- Search result chunk-hits text changed from "+N 段更多" / "命中 N 段" to
+  "+N 段內容命中" / "內容命中 N 段" to clarify that the count reports
+  content-level matches (not title-only).
+
 ## [0.1.0] — 2026-05-XX
 
 Initial public release.

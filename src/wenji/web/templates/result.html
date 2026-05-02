@@ -13,7 +13,7 @@
     {% if r.category %} · <span>{{ r.category }}</span>{% endif %}
     {% if r.pub_date %} · <span>{{ r.pub_date }}</span>{% endif %}
     {% if r.chunk_hits and r.chunk_hits > 0 %}
-     · <span class="chunk-hits">命中 {{ r.chunk_hits }} 段</span>
+     · <span class="chunk-hits">內容命中 {{ r.chunk_hits }} 段</span>
     {% endif %}
   </div>
   {% if r.matched_chunks %}
@@ -30,7 +30,7 @@
     {% if extra > 0 %}
     <a class="chunk-badge chunk-badge-more"
        href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}">
-      +{{ extra }} 段更多
+      +{{ extra }} 段內容命中
     </a>
     {% endif %}
   </div>

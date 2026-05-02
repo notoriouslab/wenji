@@ -29,6 +29,7 @@ def _yaml(tmp_path: Path, body: str) -> Path:
 def _seed(conn, article_id: str, **kwargs):
     fields = {
         "article_id": article_id,
+        "path": kwargs.get("path", f"fixtures/{article_id}.md"),
         "title": kwargs.get("title", "T"),
         "source_type": kwargs.get("source_type", ""),
         "pub_date": "",
@@ -40,6 +41,7 @@ def _seed(conn, article_id: str, **kwargs):
         "category": "",
         "author": "",
         "source_url": "",
+        "source_urls_json": "",
         "subtype": kwargs.get("subtype", ""),
         "tags": kwargs.get("tags_json", ""),
         "description": "",

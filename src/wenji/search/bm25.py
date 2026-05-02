@@ -16,7 +16,7 @@ from typing import Any
 from wenji.core.errors import SearchError
 
 
-def build_fts_query(raw: str) -> str:
+def build_fts_query(raw: str, *, column: str | None = None) -> str:
     """Build FTS5 phrase MATCH query from user input.
 
     The query and indexed content both use char-level + space-join (see
@@ -26,6 +26,11 @@ def build_fts_query(raw: str) -> str:
     individual char tokens and requires they appear consecutively in the
     indexed content. Multi-term inputs become AND-combined phrases.
 
+    When ``column`` is supplied, each phrase is column-prefixed (e.g.
+    ``chunk_text:"因 信 稱 義"``) so the FTS5 ``MATCH`` is restricted to that
+    indexed column. Used by chunk-level hit counting to avoid title-column
+    matches inflating ``chunk_hits``.
+
     This avoids both char-AND false matches (which char-only without phrase
     suffers from) and jieba segmentation drift between query and ingest time.
     """
@@ -33,7 +38,8 @@ def build_fts_query(raw: str) -> str:
     for term in raw.split():
         chars = " ".join(c for c in term if not c.isspace() and c != '"')
         if chars:
-            quoted.append(f'"{chars}"')
+            phrase = f'"{chars}"'
+            quoted.append(f"{column}:{phrase}" if column else phrase)
     return " ".join(quoted)
 
 

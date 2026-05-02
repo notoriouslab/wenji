@@ -16,7 +16,7 @@ from pathlib import Path
 from wenji.core.errors import SchemaError, WenjiError
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 
 def connect(

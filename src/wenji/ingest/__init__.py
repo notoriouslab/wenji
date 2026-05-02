@@ -16,12 +16,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
+from markdown_it import MarkdownIt
+
 from wenji.core.chunk import chunk as chunk_text
 from wenji.core.errors import IngestError
 from wenji.core.hash import content_hash
 from wenji.core.normalize import normalize
 from wenji.ingest.frontmatter import load_article
 from wenji.ingest.jieba_setup import tokenize_for_fts
+
+# Module-level Markdown parser used for AST operations (H1 fallback, snippet
+# strip). ``html=False`` sanitises raw HTML; ``linkify=False`` avoids
+# auto-detecting URLs that aren't in markdown link syntax.
+_MD = MarkdownIt("commonmark", {"html": False, "linkify": False})
 
 
 class EmbedderProtocol(Protocol):
@@ -61,20 +68,52 @@ def _join_tags_for_fts(value: Any) -> str:
 
 
 def _extract_first_h1(body: str) -> str | None:
-    """Return the first ``# Heading`` line text, or None if there isn't one near the top.
+    """Return the first H1 heading text from ``body`` via Markdown AST.
 
-    Looks at lines until the first non-empty non-H1 line; if the first content
-    line is an H1, returns it stripped. Used as a title fallback when frontmatter
-    doesn't supply one.
+    Supports ATX (``# Title``) and Setext (``Title\\n===``) headings. Inline
+    emphasis, code spans, and links inside the heading are flattened to plain
+    text. Returns ``None`` if the document has no H1.
     """
-    for line in body.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("# "):
-            return stripped[2:].strip() or None
-        return None
+    tokens = _MD.parse(body)
+    for i, tok in enumerate(tokens):
+        if tok.type == "heading_open" and tok.tag == "h1":
+            inline = tokens[i + 1] if i + 1 < len(tokens) else None
+            if inline is None or inline.type != "inline":
+                continue
+            parts: list[str] = []
+            for child in inline.children or []:
+                if child.type in ("text", "code_inline"):
+                    parts.append(child.content)
+            text = "".join(parts).strip()
+            return text or None
     return None
+
+
+def _coerce_source_url(value: Any) -> str:
+    """Coerce a frontmatter source-URL value to a single string.
+
+    Accepts:
+
+    - ``str``: returned stripped
+    - ``list``: first non-empty stringified entry (stripped)
+    - ``dict``: the ``url`` field if it is a non-empty string, else ``""``
+    - ``None`` / other: ``""``
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+        return ""
+    if isinstance(value, dict):
+        url = value.get("url")
+        if isinstance(url, str) and url.strip():
+            return url.strip()
+        return ""
+    return ""
 
 
 def ingest_one(
@@ -85,8 +124,9 @@ def ingest_one(
     directory_map: Mapping[str, str] | None = None,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
     indexed_at: str | None = None,
+    corpus_root: str | Path | None = None,
 ) -> str:
-    """Ingest a single markdown file, idempotent on ``content_hash``.
+    """Ingest a single markdown file, idempotent on canonical ``path``.
 
     Returns the resulting ``article_id``.
 
@@ -100,8 +140,21 @@ def ingest_one(
             mapping. Source types not present here are not chunked.
         indexed_at: ISO timestamp for ``articles_meta.indexed_at``; defaults
             to ``datetime.now(timezone.utc).isoformat()``.
+        corpus_root: Optional corpus root. When supplied, the article's stored
+            ``path`` is computed relative to this root; otherwise the absolute
+            resolved path is used.
     """
     path = Path(md_path)
+
+    # Canonical article path (stored in articles_meta.path, UNIQUE).
+    if corpus_root is not None:
+        try:
+            article_path = str(path.resolve().relative_to(Path(corpus_root).resolve()))
+        except ValueError:
+            article_path = str(path.resolve())
+    else:
+        article_path = str(path.resolve())
+
     article = load_article(path, directory_map=directory_map)
     body_norm = normalize(article.body)
     if not body_norm:
@@ -137,25 +190,51 @@ def ingest_one(
     category = str(article.metadata.get("category") or "")
     subtype = str(article.metadata.get("subtype") or "")
     author = str(article.metadata.get("author") or "")
-    # Accept several common frontmatter keys for the article's external URL.
-    source_url = str(
-        article.metadata.get("source_url")
-        or article.metadata.get("source")
-        or article.metadata.get("link")
-        or ""
-    )
+    # Type-guarded fallback chain for primary source URL.
+    source_url = ""
+    for key in ("source_url", "source", "link"):
+        coerced = _coerce_source_url(article.metadata.get(key))
+        if coerced:
+            source_url = coerced
+            break
+    # Optional plural form preserved as JSON for v0.2+ multi-source citation.
+    source_urls_raw = article.metadata.get("source_urls")
+    source_urls_json = ""
+    if isinstance(source_urls_raw, list):
+        urls = [u.strip() for u in source_urls_raw if isinstance(u, str) and u.strip()]
+        if urls:
+            source_urls_json = json.dumps(urls, ensure_ascii=False)
     description = str(article.metadata.get("description") or "")
 
     title_tok = tokenize_for_fts(title)
     body_tok = tokenize_for_fts(body_norm)
     tags_tok = tokenize_for_fts(tags_for_fts)
 
-    # Idempotent upsert articles_meta. Skip body re-embed if hash unchanged.
+    # Path-based identity (v0.2). Same path + unchanged content → fast path
+    # (UPDATE indexed_at only). Same path + changed content → DELETE old row
+    # + clean derived tables for old article_id, then INSERT new row.
     existing = conn.execute(
-        "SELECT content_hash FROM articles_meta WHERE article_id = ?",
-        (article_id,),
+        "SELECT article_id, content_hash FROM articles_meta WHERE path = ?",
+        (article_path,),
     ).fetchone()
-    unchanged = existing is not None and existing[0] == chash
+
+    unchanged = False
+    if existing is not None:
+        old_article_id, old_chash = existing
+        if old_chash == chash:
+            # Content unchanged — refresh indexed_at, reuse old article_id.
+            conn.execute(
+                "UPDATE articles_meta SET indexed_at = ? WHERE path = ?",
+                (indexed_at, article_path),
+            )
+            return old_article_id
+        # Content changed — clean derived rows for old article_id then DELETE
+        # the articles_meta row (article_axes follows via FK CASCADE).
+        if old_article_id != article_id:
+            conn.execute("DELETE FROM articles_fts WHERE article_id = ?", (old_article_id,))
+            conn.execute("DELETE FROM chunks_fts WHERE article_id = ?", (old_article_id,))
+            conn.execute("DELETE FROM doc_vectors WHERE article_id = ?", (old_article_id,))
+        conn.execute("DELETE FROM articles_meta WHERE path = ?", (article_path,))
 
     chunk_count = 0
     chunks: list[str] = []
@@ -172,31 +251,38 @@ def ingest_one(
             chunks = chunk_text(body_norm, strategy=strategy_name, **kwargs)
             chunk_count = len(chunks)
 
+    # Prior row (if any) was already DELETE'd above when content changed.
+    # ON CONFLICT(article_id) is retained as a safety net for callers that
+    # bypass the path-based path (e.g. tests inserting fixtures directly).
     conn.execute(
         """
         INSERT INTO articles_meta (
-            article_id, title, source_type, pub_date, pub_year,
+            article_id, path, title, source_type, pub_date, pub_year,
             content_length, chunk_count, content_hash, indexed_at,
-            category, author, source_url, subtype, tags, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            category, author, source_url, source_urls_json,
+            subtype, tags, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(article_id) DO UPDATE SET
-            title          = excluded.title,
-            source_type    = excluded.source_type,
-            pub_date       = excluded.pub_date,
-            pub_year       = excluded.pub_year,
-            content_length = excluded.content_length,
-            chunk_count    = excluded.chunk_count,
-            content_hash   = excluded.content_hash,
-            indexed_at     = excluded.indexed_at,
-            category       = excluded.category,
-            author         = excluded.author,
-            source_url     = excluded.source_url,
-            subtype        = excluded.subtype,
-            tags           = excluded.tags,
-            description    = excluded.description
+            path             = excluded.path,
+            title            = excluded.title,
+            source_type      = excluded.source_type,
+            pub_date         = excluded.pub_date,
+            pub_year         = excluded.pub_year,
+            content_length   = excluded.content_length,
+            chunk_count      = excluded.chunk_count,
+            content_hash     = excluded.content_hash,
+            indexed_at       = excluded.indexed_at,
+            category         = excluded.category,
+            author           = excluded.author,
+            source_url       = excluded.source_url,
+            source_urls_json = excluded.source_urls_json,
+            subtype          = excluded.subtype,
+            tags             = excluded.tags,
+            description      = excluded.description
         """,
         (
             article_id,
+            article_path,
             title,
             article.source_type,
             pub_date,
@@ -208,6 +294,7 @@ def ingest_one(
             category,
             author,
             source_url,
+            source_urls_json,
             subtype,
             tags_json,
             description,
@@ -303,6 +390,7 @@ def ingest_dir(
                 embedder,
                 directory_map=directory_map,
                 chunk_strategies=chunk_strategies,
+                corpus_root=root,
             )
         )
     conn.commit()

@@ -67,9 +67,9 @@ def test_classify_end_to_end(tmp_path: Path):
     conn = connect(db)
     initialise_schema(conn)
     conn.execute(
-        "INSERT INTO articles_meta (article_id, title, source_type, "
+        "INSERT INTO articles_meta (article_id, path, title, source_type, "
         "content_length, chunk_count, content_hash, indexed_at) "
-        "VALUES ('a1', 'T', 'sermon', 10, 0, 'abc', '2026-01-01')"
+        "VALUES ('a1', 'sermons/s1.md', 'T', 'sermon', 10, 0, 'abc', '2026-01-01')"
     )
     conn.commit()
     conn.close()

@@ -250,3 +250,210 @@ def test_title_falls_back_to_first_h1_when_frontmatter_missing_title(fresh_conn,
         "SELECT title FROM articles_meta WHERE article_id=?", (article_id,)
     ).fetchone()[0]
     assert title == "Found H1 Title"
+
+
+def test_title_fallback_setext_h1(fresh_conn, tmp_path):
+    """L4: Setext-style H1 (``Title\\n===``) fallback via Markdown AST."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "setext.md"
+    md.write_text(
+        "---\ntags: [a]\n---\nMy Setext Title\n=========\n\nBody.",
+        encoding="utf-8",
+    )
+    article_id = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    title = fresh_conn.execute(
+        "SELECT title FROM articles_meta WHERE article_id=?", (article_id,)
+    ).fetchone()[0]
+    assert title == "My Setext Title"
+
+
+def test_title_fallback_inline_formatting_stripped(fresh_conn, tmp_path):
+    """L4: H1 with inline emphasis is reduced to plain text via AST."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "inline.md"
+    md.write_text(
+        "---\ntags: [a]\n---\n# **Bold** Title with `code_id`\n\nBody.",
+        encoding="utf-8",
+    )
+    article_id = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    title = fresh_conn.execute(
+        "SELECT title FROM articles_meta WHERE article_id=?", (article_id,)
+    ).fetchone()[0]
+    assert title == "Bold Title with code_id"
+
+
+def test_source_url_list_yields_first_string(fresh_conn, tmp_path):
+    """L3: frontmatter source_url as list → first non-empty entry stored."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "src-list.md"
+    md.write_text(
+        "---\ntitle: T\nsource_url:\n  - https://a.example\n  - https://b.example\n---\nBody.",
+        encoding="utf-8",
+    )
+    ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    row = fresh_conn.execute(
+        "SELECT source_url, source_urls_json FROM articles_meta WHERE path = ?",
+        (str(md.resolve()),),
+    ).fetchone()
+    assert row[0] == "https://a.example"
+    # source_urls plural was not provided, so json column is empty.
+    assert row[1] == ""
+
+
+def test_source_url_dict_uses_url_field(fresh_conn, tmp_path):
+    """L3: frontmatter source_url as dict → ``url`` field used."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "src-dict.md"
+    md.write_text(
+        "---\ntitle: T\nsource_url:\n  url: https://primary.example\n  note: primary\n---\nBody.",
+        encoding="utf-8",
+    )
+    ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    row = fresh_conn.execute(
+        "SELECT source_url FROM articles_meta WHERE path = ?",
+        (str(md.resolve()),),
+    ).fetchone()
+    assert row[0] == "https://primary.example"
+
+
+def test_source_urls_plural_stored_as_json(fresh_conn, tmp_path):
+    """L3: ``source_urls`` plural → JSON list in source_urls_json column."""
+    import json as _json
+
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "src-plural.md"
+    md.write_text(
+        "---\ntitle: T\nsource_urls:\n  - https://a.example\n  - https://b.example\n---\nBody.",
+        encoding="utf-8",
+    )
+    ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    row = fresh_conn.execute(
+        "SELECT source_urls_json FROM articles_meta WHERE path = ?",
+        (str(md.resolve()),),
+    ).fetchone()
+    assert _json.loads(row[0]) == ["https://a.example", "https://b.example"]
+
+
+def test_ingest_same_path_unchanged_content_keeps_one_row(fresh_conn, tmp_path):
+    """L5: re-ingest same path with identical body → 1 row, indexed_at refreshed."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "stable.md"
+    md.write_text("---\ntitle: T\n---\nFirst version body.", encoding="utf-8")
+    aid1 = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    # Second ingest with identical content
+    aid2 = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    assert aid1 == aid2
+    n_rows = fresh_conn.execute(
+        "SELECT COUNT(*) FROM articles_meta WHERE path = ?", (str(md.resolve()),)
+    ).fetchone()[0]
+    assert n_rows == 1
+
+
+def test_ingest_same_path_changed_content_replaces_row_and_cleans_derived(fresh_conn, tmp_path):
+    """L5: same path + different content → old article_id and derived rows gone, new row inserted."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    md = sermons / "shifty.md"
+    md.write_text("---\ntitle: T\n---\nOriginal body content.", encoding="utf-8")
+    aid_old = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+        chunk_strategies={"sermon": {"strategy": "paragraph", "min_chars": 1, "max_chars": 200}},
+    )
+    fresh_conn.commit()
+
+    # Edit content
+    md.write_text("---\ntitle: T\n---\nNew completely different body content.", encoding="utf-8")
+    aid_new = ingest_one(
+        md,
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+        chunk_strategies={"sermon": {"strategy": "paragraph", "min_chars": 1, "max_chars": 200}},
+    )
+    fresh_conn.commit()
+
+    assert aid_old != aid_new
+
+    # Exactly one articles_meta row for this path, the new one
+    rows = fresh_conn.execute(
+        "SELECT article_id FROM articles_meta WHERE path = ?", (str(md.resolve()),)
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == aid_new
+
+    # Old article_id is gone everywhere
+    assert (
+        fresh_conn.execute(
+            "SELECT COUNT(*) FROM articles_meta WHERE article_id = ?", (aid_old,)
+        ).fetchone()[0]
+        == 0
+    )
+    assert (
+        fresh_conn.execute(
+            "SELECT COUNT(*) FROM articles_fts WHERE article_id = ?", (aid_old,)
+        ).fetchone()[0]
+        == 0
+    )
+    assert (
+        fresh_conn.execute(
+            "SELECT COUNT(*) FROM chunks_fts WHERE article_id = ?", (aid_old,)
+        ).fetchone()[0]
+        == 0
+    )
+    assert (
+        fresh_conn.execute(
+            "SELECT COUNT(*) FROM doc_vectors WHERE article_id = ?", (aid_old,)
+        ).fetchone()[0]
+        == 0
+    )

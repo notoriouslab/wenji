@@ -1,7 +1,12 @@
--- wenji v0.1.0 single-file schema (schema_version = "1")
--- See design.md D3.
+-- wenji v0.2 single-file schema (schema_version = "2")
+-- See design.md D3 (v0.1.0 baseline) + wenji-limitations-v0-2 design.md L5.
 -- Tokenizer: unicode61 + jieba pre-tokenization at ingest layer
 -- (libsimple extension considered for v0.2+ char-unigram fallback path).
+--
+-- v0.2 changes vs v0.1.0:
+--   - articles_meta: + path TEXT UNIQUE NOT NULL (article identity key)
+--   - articles_meta: + source_urls_json TEXT NOT NULL DEFAULT '' (plural source URLs)
+--   - schema_version bumped 1 → 2; v0.1.0 DBs MUST rebuild from disk.
 
 -- ============================================================
 -- 1. wenji_meta: key/value (schema_version, embedder, build counters)
@@ -11,7 +16,7 @@ CREATE TABLE IF NOT EXISTS wenji_meta (
     value TEXT
 );
 INSERT OR IGNORE INTO wenji_meta (key, value) VALUES
-    ('schema_version', '1'),
+    ('schema_version', '2'),
     ('embedder', 'BGE-M3-INT8-ONNX'),
     ('build_started_at', ''),
     ('build_completed_at', ''),
@@ -24,6 +29,7 @@ INSERT OR IGNORE INTO wenji_meta (key, value) VALUES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS articles_meta (
     article_id TEXT PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
     title TEXT,
     source_type TEXT,
     pub_date TEXT,
@@ -35,6 +41,7 @@ CREATE TABLE IF NOT EXISTS articles_meta (
     category TEXT,
     author TEXT,
     source_url TEXT,
+    source_urls_json TEXT NOT NULL DEFAULT '',
     subtype TEXT,
     tags TEXT,
     description TEXT

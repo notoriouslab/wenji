@@ -12,11 +12,12 @@ Modular pieces are exported for advanced users / tests:
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from typing import Any, Protocol
 
 import numpy as np
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
 from wenji.core.errors import SearchError
 from wenji.search.bm25 import bm25_search, build_fts_query
@@ -32,21 +33,54 @@ class EmbedderProtocol(Protocol):
     def encode_batch(self, texts: list[str]) -> np.ndarray: ...
 
 
-_MD_MARKER_LINE_RE = re.compile(r"^[ \t]*[#>*\-_`]+[ \t]*", flags=re.MULTILINE)
-_MD_INLINE_RE = re.compile(r"[*_`]+")
+_MD_SNIPPET = MarkdownIt("commonmark", {"html": False, "linkify": False})
+
+_BLOCK_BOUNDARY_TOKENS = frozenset(
+    {
+        "paragraph_close",
+        "heading_close",
+        "blockquote_close",
+        "list_item_close",
+        "bullet_list_close",
+        "ordered_list_close",
+        "code_block",
+        "fence",
+    }
+)
 
 
 def _strip_markdown_for_snippet(text: str) -> str:
-    """Drop heading / list / emphasis markers so snippet text reads cleanly.
+    """Convert Markdown text to plain text via the markdown-it AST.
 
-    Keep this small: only the markers that show up at the head of a snippet
-    window (``###``, ``- ``, ``> ``, etc.) and the inline emphasis chars.
+    Replaces an earlier regex approach that mangled URLs with underscores
+    (``Foo_bar`` → ``Foobar``) and code spans containing punctuation. The AST
+    walker accumulates ``text`` and ``code_inline`` content, treating soft /
+    hard breaks and block-level closes as whitespace. Avoids introducing
+    BeautifulSoup as a dependency by walking tokens directly instead of
+    rendering to HTML.
     """
     if not text:
         return text
-    text = _MD_MARKER_LINE_RE.sub("", text)
-    text = _MD_INLINE_RE.sub("", text)
-    return text
+
+    parts: list[str] = []
+
+    def walk(tokens: list[Token]) -> None:
+        for tok in tokens:
+            if tok.type == "inline" and tok.children:
+                walk(tok.children)
+            elif tok.type in ("text", "code_inline"):
+                parts.append(tok.content)
+            elif tok.type in ("softbreak", "hardbreak"):
+                parts.append(" ")
+            elif tok.type in ("code_block", "fence"):
+                # Block-level code keeps its raw content but as plain text.
+                parts.append(tok.content)
+                parts.append(" ")
+            elif tok.type in _BLOCK_BOUNDARY_TOKENS:
+                parts.append(" ")
+
+    walk(_MD_SNIPPET.parse(text))
+    return " ".join("".join(parts).split())
 
 
 def _hydrate_chunk_hits(
@@ -66,7 +100,9 @@ def _hydrate_chunk_hits(
     """
     if not article_ids:
         return {}
-    fts_query = build_fts_query(query)
+    # Column-restrict the chunk-level MATCH to chunk_text so title-only matches
+    # do not count toward chunk_hits (v0.2 L1 fix).
+    fts_query = build_fts_query(query, column="chunk_text")
     if not fts_query:
         return {}
     placeholders = ",".join("?" for _ in article_ids)

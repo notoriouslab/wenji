@@ -70,7 +70,7 @@ def test_initialise_schema_detects_version_mismatch():
 def test_article_axes_primary_uniqueness():
     conn = connect(":memory:")
     initialise_schema(conn)
-    conn.execute("INSERT INTO articles_meta (article_id, title) VALUES ('a1', 't1')")
+    conn.execute("INSERT INTO articles_meta (article_id, path, title) VALUES ('a1', 'a1.md', 't1')")
     conn.execute("INSERT INTO article_axes (article_id, axis_id, is_primary) VALUES ('a1', 'x', 1)")
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(

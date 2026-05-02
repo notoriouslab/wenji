@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from wenji.search import Searcher
+from wenji.core.db import connect, initialise_schema
+from wenji.ingest import ingest_one
+from wenji.search import Searcher, _hydrate_chunk_hits, _strip_markdown_for_snippet
 from wenji.search.rerank import CrossEncoderReranker
 
 
@@ -136,3 +138,100 @@ def test_searcher_with_rewriter_uses_rewritten_query(populated_db, mock_embedder
     # Rewriter changed query to 禱告; should hit prayer article
     titles = [r.get("title", "") for r in results]
     assert any("禱告" in t for t in titles)
+
+
+# ---------------------------------------------------------------------------
+# L1: chunk_hits column-restricted to chunk_text (title-only matches → 0)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def chunk_hit_db(tmp_path, mock_embedder):
+    """Two articles: one with query word ONLY in title, one with query word in
+    multiple chunks. Used to verify L1 column-restriction behavior."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    # Title contains '復興'; chunks do NOT.
+    (sermons / "title-only.md").write_text(
+        "---\ntitle: 教會復興的歷史\n---\n"
+        "第一段：教會發展的早期紀錄。\n\n"
+        "第二段：宗教改革與後續的傳播。\n",
+        encoding="utf-8",
+    )
+    # Title does NOT contain '復興'; 3 of N chunks do.
+    (sermons / "multi-hit.md").write_text(
+        "---\ntitle: 教會發展史略\n---\n"
+        "第一段：早期會眾。\n\n"
+        "第二段：復興浪潮席捲。\n\n"
+        "第三段：日常生活。\n\n"
+        "第四段：第二次復興運動。\n\n"
+        "第五段：第三次復興出現。\n",
+        encoding="utf-8",
+    )
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    for md in sorted(sermons.iterdir()):
+        ingest_one(
+            md,
+            conn,
+            mock_embedder,
+            directory_map={"sermons": "sermon"},
+            chunk_strategies={
+                "sermon": {"strategy": "paragraph", "min_chars": 1, "max_chars": 200}
+            },
+            corpus_root=tmp_path,
+        )
+    conn.commit()
+    yield conn
+    conn.close()
+
+
+def test_chunk_hits_title_only_match_yields_zero(chunk_hit_db):
+    """L1: article whose title matches query but whose chunks don't → chunk_hits=0."""
+    aid = chunk_hit_db.execute(
+        "SELECT article_id FROM articles_meta WHERE title LIKE '%復興的歷史%'"
+    ).fetchone()[0]
+    info = _hydrate_chunk_hits(chunk_hit_db, "復興", [aid])
+    # No chunk content matched → article is absent from grouped output entirely
+    assert aid not in info or info[aid]["chunk_hits"] == 0
+
+
+def test_chunk_hits_multi_chunk_content_match_counts_each(chunk_hit_db):
+    """L1: chunks containing query in their content all increment chunk_hits."""
+    aid = chunk_hit_db.execute(
+        "SELECT article_id FROM articles_meta WHERE title LIKE '%發展史略%'"
+    ).fetchone()[0]
+    info = _hydrate_chunk_hits(chunk_hit_db, "復興", [aid])
+    assert aid in info
+    # Three chunks contain '復興' (paragraphs 2, 4, 5 of the body).
+    assert info[aid]["chunk_hits"] == 3
+    assert len(info[aid]["matched_chunks"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# L2: snippet markdown strip via AST (preserves URLs with underscores, code spans)
+# ---------------------------------------------------------------------------
+
+
+def test_snippet_strip_preserves_url_with_underscore():
+    """L2: URLs containing ``_`` are not mangled by the AST-based strip."""
+    text = "See https://en.wikipedia.org/wiki/Foo_bar for context."
+    out = _strip_markdown_for_snippet(text)
+    assert "Foo_bar" in out
+    assert "Foobar" not in out
+
+
+def test_snippet_strip_renders_code_and_emphasis_as_plain_text():
+    """L2: ``**bold**`` and ``code_with_underscore`` extract to plain text."""
+    text = "Use **bold** and `code_with_underscore` here."
+    out = _strip_markdown_for_snippet(text)
+    assert "bold" in out
+    assert "code_with_underscore" in out
+    assert "**" not in out
+    assert "`" not in out
+
+
+def test_snippet_strip_handles_empty_input():
+    """L2: empty / whitespace-only inputs short-circuit cleanly."""
+    assert _strip_markdown_for_snippet("") == ""
+    assert _strip_markdown_for_snippet("plain text") == "plain text"
