@@ -1,0 +1,40 @@
+<li class="result-card">
+  <div class="result-header">
+    <a href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}"
+       class="result-title">
+      {{ r.title or '(無標題)' }}
+    </a>
+    {% if r.hybrid_score is not none %}
+    <span class="result-score">{{ '%.3f' % r.hybrid_score }}</span>
+    {% endif %}
+  </div>
+  <div class="result-meta">
+    {% if r.source_type %}<span>{{ r.source_type }}</span>{% endif %}
+    {% if r.category %} · <span>{{ r.category }}</span>{% endif %}
+    {% if r.pub_date %} · <span>{{ r.pub_date }}</span>{% endif %}
+    {% if r.chunk_hits and r.chunk_hits > 0 %}
+     · <span class="chunk-hits">命中 {{ r.chunk_hits }} 段</span>
+    {% endif %}
+  </div>
+  {% if r.matched_chunks %}
+  <div class="chunk-badges">
+    {% for mc in r.matched_chunks %}
+    <a class="chunk-badge"
+       href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}#chunk-{{ mc.chunk_index }}"
+       title="{{ mc.chunk_text[:120] if mc.chunk_text else mc.snippet }}">
+      <span class="chunk-badge-anchor">¶{{ mc.chunk_index + 1 }}</span>
+      <span class="chunk-badge-snippet">{{ mc.snippet|safe }}</span>
+    </a>
+    {% endfor %}
+    {% set extra = (r.chunk_hits or 0) - (r.matched_chunks|length) %}
+    {% if extra > 0 %}
+    <a class="chunk-badge chunk-badge-more"
+       href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}">
+      +{{ extra }} 段更多
+    </a>
+    {% endif %}
+  </div>
+  {% elif r.content_snippet %}
+  <p class="result-snippet">{{ r.content_snippet|safe }}</p>
+  {% endif %}
+</li>

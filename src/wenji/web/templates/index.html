@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wenji search{% if query %} — {{ query }}{% endif %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">wenji</a>
+    <form action="/" method="get" class="search-form" id="search-form">
+      <input
+        type="search"
+        name="q"
+        value="{{ query|e }}"
+        placeholder="搜尋..."
+        autofocus
+        required>
+      {% if axis %}<input type="hidden" name="axis" value="{{ axis|e }}">{% endif %}
+      <button type="submit">搜尋</button>
+    </form>
+  </header>
+
+  {% if error %}
+  <div class="error-banner" role="alert">
+    <strong>暫時無法搜尋</strong>
+    <p>{{ error }}</p>
+  </div>
+  {% endif %}
+
+  <main class="layout">
+    <aside class="axis-sidebar">
+      <h3>軸 (Axes)</h3>
+      <ul>
+        <li><a href="/?q={{ query|urlencode }}"
+               class="{% if not axis %}active{% endif %}">全部</a></li>
+        {% for a in axes %}
+        <li>
+          <a href="/?q={{ query|urlencode }}&amp;axis={{ a.id|urlencode }}"
+             class="{% if axis == a.id %}active{% endif %}">
+            {{ a.id }} <span class="count">({{ a.count }})</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </aside>
+
+    <section class="results">
+      {% if query and not error %}
+        {% if results %}
+        <p class="result-count">找到 <strong>{{ results|length }}</strong> 筆結果</p>
+        <ol class="result-list">
+          {% for r in results %}
+          {% include "result.html" %}
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="empty">查無結果。</p>
+        {% endif %}
+      {% elif not query %}
+      <p class="welcome">在上方輸入查詢以開始搜尋。</p>
+      {% endif %}
+    </section>
+  </main>
+
+  <script>
+    // Inline minimal JS: spinner toggle on form submit
+    document.getElementById('search-form').addEventListener('submit', function () {
+      document.body.classList.add('searching');
+    });
+  </script>
+</body>
+</html>

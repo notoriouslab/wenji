@@ -1,0 +1,36 @@
+# wenji example consumer config — passed to `wenji ingest --config`.
+
+directory_map:
+  sermon: sermon
+  article: article
+  law: law
+  classical: classical
+  tech: tech
+
+chunk_strategies:
+  sermon:
+    strategy: paragraph
+    min_chars: 300
+    max_chars: 1500
+  article:
+    strategy: markdown-heading      # H2/H3-driven for blog-post style content
+    fallback_size: 1200
+    fallback_overlap: 100
+  law:
+    strategy: markdown-heading      # 「### 第 N 條」boundaries
+    fallback_size: 1200
+    fallback_overlap: 100
+  tech:
+    strategy: paragraph
+    min_chars: 150
+    max_chars: 1000
+  # classical (poems) intentionally not chunked — full-article FTS suffices
+
+search:
+  alpha: 0.25
+  candidate_pool: 30
+  default_limit: 5
+  rerank:
+    enabled: false
+  rewrite:
+    enabled: false

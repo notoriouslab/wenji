@@ -1,0 +1,53 @@
+"""``wenji ingest`` subcommand."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import typer
+import yaml
+
+from wenji.core.db import connect, initialise_schema
+
+
+def command(
+    corpus_dir: Path = typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
+    db: Path = typer.Option(Path("data/wenji.db"), help="SQLite DB path."),
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="YAML mapping directory_map / chunk_strategies; structure: "
+        "{directory_map: {<dirname>: <source_type>}, chunk_strategies: {<source_type>: {strategy: paragraph, min_chars: 200}}}",
+    ),
+    recursive: bool = typer.Option(True, help="Recurse into subdirectories."),
+) -> None:
+    from wenji.ingest import ingest_dir
+    from wenji.ingest.embed import Embedder
+
+    db.parent.mkdir(parents=True, exist_ok=True)
+    conn = connect(db)
+    initialise_schema(conn)
+
+    directory_map: dict[str, str] = {}
+    chunk_strategies: dict = {}
+    if config is not None:
+        cfg = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+        directory_map = cfg.get("directory_map", {}) or {}
+        chunk_strategies = cfg.get("chunk_strategies", {}) or {}
+
+    embedder = Embedder()
+
+    typer.echo(f"ingesting {corpus_dir} → {db}", err=True)
+    article_ids = ingest_dir(
+        corpus_dir,
+        conn,
+        embedder,
+        recursive=recursive,
+        directory_map=directory_map,
+        chunk_strategies=chunk_strategies,
+    )
+    conn.close()
+    typer.echo(json.dumps({"ingested": len(article_ids)}, ensure_ascii=False), err=False)
+    sys.exit(0)

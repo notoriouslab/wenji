@@ -1,0 +1,48 @@
+# wenji example axes config — 4 axes covering the 5 source_types in the
+# bundled corpus. Note the "article" axis demonstrates a 1:N mapping
+# (axis filters source_type=article + law together).
+
+axes:
+  - id: sermon
+    name: 講道
+    short: 講道
+    order: 1
+    description: 講道 / 信仰主題長文
+    rules:
+      - source_type: sermon
+        primary: true
+
+  - id: article
+    name: 文章
+    short: 文章
+    order: 2
+    description: 一般文章 + 法規（不同 source_type，同一搜尋軸）
+    rules:
+      - source_type: article
+        primary: true
+      - source_type: law
+        primary: true
+
+  - id: verse
+    name: 詩詞
+    short: 詩
+    order: 3
+    description: 古典詩詞 / 韻文
+    rules:
+      - source_type: classical
+        primary: true
+
+  - id: tutorial
+    name: 教學
+    short: 教學
+    order: 4
+    description: 技術 / 教學文章
+    rules:
+      - source_type: tech
+        primary: true
+
+# Validation bounds — permissive on a 9-article example corpus.
+validation:
+  unclassified_max: 0
+  per_axis_min: 1
+  per_axis_max: 100
