@@ -16,9 +16,11 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 from __future__ import annotations
 
 import html
+import logging
 import os
 import re
 import sqlite3
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +29,14 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from wenji.aggregate import Aggregator, Filter
+from wenji.aggregate.llm import LLMClient
 from wenji.classify.axes_loader import UNCLASSIFIED
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, WenjiError
 from wenji.search import Searcher
+
+logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
@@ -91,10 +97,22 @@ def _plain_preview(text: str, n: int = 36) -> str:
     return s[:n]
 
 
+def _llm_client_from_env() -> LLMClient | None:
+    """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset."""
+    base_url = os.environ.get("WENJI_LLM_BASE_URL")
+    model = os.environ.get("WENJI_LLM_MODEL")
+    api_key = os.environ.get("WENJI_LLM_API_KEY")
+    if not (base_url and model and api_key):
+        return None
+    timeout = float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0"))
+    return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
+
+
 def create_app(
     *,
     db_path: str | Path | None = None,
     searcher: Searcher | None = None,
+    llm_client: LLMClient | None = None,
 ) -> FastAPI:
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
@@ -107,6 +125,7 @@ def create_app(
         if db_path
         else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db")),
         "searcher": searcher,
+        "llm_client": llm_client if llm_client is not None else _llm_client_from_env(),
     }
 
     def _get_conn() -> sqlite3.Connection:
@@ -124,6 +143,23 @@ def create_app(
             return state["searcher"]
         except (ConfigError, WenjiError):
             return None
+
+    def _get_aggregator() -> Aggregator:
+        """Construct an Aggregator with a fresh DB connection + the configured LLM client."""
+        return Aggregator(_get_conn(), llm_client=state["llm_client"])
+
+    def _build_filter(filter_dict: dict | None) -> Filter | None:
+        if not filter_dict:
+            return None
+        try:
+            return Filter(**filter_dict)
+        except TypeError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid filter: {exc}") from exc
+
+    def _render_narrative(narrative: str | None) -> str | None:
+        if not narrative:
+            return None
+        return _markdown_renderer().render(narrative)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -165,6 +201,80 @@ def create_app(
             return JSONResponse({"results": results, "query": q})
         except WenjiError as exc:
             return JSONResponse(status_code=504, content={"error": str(exc)})
+
+    @app.get("/api/aggregate/subtypes")
+    def api_aggregate_subtypes() -> JSONResponse:
+        """List distinct non-empty subtypes in the corpus, with article counts.
+
+        Used by the chat panel to render a checkbox group instead of asking
+        the user to type the exclusion list manually.
+        """
+        conn = _get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT subtype, COUNT(*) FROM articles_meta "
+                "WHERE subtype IS NOT NULL AND subtype != '' "
+                "GROUP BY subtype ORDER BY 2 DESC"
+            ).fetchall()
+        finally:
+            conn.close()
+        return JSONResponse({"subtypes": [{"name": r[0], "count": r[1]} for r in rows]})
+
+    @app.post("/api/aggregate/topic")
+    async def api_aggregate_topic(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="body must be a JSON object")
+        tag = body.get("tag")
+        if not isinstance(tag, str) or not tag.strip():
+            raise HTTPException(status_code=400, detail="missing or empty 'tag'")
+        k_raw = body.get("k", 5)
+        if not isinstance(k_raw, int) or k_raw <= 0:
+            raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        filter_obj = _build_filter(body.get("filter"))
+        agg = _get_aggregator()
+        try:
+            result = agg.topic_summary(tag, filter=filter_obj, k=k_raw)
+        finally:
+            agg.db.close()
+        payload = asdict(result)
+        payload["narrative_html"] = _render_narrative(result.narrative)
+        return JSONResponse(payload)
+
+    @app.post("/api/aggregate/concept")
+    async def api_aggregate_concept(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="body must be a JSON object")
+        concept = body.get("concept")
+        if not isinstance(concept, str) or not concept.strip():
+            raise HTTPException(status_code=400, detail="missing or empty 'concept'")
+        top_sources = body.get("top_sources", 4)
+        per_source = body.get("per_source", 3)
+        if not isinstance(top_sources, int) or top_sources <= 0:
+            raise HTTPException(status_code=400, detail="'top_sources' must be a positive integer")
+        if not isinstance(per_source, int) or per_source <= 0:
+            raise HTTPException(status_code=400, detail="'per_source' must be a positive integer")
+        filter_obj = _build_filter(body.get("filter"))
+        agg = _get_aggregator()
+        try:
+            result = agg.concept_perspectives(
+                concept,
+                filter=filter_obj,
+                top_sources=top_sources,
+                per_source=per_source,
+            )
+        finally:
+            agg.db.close()
+        payload = asdict(result)
+        payload["narrative_html"] = _render_narrative(result.narrative)
+        return JSONResponse(payload)
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, q: str = "", axis: str | None = None) -> HTMLResponse:

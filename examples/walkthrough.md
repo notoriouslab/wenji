@@ -118,3 +118,94 @@ Body content here.
 Adjust `wenji.yaml` `directory_map` to mirror your subdirectory names, and
 `axes.yaml` rules to mirror your `source_type` values. That is the entire
 configuration surface — no code changes required.
+
+## 7. Aggregate 主題彙總（v0.2 module）
+
+`wenji.aggregate` adds two query-time aggregation methods on top of an
+existing wenji DB. Both work without any LLM (pure structured fallback);
+plug in any OpenAI-compatible endpoint to additionally produce a Markdown
+narrative.
+
+```python
+import sqlite3
+from wenji.aggregate import Aggregator, Filter
+
+conn = sqlite3.connect("data/wenji.db")
+agg = Aggregator(conn, llm_client=None)
+
+# Topic summary — BM25 top-K + per-source-type / per-pub-year stats.
+result = agg.topic_summary(
+    tag="勞動",
+    filter=Filter(subtype__not_in=["weekly"]),  # exclude bulletins
+    k=5,
+)
+print(result.statistics.total_hits, result.statistics.source_type_distribution)
+for src in result.top_sources:
+    print(src.title, src.bm25_score)
+print(result.narrative)  # None — no LLM client wired
+
+# Concept perspectives — top sources × per-source excerpts.
+perspectives = agg.concept_perspectives(
+    concept="因信稱義",
+    top_sources=4,
+    per_source=3,
+)
+for view in perspectives.per_source_views:
+    print(view.source_ref.title, "→", view.excerpts)
+```
+
+### Plugging in an LLM (Groq / OpenRouter / Together / vLLM / …)
+
+`LLMClient(base_url, model, api_key, timeout=10.0)` accepts any endpoint
+that conforms to the OpenAI `chat/completions` schema:
+
+```python
+from wenji.aggregate import Aggregator
+from wenji.aggregate.llm import LLMClient
+
+# Groq
+llm = LLMClient(
+    base_url="https://api.groq.com/openai/v1",
+    model="llama-3.3-70b-versatile",
+    api_key="gsk-...",
+)
+
+# OpenRouter
+llm = LLMClient(
+    base_url="https://openrouter.ai/api/v1",
+    model="meta-llama/llama-3.3-70b-instruct:free",
+    api_key="sk-or-...",
+)
+
+agg = Aggregator(conn, llm_client=llm)
+result = agg.topic_summary(tag="勞動", k=5)
+print(result.narrative)  # Markdown summary from the LLM
+```
+
+When the LLM call fails (timeout, 4xx, 5xx, response-shape mismatch) the
+Aggregator logs a warning and returns `narrative=None`; the structured
+fields are unaffected.
+
+### Web chat panel (single turn)
+
+`wenji serve` exposes the same functionality through a collapsed chat
+panel on the search page. Set the LLM via env vars before starting:
+
+```bash
+export WENJI_LLM_BASE_URL="https://api.groq.com/openai/v1"
+export WENJI_LLM_MODEL="llama-3.3-70b-versatile"
+export WENJI_LLM_API_KEY="gsk-..."
+wenji serve --db data/wenji.db
+```
+
+Open the chat panel, switch between `主題彙總` / `概念對比`, and submit.
+Each query is independent — no conversation history is kept.
+
+### Cache management
+
+Results are cached for 30 days keyed on `(function, canonical_args)`.
+To force a fresh run:
+
+```bash
+wenji aggregate clear-cache --db data/wenji.db
+```

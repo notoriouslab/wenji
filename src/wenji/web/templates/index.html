@@ -64,11 +64,40 @@
     </section>
   </main>
 
+  <details class="chat-panel" id="chat-panel">
+    <summary>文章彙整 <span class="hint">依主題或概念，從語料中比較多篇文章觀點</span></summary>
+    <div class="chat-panel-body">
+      <p class="chat-intro">
+        每次發問獨立（不保留對話）。語料越豐富效果越好。
+      </p>
+      <div class="chat-tabs" role="tablist">
+        <button type="button" class="chat-tab active" data-mode="topic" role="tab">主題彙總</button>
+        <button type="button" class="chat-tab" data-mode="concept" role="tab">概念對比</button>
+      </div>
+      <form id="aggregate-form" class="chat-form">
+        <label>
+          <span class="chat-label" id="chat-input-label">主題</span>
+          <input type="text" name="query" id="chat-query" placeholder="例：勞動、禱告" required>
+          <small class="chat-hint" id="chat-input-hint">挑一個 tag 或關鍵字，從語料中找最相關的文章彙總。</small>
+        </label>
+        <details class="chat-advanced">
+          <summary>進階：排除文章類型</summary>
+          <div id="chat-subtype-filter" class="chat-subtype-filter">
+            <p class="chat-subtype-empty">語料中沒有 subtype 標記。</p>
+          </div>
+        </details>
+        <button type="submit">送出</button>
+      </form>
+      <div id="aggregate-result" class="chat-result" aria-live="polite"></div>
+    </div>
+  </details>
+
   <script>
     // Inline minimal JS: spinner toggle on form submit
     document.getElementById('search-form').addEventListener('submit', function () {
       document.body.classList.add('searching');
     });
   </script>
+  <script src="/static/aggregate.js" defer></script>
 </body>
 </html>

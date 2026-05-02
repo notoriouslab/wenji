@@ -527,3 +527,195 @@ body.searching .results::before {
   margin: 0 0 0.75rem 0;
 }
 .result-count strong { color: #1a1a1a; font-weight: 600; }
+
+/* ========== chat panel (wenji.aggregate) ========== */
+.chat-panel {
+  position: fixed;
+  right: 0;
+  top: 4.5rem;
+  width: min(28rem, 90vw);
+  max-height: calc(100vh - 5rem);
+  background: #fdfdfa;
+  border-left: 1px solid #d0d0c8;
+  border-bottom: 1px solid #d0d0c8;
+  box-shadow: -2px 2px 6px rgba(0,0,0,0.04);
+  font-size: 0.92rem;
+  z-index: 50;
+  overflow: hidden;
+}
+.chat-panel[open] {
+  overflow-y: auto;
+}
+.chat-panel summary {
+  cursor: pointer;
+  padding: 0.6rem 1rem;
+  background: #f4f4ee;
+  font-weight: 600;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+}
+.chat-panel[open] summary { border-bottom-color: #d0d0c8; }
+.chat-panel summary .hint {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: #888;
+  margin-left: 0.5rem;
+}
+.chat-panel-body { padding: 1rem; }
+.chat-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+.chat-tab {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d0d0c8;
+  background: #f4f4ee;
+  cursor: pointer;
+  font-size: 0.88rem;
+  border-radius: 3px;
+}
+.chat-tab.active {
+  background: #1a1a1a;
+  color: #f4f4ee;
+  border-color: #1a1a1a;
+}
+.chat-form label {
+  display: block;
+  margin-bottom: 0.6rem;
+}
+.chat-label {
+  display: block;
+  font-size: 0.78rem;
+  color: #555;
+  margin-bottom: 0.2rem;
+}
+.chat-form input[type="text"] {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d0c8;
+  border-radius: 3px;
+  font-size: 0.92rem;
+  box-sizing: border-box;
+}
+.chat-form button[type="submit"] {
+  width: 100%;
+  padding: 0.5rem;
+  background: #1a1a1a;
+  color: #f4f4ee;
+  border: none;
+  border-radius: 3px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.chat-result {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e0e0d8;
+}
+.chat-result h4 {
+  margin: 0.75rem 0 0.3rem 0;
+  font-size: 0.92rem;
+}
+.chat-result ol, .chat-result ul {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+}
+.chat-result li { margin-bottom: 0.4rem; }
+.chat-narrative {
+  background: #f8f8f2;
+  padding: 0.6rem 0.8rem;
+  border-radius: 3px;
+  margin-bottom: 0.75rem;
+  line-height: 1.55;
+}
+.chat-narrative p { margin: 0.4rem 0; }
+.chat-narrative-empty {
+  font-size: 0.82rem;
+  color: #888;
+  font-style: italic;
+}
+.chat-snippet {
+  font-size: 0.82rem;
+  color: #555;
+  margin-top: 0.15rem;
+}
+.chat-score {
+  font-size: 0.78rem;
+  color: #888;
+  margin-left: 0.4rem;
+}
+.chat-stats {
+  font-size: 0.82rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+.chat-loading, .chat-error {
+  font-size: 0.88rem;
+  color: #555;
+}
+.chat-error { color: #b03030; }
+.chat-excerpts {
+  font-size: 0.82rem;
+  color: #444;
+}
+
+/* chat panel UX refinements (subtype checkbox + clearer copy) */
+.chat-intro {
+  font-size: 0.82rem;
+  color: #666;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+.chat-hint {
+  display: block;
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 0.2rem;
+}
+.chat-advanced {
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+}
+.chat-advanced > summary {
+  cursor: pointer;
+  color: #555;
+  padding: 0.3rem 0;
+  user-select: none;
+}
+.chat-advanced[open] > summary { color: #1a1a1a; }
+.chat-subtype-filter {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+}
+.chat-subtype-empty {
+  font-size: 0.82rem;
+  color: #888;
+  font-style: italic;
+  margin: 0.2rem 0;
+}
+.chat-checkbox {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 !important;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #d0d0c8;
+  border-radius: 12px;
+  background: #f8f8f2;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+.chat-checkbox input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.chat-checkbox:hover { background: #ececde; }
+.chat-count {
+  color: #999;
+  font-size: 0.78rem;
+  margin-left: 0.15rem;
+}

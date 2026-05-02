@@ -7,6 +7,41 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`wenji.aggregate` module** — query-time topic and concept aggregation,
+  positioned as the differentiation surface vs. NotebookLM / GraphRAG / KAG
+  per the LLM-essential-not-LLM-default philosophy:
+  - `Aggregator(db, llm_client=None)` with `topic_summary(tag, filter, k)`
+    and `concept_perspectives(concept, filter, top_sources, per_source)`.
+  - `Filter` dataclass with Django-style lookup suffixes (`__in`,
+    `__not_in`, `__gte`, `__lte`) over `tag`, `source_type`, `subtype`,
+    `pub_year`, `category`.
+  - `LLMClient(base_url, model, api_key, timeout=10.0)` — zero-abstraction
+    wrapper around any OpenAI-compatible `chat/completions` endpoint
+    (Groq, OpenRouter, Together, Gemini OpenAI-compat, vLLM, …).
+  - `LLMClientError` raised on timeout / 4xx / 5xx / response-shape
+    mismatch; caught at the Aggregator boundary, falls back to
+    `narrative=None` with a logged warning.
+  - 30-day query-level cache keyed on
+    `sha256(function + canonical_args_json)`; identical query reuses cache
+    on subsequent calls.
+- **`aggregate_cache` table** added to the schema (CREATE IF NOT EXISTS;
+  schema_version unchanged at 2 — backward-compatible with existing v0.2
+  databases on `initialise_schema`).
+- **Web chat panel** — collapsed-by-default `<details>` element on the
+  search page with topic/concept tabs, single-turn submission, exclude-
+  subtype filter input. Renders narrative server-side as Markdown HTML.
+- **`POST /api/aggregate/topic` and `/api/aggregate/concept`** endpoints
+  return `asdict(result)` plus a `narrative_html` field; LLM failures or
+  missing client surface as `narrative: null` (200, never 5xx).
+- **`wenji aggregate clear-cache --db PATH`** CLI subcommand for cache
+  invalidation. Aggregation itself has no CLI entry point — the user
+  surface is the Web chat panel and the Python API.
+- **`WENJI_LLM_BASE_URL` / `WENJI_LLM_MODEL` / `WENJI_LLM_API_KEY` /
+  `WENJI_LLM_TIMEOUT`** environment variables wire an LLM into
+  `wenji serve` for the chat panel.
+
 ### Changed (BREAKING)
 
 - **Schema bumped to version 2.** v0.1.0 databases must be rebuilt from disk

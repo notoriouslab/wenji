@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import typer
 
+from wenji.cli import aggregate as _aggregate
 from wenji.cli import classify as _classify
 from wenji.cli import download as _download
 from wenji.cli import eval as _eval
@@ -48,6 +49,7 @@ app.command(
     name="set-chunk-strategy",
     help="Batch-write chunk_strategy into the frontmatter of all .md under a path.",
 )(_set_chunk_strategy.command)
+app.add_typer(_aggregate.app, name="aggregate")
 
 
 __all__ = ["app"]

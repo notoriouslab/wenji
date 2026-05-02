@@ -119,3 +119,16 @@ CREATE TABLE IF NOT EXISTS query_rewrite_cache (
     created_at TEXT NOT NULL  -- ISO 8601 timestamp
 );
 CREATE INDEX IF NOT EXISTS idx_query_rewrite_created ON query_rewrite_cache(created_at);
+
+-- ============================================================
+-- 8. aggregate_cache: Aggregator result cache (TTL handled at app layer, default 30 days)
+--   Key: sha256(function_name + ":" + canonical_args_json)
+--   Value: JSON-serialised TopicSummary / ConceptPerspectives
+--   Schema_version unchanged (CREATE IF NOT EXISTS handles backward-compat upgrade).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS aggregate_cache (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    created_at TEXT NOT NULL  -- ISO 8601 UTC timestamp
+);
+CREATE INDEX IF NOT EXISTS idx_aggregate_cache_created ON aggregate_cache(created_at);
