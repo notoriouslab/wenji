@@ -23,6 +23,7 @@ def connect(
     db_path: str | Path,
     *,
     libsimple_path: str | Path | None = None,
+    check_same_thread: bool = True,
 ) -> sqlite3.Connection:
     """Open a SQLite connection with sane defaults.
 
@@ -30,11 +31,16 @@ def connect(
         db_path: Path to SQLite file. ``":memory:"`` for ephemeral DB.
         libsimple_path: Optional path to libsimple shared library. If supplied,
             the extension is loaded; failure raises :class:`WenjiError`.
+        check_same_thread: Forwarded to :func:`sqlite3.connect`. Default
+            ``True`` matches the stdlib safety guard; the FastAPI web app
+            passes ``False`` so the lazily-built ``Searcher`` connection can
+            serve requests from any worker thread (SQLite's own file lock
+            still serialises writes within the single-process server).
 
     Returns:
         Open ``sqlite3.Connection``.
     """
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), check_same_thread=check_same_thread)
     conn.execute("PRAGMA foreign_keys = ON")
     if str(db_path) != ":memory:":
         conn.execute("PRAGMA journal_mode = WAL")

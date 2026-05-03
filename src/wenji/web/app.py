@@ -31,7 +31,8 @@ from fastapi.templating import Jinja2Templates
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
-from wenji.classify.axes_loader import UNCLASSIFIED
+from wenji.ask import Asker
+from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, WenjiError
 from wenji.search import Searcher
@@ -108,11 +109,24 @@ def _llm_client_from_env() -> LLMClient | None:
     return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
 
 
+def _axes_config_from_env() -> AxesConfig | None:
+    """Load AxesConfig from WENJI_AXES_YAML, or return None on unset/error."""
+    path = os.environ.get("WENJI_AXES_YAML")
+    if not path:
+        return None
+    try:
+        return load_axes_config(path)
+    except (ConfigError, FileNotFoundError, OSError) as exc:
+        logger.warning("WENJI_AXES_YAML present but failed to load (%s); ignoring", exc)
+        return None
+
+
 def create_app(
     *,
     db_path: str | Path | None = None,
     searcher: Searcher | None = None,
     llm_client: LLMClient | None = None,
+    axes_config: AxesConfig | None = None,
 ) -> FastAPI:
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
@@ -126,10 +140,16 @@ def create_app(
         else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db")),
         "searcher": searcher,
         "llm_client": llm_client if llm_client is not None else _llm_client_from_env(),
+        "axes_config": axes_config if axes_config is not None else _axes_config_from_env(),
     }
 
     def _get_conn() -> sqlite3.Connection:
-        return connect(state["db_path"])
+        # FastAPI dispatches sync routes via a thread pool, so the lazy
+        # Searcher connection (and any per-request connection) must accept
+        # cross-thread access. SQLite still serialises writes via its file
+        # lock, and the web app only writes to query_rewrite_cache /
+        # aggregate_cache (low contention).
+        return connect(state["db_path"], check_same_thread=False)
 
     def _get_searcher() -> Searcher | None:
         """Lazy-construct Searcher; return None if model files missing (degraded mode)."""
@@ -148,6 +168,15 @@ def create_app(
         """Construct an Aggregator with a fresh DB connection + the configured LLM client."""
         return Aggregator(_get_conn(), llm_client=state["llm_client"])
 
+    def _get_asker() -> Asker:
+        """Construct an Asker; raise 503/504 when LLM or searcher are unavailable."""
+        if state["llm_client"] is None:
+            raise HTTPException(status_code=503, detail="LLM not configured")
+        searcher = _get_searcher()
+        if searcher is None:
+            raise HTTPException(status_code=504, detail="search engine not ready")
+        return Asker(_get_conn(), llm_client=state["llm_client"], searcher=searcher)
+
     def _build_filter(filter_dict: dict | None) -> Filter | None:
         if not filter_dict:
             return None
@@ -155,6 +184,29 @@ def create_app(
             return Filter(**filter_dict)
         except TypeError as exc:
             raise HTTPException(status_code=400, detail=f"invalid filter: {exc}") from exc
+
+    def _post_filter_results(
+        conn: sqlite3.Connection,
+        results: list[dict[str, Any]],
+        *,
+        tag: str | None,
+        source_type: str | None,
+    ) -> list[dict[str, Any]]:
+        if not results or (tag is None and source_type is None):
+            return results
+        f = Filter(tag=tag, source_type=source_type)
+        clause, params = f.to_sql_where(table_alias="m")
+        if not clause:
+            return results
+        ids = [r["article_id"] for r in results]
+        placeholders = ",".join(["?"] * len(ids))
+        rows = conn.execute(
+            f"SELECT m.article_id FROM articles_meta m "
+            f"WHERE m.article_id IN ({placeholders}) AND {clause}",
+            [*ids, *params],
+        ).fetchall()
+        allowed = {row[0] for row in rows}
+        return [r for r in results if r["article_id"] in allowed]
 
     def _render_narrative(narrative: str | None) -> str | None:
         if not narrative:
@@ -169,6 +221,119 @@ def create_app(
             "searcher_ready": state["searcher"] is not None,
         }
 
+    def _compute_facets(
+        conn: sqlite3.Connection,
+        top: int = 15,
+        *,
+        query_ids: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """Compute corpus-wide tag/source_type facets, optionally narrowed.
+
+        ``query_ids`` is the article_id set that the *current* search would
+        surface (typically the hybrid top-50 candidate pool). Restricting
+        ``query_count`` to that exact set guarantees that
+        ``facet count = clicks-yields count``: if facet shows ``(c/q)`` then
+        clicking the tag returns ``min(q, 10)`` results.
+        """
+        if top <= 0:
+            top = 15
+        top = min(top, 50)
+        # query-aware tag/source_type counts, limited to articles matching `query`
+        tag_q_counts: dict[str, int] = {}
+        source_q_counts: dict[str, int] = {}
+        if query_ids:
+            ids = list(query_ids)
+            # SQLite has a default 999-parameter limit; chunk if needed
+            for offset in range(0, len(ids), 900):
+                chunk = ids[offset : offset + 900]
+                placeholders = ",".join(["?"] * len(chunk))
+                try:
+                    rows = conn.execute(
+                        "SELECT je.value AS tag, COUNT(*) AS c "
+                        f"FROM articles_meta m, json_each(NULLIF(m.tags, '')) je "
+                        f"WHERE m.article_id IN ({placeholders}) "
+                        "GROUP BY je.value",
+                        chunk,
+                    ).fetchall()
+                    for name, c in rows:
+                        tag_q_counts[name] = tag_q_counts.get(name, 0) + c
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    rows = conn.execute(
+                        "SELECT source_type, COUNT(*) AS c "
+                        f"FROM articles_meta "
+                        f"WHERE article_id IN ({placeholders}) "
+                        "AND source_type IS NOT NULL AND source_type != '' "
+                        "GROUP BY source_type",
+                        chunk,
+                    ).fetchall()
+                    for name, c in rows:
+                        source_q_counts[name] = source_q_counts.get(name, 0) + c
+                except sqlite3.OperationalError:
+                    pass
+
+        try:
+            tag_rows = conn.execute(
+                "SELECT je.value AS tag, COUNT(*) AS c "
+                "FROM articles_meta m, json_each(NULLIF(m.tags, '')) je "
+                "WHERE IFNULL(m.category, '') != 'excluded' "
+                "GROUP BY je.value "
+                "ORDER BY c DESC, je.value ASC "
+                "LIMIT ?",
+                (top,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            tag_rows = []
+        try:
+            source_rows = conn.execute(
+                "SELECT source_type, COUNT(*) AS c "
+                "FROM articles_meta "
+                "WHERE source_type IS NOT NULL AND source_type != '' "
+                "AND IFNULL(category, '') != 'excluded' "
+                "GROUP BY source_type "
+                "ORDER BY c DESC, source_type ASC "
+                "LIMIT ?",
+                (top,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            source_rows = []
+
+        def _decorate(rows, q_counts):
+            decorated = [
+                {
+                    "name": r[0],
+                    "count": r[1],
+                    "query_count": q_counts.get(r[0], 0) if query_ids is not None else None,
+                }
+                for r in rows
+            ]
+            # When a query narrows the corpus, surface query-relevant
+            # facets first by sorting on query_count desc, breaking ties
+            # by corpus count desc.
+            if query_ids is not None:
+                decorated.sort(key=lambda f: (-(f["query_count"] or 0), -f["count"]))
+            return decorated
+
+        return {
+            "tags": _decorate(tag_rows, tag_q_counts),
+            "source_types": _decorate(source_rows, source_q_counts),
+            "query_aware": query_ids is not None,
+        }
+
+    @app.get("/api/facets")
+    def api_facets(top: int = 15) -> JSONResponse:
+        """Return top tags + source_types for the entity sidebar (D7).
+
+        Always corpus-wide here — the query-aware variant is computed only
+        inside the `/` index handler where search results are available.
+        """
+        conn = _get_conn()
+        try:
+            return JSONResponse(_compute_facets(conn, top))
+        finally:
+            conn.close()
+
     @app.get("/api/axes")
     def api_axes() -> dict[str, Any]:
         conn = _get_conn()
@@ -180,7 +345,9 @@ def create_app(
             ).fetchall()
         finally:
             conn.close()
-        return {"axes": [{"id": r[0], "count": r[1]} for r in rows]}
+        cfg: AxesConfig | None = state.get("axes_config")
+        parents = {a.id: a.parent for a in cfg.axes} if cfg else {}
+        return {"axes": [{"id": r[0], "parent": parents.get(r[0]), "count": r[1]} for r in rows]}
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
@@ -244,6 +411,33 @@ def create_app(
         payload["narrative_html"] = _render_narrative(result.narrative)
         return JSONResponse(payload)
 
+    @app.post("/api/ask")
+    async def api_ask(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="body must be a JSON object")
+        q = body.get("q")
+        if not isinstance(q, str) or not q.strip():
+            raise HTTPException(status_code=400, detail="missing or empty 'q'")
+        k_raw = body.get("k", 5)
+        if not isinstance(k_raw, int) or k_raw <= 0:
+            raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        axis = body.get("axis")
+        if axis is not None and not isinstance(axis, str):
+            raise HTTPException(status_code=400, detail="'axis' must be a string or null")
+        filter_obj = _build_filter(body.get("filter"))
+        asker = _get_asker()
+        try:
+            result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj)
+        finally:
+            asker.db.close()
+        payload = asdict(result)
+        payload["narrative_html"] = _render_narrative(result.answer)
+        return JSONResponse(payload)
+
     @app.post("/api/aggregate/concept")
     async def api_aggregate_concept(request: Request) -> JSONResponse:
         try:
@@ -277,10 +471,47 @@ def create_app(
         return JSONResponse(payload)
 
     @app.get("/", response_class=HTMLResponse)
-    def index(request: Request, q: str = "", axis: str | None = None) -> HTMLResponse:
+    def index(
+        request: Request,
+        q: str = "",
+        axis: str | None = None,
+        tag: str | None = None,
+        source_type: str | None = None,
+    ) -> HTMLResponse:
         results: list[dict[str, Any]] = []
+        candidate_ids: set[str] | None = None
         error_message: str | None = None
-        if q:
+        # Browse-by-facet: tag/source_type without a query lists matching
+        # articles directly from articles_meta (newest first), so users can
+        # explore a tag in isolation from the article-page tag chips.
+        if not q and (tag or source_type):
+            browse_conn = _get_conn()
+            try:
+                f = Filter(tag=tag, source_type=source_type)
+                clause, params = f.to_sql_where(table_alias="m")
+                sql = (
+                    "SELECT m.article_id, m.title, m.source_type, m.category, m.pub_date "
+                    "FROM articles_meta m "
+                    "WHERE IFNULL(m.category, '') != 'excluded'"
+                    + (f" AND {clause}" if clause else "")
+                    + " ORDER BY COALESCE(m.pub_date, '') DESC LIMIT 30"
+                )
+                rows = browse_conn.execute(sql, params).fetchall()
+                results = [
+                    {
+                        "article_id": r[0],
+                        "title": r[1],
+                        "source_type": r[2],
+                        "category": r[3],
+                        "pub_date": r[4],
+                        "hybrid_score": None,
+                        "content_snippet": "",
+                    }
+                    for r in rows
+                ]
+            finally:
+                browse_conn.close()
+        elif q:
             s = _get_searcher()
             if s is None:
                 error_message = (
@@ -289,7 +520,22 @@ def create_app(
                 )
             else:
                 try:
-                    results = s.search(q, axis=axis, limit=10)
+                    # Always pull 50 candidates so (a) the facet sidebar's
+                    # query_count reflects the same set the user would see
+                    # after clicking, and (b) tag/source_type post-filter
+                    # has enough headroom for rare facets.
+                    fetch_limit = 50
+                    results = s.search(q, axis=axis, limit=fetch_limit)
+                    candidate_ids = {r["article_id"] for r in results}
+                    if tag or source_type:
+                        filter_conn = _get_conn()
+                        try:
+                            results = _post_filter_results(
+                                filter_conn, results, tag=tag, source_type=source_type
+                            )
+                        finally:
+                            filter_conn.close()
+                    results = results[:10]
                 except WenjiError as exc:
                     error_message = f"搜尋失敗：{exc}"
 
@@ -302,9 +548,31 @@ def create_app(
                 (UNCLASSIFIED,),
             ).fetchall()
             conn.close()
-            axes = [{"id": r[0], "count": r[1]} for r in axis_rows]
+            cfg: AxesConfig | None = state.get("axes_config")
+            axes = []
+            for r in axis_rows:
+                axis_def = cfg.find_axis(r[0]) if cfg else None
+                depth = len(cfg.ancestors(r[0])) if cfg and axis_def else 0
+                axes.append(
+                    {
+                        "id": r[0],
+                        "parent": axis_def.parent if axis_def else None,
+                        "depth": depth,
+                        "count": r[1],
+                    }
+                )
         except sqlite3.OperationalError:
             axes = []
+
+        # Facet sidebar (top tags + source_types) — best-effort, ignore failures
+        try:
+            conn = _get_conn()
+            try:
+                facets = _compute_facets(conn, 15, query_ids=candidate_ids)
+            finally:
+                conn.close()
+        except sqlite3.OperationalError:
+            facets = {"tags": [], "source_types": [], "query_aware": False}
 
         return templates.TemplateResponse(
             request,
@@ -312,8 +580,11 @@ def create_app(
             {
                 "query": q,
                 "axis": axis,
+                "tag": tag,
+                "source_type": source_type,
                 "results": results,
                 "axes": axes,
+                "facets": facets,
                 "error": error_message,
             },
         )
@@ -385,6 +656,15 @@ def create_app(
         finally:
             conn.close()
 
+        import json as _json
+
+        try:
+            tag_list = _json.loads(meta[6]) if meta[6] else []
+        except _json.JSONDecodeError:
+            tag_list = []
+        if not isinstance(tag_list, list):
+            tag_list = []
+
         article_data = {
             "article_id": meta[0],
             "title": meta[1],
@@ -393,6 +673,7 @@ def create_app(
             "pub_date": meta[4],
             "category": meta[5],
             "tags": meta[6],
+            "tag_list": tag_list,
             "source_url": meta[7],
             "description": meta[8],
             "content": content,

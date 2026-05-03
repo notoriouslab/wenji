@@ -45,6 +45,7 @@ class Axis:
     short: str = ""
     description: str = ""
     icon: str = ""
+    parent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,26 @@ class AxesConfig:
 
     def find_axis(self, axis_id: str) -> Axis | None:
         return next((a for a in self.axes if a.id == axis_id), None)
+
+    def ancestors(self, axis_id: str) -> list[str]:
+        """Return parent chain of ``axis_id`` nearest-first.
+
+        Returns ``[]`` for root axes, unknown axes, or flat (no-``parent``)
+        configurations. Cycles are rejected at load time so the walk cannot
+        loop forever.
+        """
+        chain: list[str] = []
+        current = self.find_axis(axis_id)
+        if current is None:
+            return chain
+        seen: set[str] = {current.id}
+        while current is not None and current.parent is not None:
+            if current.parent in seen:
+                break
+            chain.append(current.parent)
+            seen.add(current.parent)
+            current = self.find_axis(current.parent)
+        return chain
 
 
 def _build_rule(raw: dict, axis_id: str, idx: int) -> Rule:
@@ -129,6 +150,10 @@ def _build_axis(raw: dict, idx: int) -> Axis:
     if not isinstance(raw["rules"], list):
         raise ConfigError(f"axis {raw['id']!r} 'rules' must be a list")
 
+    parent = raw.get("parent")
+    if parent is not None and (not isinstance(parent, str) or not parent):
+        raise ConfigError(f"axis {raw['id']!r} 'parent' must be a non-empty string or null")
+
     rules = tuple(_build_rule(r, raw["id"], i) for i, r in enumerate(raw["rules"]))
     return Axis(
         id=raw["id"],
@@ -138,6 +163,7 @@ def _build_axis(raw: dict, idx: int) -> Axis:
         description=str(raw.get("description", "")),
         rules=rules,
         icon=str(raw.get("icon", "")),
+        parent=parent,
     )
 
 
@@ -165,6 +191,26 @@ def _build_validation(raw: dict | None) -> ValidationBounds:
         per_axis_min=_opt_int("per_axis_min"),
         per_axis_max=_opt_int("per_axis_max"),
     )
+
+
+def _validate_parent_chains(axes: tuple[Axis, ...]) -> None:
+    """Reject unknown parent references and cycles in the parent chain."""
+    by_id = {a.id: a for a in axes}
+    for axis in axes:
+        if axis.parent is None:
+            continue
+        if axis.parent not in by_id:
+            raise ConfigError(
+                f"axis {axis.id!r} parent {axis.parent!r} does not refer to a known axis"
+            )
+        seen = [axis.id]
+        cur: str | None = axis.parent
+        while cur is not None:
+            if cur in seen:
+                seen.append(cur)
+                raise ConfigError(f"axis cycle detected: {' -> '.join(seen)}")
+            seen.append(cur)
+            cur = by_id[cur].parent
 
 
 def load_axes_config(path: str | Path) -> AxesConfig:
@@ -196,6 +242,8 @@ def load_axes_config(path: str | Path) -> AxesConfig:
     orders = [a.order for a in axes]
     if len(set(orders)) != len(orders):
         raise ConfigError(f"duplicate axis order values: {orders}")
+
+    _validate_parent_chains(axes)
 
     return AxesConfig(
         version=int(raw.get("version", 1)),

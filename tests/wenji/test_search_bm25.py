@@ -40,6 +40,20 @@ def test_bm25_axis_filter(populated_db):
     assert no_axis_results == []
 
 
+def test_bm25_axis_filter_matches_propagated_rows(populated_db):
+    """Propagated ancestor rows from hierarchical classify match axis filter."""
+    aid = populated_db.execute(
+        "SELECT article_id FROM articles_meta WHERE title LIKE '%因信%'"
+    ).fetchone()[0]
+    populated_db.execute(
+        "INSERT INTO article_axes (article_id, axis_id, is_primary) VALUES (?, ?, 0)",
+        (aid, "meta_theology"),
+    )
+    populated_db.commit()
+    results = bm25_search(populated_db, "因信稱義", axis="meta_theology")
+    assert any(r["article_id"] == aid for r in results)
+
+
 def test_bm25_limit_caps_results(populated_db):
     results = bm25_search(populated_db, "禱告", limit=1)
     assert len(results) <= 1

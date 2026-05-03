@@ -18,6 +18,8 @@
         autofocus
         required>
       {% if axis %}<input type="hidden" name="axis" value="{{ axis|e }}">{% endif %}
+      {% if tag %}<input type="hidden" name="tag" value="{{ tag|e }}">{% endif %}
+      {% if source_type %}<input type="hidden" name="source_type" value="{{ source_type|e }}">{% endif %}
       <button type="submit">搜尋</button>
     </form>
   </header>
@@ -36,7 +38,7 @@
         <li><a href="/?q={{ query|urlencode }}"
                class="{% if not axis %}active{% endif %}">全部</a></li>
         {% for a in axes %}
-        <li>
+        <li{% if a.depth %} style="padding-left: {{ a.depth * 12 }}px"{% endif %}>
           <a href="/?q={{ query|urlencode }}&amp;axis={{ a.id|urlencode }}"
              class="{% if axis == a.id %}active{% endif %}">
             {{ a.id }} <span class="count">({{ a.count }})</span>
@@ -44,12 +46,51 @@
         </li>
         {% endfor %}
       </ul>
+
+      {% if facets and (facets.tags or facets.source_types) %}
+      <details class="facet-section">
+        <summary>熱門 Tag / 類型</summary>
+        {% if facets.tags %}
+        <h4>熱門 Tag</h4>
+        <ul class="facet-list">
+          {% for f in facets.tags %}
+          <li class="{% if facets.query_aware and not f.query_count %}facet-zero{% endif %}">
+            <a href="/?q={{ query|urlencode }}{% if axis %}&amp;axis={{ axis|urlencode }}{% endif %}&amp;tag={{ f.name|urlencode }}"
+               class="{% if tag == f.name %}active{% endif %}">
+              {{ f.name }} <span class="count">{% if facets.query_aware %}({{ f.count }}/{{ f.query_count }}){% else %}({{ f.count }}){% endif %}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if facets.source_types %}
+        <h4>熱門類型</h4>
+        <ul class="facet-list">
+          {% for f in facets.source_types %}
+          <li class="{% if facets.query_aware and not f.query_count %}facet-zero{% endif %}">
+            <a href="/?q={{ query|urlencode }}{% if axis %}&amp;axis={{ axis|urlencode }}{% endif %}&amp;source_type={{ f.name|urlencode }}"
+               class="{% if source_type == f.name %}active{% endif %}">
+              {{ f.name }} <span class="count">{% if facets.query_aware %}({{ f.count }}/{{ f.query_count }}){% else %}({{ f.count }}){% endif %}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </details>
+      {% endif %}
     </aside>
 
     <section class="results">
-      {% if query and not error %}
+      {% if not error and (query or tag or source_type) %}
         {% if results %}
-        <p class="result-count">找到 <strong>{{ results|length }}</strong> 筆結果</p>
+        <p class="result-count">
+          {% if not query and (tag or source_type) %}
+          瀏覽 {% if tag %}<code>tag={{ tag }}</code>{% endif %}{% if source_type %}<code>source_type={{ source_type }}</code>{% endif %}
+          ({{ results|length }} 筆，依出版日期由新到舊)
+          {% else %}
+          找到 <strong>{{ results|length }}</strong> 筆結果
+          {% endif %}
+        </p>
         <ol class="result-list">
           {% for r in results %}
           {% include "result.html" %}
@@ -58,11 +99,34 @@
         {% else %}
         <p class="empty">查無結果。</p>
         {% endif %}
-      {% elif not query %}
+      {% elif not (query or tag or source_type) %}
       <p class="welcome">在上方輸入查詢以開始搜尋。</p>
       {% endif %}
     </section>
   </main>
+
+  <details class="ask-panel" id="ask-panel">
+    <summary>自由問答 <span class="hint">直接提問，wenji 從語料中檢索答案並列出引用段落</span></summary>
+    <div class="ask-panel-body">
+      <p class="ask-intro">
+        每次發問獨立（不保留上下文）。LLM 失敗時仍會顯示檢索結果。
+      </p>
+      <form id="ask-form" class="ask-form">
+        <label>
+          <span class="ask-label">問題</span>
+          <textarea name="q" id="ask-q" placeholder="例：因信稱義是什麼？" rows="2" required></textarea>
+        </label>
+        <label class="ask-axis-row">
+          <span class="ask-label">軸（選填）</span>
+          <select name="axis" id="ask-axis">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <button type="submit">送出</button>
+      </form>
+      <div id="ask-result" class="ask-result" aria-live="polite"></div>
+    </div>
+  </details>
 
   <details class="chat-panel" id="chat-panel">
     <summary>文章彙整 <span class="hint">依主題或概念，從語料中比較多篇文章觀點</span></summary>
@@ -99,5 +163,6 @@
     });
   </script>
   <script src="/static/aggregate.js" defer></script>
+  <script src="/static/ask.js" defer></script>
 </body>
 </html>

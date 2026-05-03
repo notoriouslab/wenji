@@ -22,7 +22,10 @@ app = typer.Typer(
 )
 
 
-@app.command(name="clear-cache", help="Wipe the aggregate_cache table for a wenji DB.")
+@app.command(
+    name="clear-cache",
+    help="Wipe the aggregate_cache table for a wenji DB (clears topic/concept and ask caches).",
+)
 def clear_cache(
     db: Path = typer.Option(..., "--db", exists=True, dir_okay=False, file_okay=True),
 ) -> None:

@@ -190,3 +190,72 @@ def test_validation_bounds_defaults():
     b = ValidationBounds()
     assert b.unclassified_max is None
     assert b.primary_uniq_required is True
+
+
+def test_three_level_hierarchy_loads_with_ancestors(tmp_path):
+    cfg_path = write_yaml(
+        tmp_path / "axes.yaml",
+        """
+axes:
+  - {id: theology, name: 神學, order: 1, rules: [{source_type: t, primary: true}]}
+  - id: soteriology
+    name: 救恩論
+    order: 2
+    parent: theology
+    rules: [{source_type: t, primary: true}]
+  - id: justification
+    name: 因信稱義
+    order: 3
+    parent: soteriology
+    rules: [{source_type: t, primary: true}]
+""",
+    )
+    cfg = load_axes_config(cfg_path)
+    assert cfg.find_axis("justification").parent == "soteriology"
+    assert cfg.ancestors("justification") == ["soteriology", "theology"]
+    assert cfg.ancestors("soteriology") == ["theology"]
+    assert cfg.ancestors("theology") == []
+
+
+def test_parent_cycle_raises(tmp_path):
+    cfg_path = write_yaml(
+        tmp_path / "axes.yaml",
+        """
+axes:
+  - {id: a, name: A, order: 1, parent: b, rules: [{source_type: t, primary: true}]}
+  - {id: b, name: B, order: 2, parent: a, rules: [{source_type: t, primary: true}]}
+""",
+    )
+    with pytest.raises(ConfigError, match="cycle"):
+        load_axes_config(cfg_path)
+
+
+def test_unknown_parent_raises(tmp_path):
+    cfg_path = write_yaml(
+        tmp_path / "axes.yaml",
+        """
+axes:
+  - id: child
+    name: 子
+    order: 1
+    parent: nonexistent
+    rules: [{source_type: t, primary: true}]
+""",
+    )
+    with pytest.raises(ConfigError, match="does not refer to a known axis"):
+        load_axes_config(cfg_path)
+
+
+def test_flat_axes_have_empty_ancestors(tmp_path):
+    cfg_path = write_yaml(
+        tmp_path / "axes.yaml",
+        """
+axes:
+  - {id: a, name: A, order: 1, rules: [{source_type: t, primary: true}]}
+  - {id: b, name: B, order: 2, rules: [{source_type: u, primary: true}]}
+""",
+    )
+    cfg = load_axes_config(cfg_path)
+    assert cfg.ancestors("a") == []
+    assert cfg.ancestors("b") == []
+    assert all(axis.parent is None for axis in cfg.axes)

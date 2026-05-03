@@ -69,7 +69,22 @@ def _classify_one(article: Article, config: AxesConfig) -> ClassifyResult:
             article.article_id,
             [axis.id for axis, _ in matches],
         )
-    matched_axes = [(axis.id, axis.id == primary_axis) for axis, _ in matches]
+
+    # Direct (rule-based) matches drive the is_primary flag.
+    matched_dict: dict[str, bool] = {}
+    for axis, _rule in matches:
+        if axis.id not in matched_dict:
+            matched_dict[axis.id] = axis.id == primary_axis
+
+    # Hierarchy propagation (D5): for every direct match, also tag every
+    # ancestor of that axis as a non-primary classification. Ancestors that
+    # are themselves direct matches keep their original is_primary flag.
+    for axis_id in list(matched_dict.keys()):
+        for ancestor_id in config.ancestors(axis_id):
+            if ancestor_id not in matched_dict:
+                matched_dict[ancestor_id] = False
+
+    matched_axes = list(matched_dict.items())
     return ClassifyResult(
         article_id=article.article_id,
         matched_axes=matched_axes,

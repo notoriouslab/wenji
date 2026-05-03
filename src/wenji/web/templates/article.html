@@ -16,7 +16,7 @@
     {% endif %}
   </header>
 
-  <div class="article-layout">
+  <div class="article-layout{% if article.chunks %} has-sidebar{% endif %}">
 
     {% if article.chunks %}
     <aside class="article-sidebar" id="articleSidebar">
@@ -31,7 +31,7 @@
         {% for c in article.chunks %}
         <li class="toc-item{% if c.chunk_index in article.matched_indexes %} hit{% endif %}"
             data-chunk-index="{{ c.chunk_index }}">
-          <a href="#chunk-{{ c.chunk_index }}" class="toc-link">
+          <a href="#c{{ c.chunk_index }}" class="toc-link">
             <span class="toc-anchor">¶{{ c.chunk_index + 1 }}</span>
             <span class="toc-preview">{{ c.preview or (c.chunk_text or '')[:36] }}{% if (c.chunk_text or '')|length > 36 %}…{% endif %}</span>
           </a>
@@ -49,6 +49,14 @@
         {% if article.author %} · <span>{{ article.author }}</span>{% endif %}
         {% if article.pub_date %} · <span>{{ article.pub_date }}</span>{% endif %}
       </div>
+      {% if article.tag_list %}
+      <div class="article-tags">
+        Tags：
+        {% for t in article.tag_list %}
+          <a class="article-tag" href="/?tag={{ t|urlencode }}">{{ t }}</a>{% if not loop.last %} {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
 
       {% if article.source_url %}
       <div class="doc-actions">
@@ -62,9 +70,9 @@
       <div class="article-body chunked">
         {% for c in article.chunks %}
         <section class="chunk{% if c.chunk_index in article.matched_indexes %} matched{% endif %}"
-                 id="chunk-{{ c.chunk_index }}"
+                 id="c{{ c.chunk_index }}"
                  data-chunk-index="{{ c.chunk_index }}">
-          <a class="chunk-anchor" href="#chunk-{{ c.chunk_index }}">¶{{ c.chunk_index + 1 }}</a>
+          <a class="chunk-anchor" href="#c{{ c.chunk_index }}">¶{{ c.chunk_index + 1 }}</a>
           <div class="chunk-text">{% if c.chunk_text_html %}{{ c.chunk_text_html|safe }}{% else %}{{ c.chunk_text }}{% endif %}</div>
         </section>
         {% endfor %}
@@ -88,10 +96,10 @@
         link.addEventListener('click', function (e) {
           e.preventDefault();
           var idx = item.getAttribute('data-chunk-index');
-          var target = document.getElementById('chunk-' + idx);
+          var target = document.getElementById('c' + idx);
           if (target) {
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            history.replaceState(null, '', '#chunk-' + idx);
+            history.replaceState(null, '', '#c' + idx);
           }
         });
       });
@@ -120,7 +128,7 @@
 
       {% if article.matched_indexes %}
       // Auto-scroll to first matched chunk on load
-      var firstId = "chunk-{{ article.matched_indexes[0] }}";
+      var firstId = "c{{ article.matched_indexes[0] }}";
       var el = document.getElementById(firstId);
       if (el) {
         setTimeout(function () {

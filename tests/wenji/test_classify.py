@@ -334,3 +334,127 @@ validation:
     cls.classify_all()
     report = cls.validate()
     assert any("per_axis" in f or "count" in f for f in report.failures)
+
+
+def test_classify_propagates_ancestors(db, tmp_path):
+    """Leaf axis match populates rows for every ancestor (D5)."""
+    cfg = load_axes_config(
+        _yaml(
+            tmp_path,
+            """
+axes:
+  - id: theology
+    name: 神學
+    order: 1
+    rules: [{source_type: never, primary: true}]
+  - id: soteriology
+    name: 救恩論
+    order: 2
+    parent: theology
+    rules: [{source_type: never, primary: true}]
+  - id: justification
+    name: 因信稱義
+    order: 3
+    parent: soteriology
+    rules:
+      - {source_type: classical, primary: true}
+""",
+        )
+    )
+    _seed(db, "a1", source_type="classical", title="路德論因信稱義")
+    cls = AxesClassifier(db, cfg)
+    cls.classify_one("a1")
+    rows = db.execute(
+        "SELECT axis_id, is_primary FROM article_axes WHERE article_id = 'a1' ORDER BY axis_id"
+    ).fetchall()
+    assert rows == [
+        ("justification", 1),
+        ("soteriology", 0),
+        ("theology", 0),
+    ]
+
+
+def test_classify_idempotent_under_hierarchy(db, tmp_path):
+    cfg = load_axes_config(
+        _yaml(
+            tmp_path,
+            """
+axes:
+  - id: theology
+    name: 神學
+    order: 1
+    rules: [{source_type: never, primary: true}]
+  - id: soteriology
+    name: 救恩論
+    order: 2
+    parent: theology
+    rules: [{source_type: classical, primary: true}]
+""",
+        )
+    )
+    _seed(db, "a1", source_type="classical", title="X")
+    cls = AxesClassifier(db, cfg)
+    cls.classify_one("a1")
+    cls.classify_one("a1")  # second call must not raise / duplicate
+    rows = db.execute(
+        "SELECT axis_id, is_primary FROM article_axes WHERE article_id = 'a1' ORDER BY axis_id"
+    ).fetchall()
+    assert rows == [("soteriology", 1), ("theology", 0)]
+
+
+def test_classify_direct_ancestor_match_keeps_primary(db, tmp_path):
+    """If the ancestor is itself directly matched as primary, it stays primary."""
+    cfg = load_axes_config(
+        _yaml(
+            tmp_path,
+            """
+axes:
+  - id: theology
+    name: 神學
+    order: 1
+    rules:
+      - {source_type: tgc-theology, primary: true}
+  - id: soteriology
+    name: 救恩論
+    order: 2
+    parent: theology
+    rules:
+      - {source_type: tgc-theology, primary: false}
+""",
+        )
+    )
+    _seed(db, "a1", source_type="tgc-theology", title="X")
+    cls = AxesClassifier(db, cfg)
+    cls.classify_one("a1")
+    rows = db.execute(
+        "SELECT axis_id, is_primary FROM article_axes WHERE article_id = 'a1' ORDER BY axis_id"
+    ).fetchall()
+    assert ("theology", 1) in rows
+    assert ("soteriology", 0) in rows
+
+
+def test_classify_flat_axes_no_propagation(db, tmp_path):
+    """Backward-compat: flat axes (no parent) yield exactly v0.2 behaviour."""
+    cfg = load_axes_config(
+        _yaml(
+            tmp_path,
+            """
+axes:
+  - id: a
+    name: A
+    order: 1
+    rules: [{source_type: t, primary: true}]
+  - id: b
+    name: B
+    order: 2
+    rules: [{source_type: u, primary: true}]
+""",
+        )
+    )
+    _seed(db, "a1", source_type="t", title="X")
+    cls = AxesClassifier(db, cfg)
+    cls.classify_one("a1")
+    rows = db.execute(
+        "SELECT axis_id, is_primary FROM article_axes WHERE article_id = 'a1'"
+    ).fetchall()
+    assert rows == [("a", 1)]

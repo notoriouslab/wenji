@@ -209,3 +209,62 @@ To force a fresh run:
 ```bash
 wenji aggregate clear-cache --db data/wenji.db
 ```
+
+## 自由問答（v0.3 ask）
+
+`wenji.ask.Asker` 是 retrieve-then-generate 的單一入口：先用 `Searcher` 取
+top-K，組 prompt 餵給 LLM，回傳 `Answer(query, answer, citations, retrieval)`。
+Citations 是 chunk-level（含 `chunk_index`），可以直接連到
+`/article/<id>#c<n>` 跳轉到精確段落。
+
+```python
+from wenji.ask import Asker
+from wenji.aggregate.llm import LLMClient
+from wenji.core.db import connect
+
+llm = LLMClient(
+    base_url="https://api.groq.com/openai/v1",
+    model="llama-3.3-70b-versatile",
+    api_key="gsk-...",
+)
+
+with connect("data/wenji.db") as conn:
+    asker = Asker(conn, llm_client=llm)
+    answer = asker.ask("因信稱義是什麼？", k=5)
+    print(answer.answer)              # Markdown
+    for c in answer.citations:
+        print(c.title, "#c", c.chunk_index, sep="")
+```
+
+LLM 失敗時，`answer` 為 `None`，但 `retrieval` 與 `citations` 仍 populated。
+
+### Web `/api/ask` endpoint
+
+`wenji serve` 同時暴露 `POST /api/ask`：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/ask \
+  -H 'content-type: application/json' \
+  -d '{"q": "因信稱義是什麼？", "k": 5}'
+```
+
+回應包含 `answer`、`citations`、`retrieval`、`narrative_html`（伺服端的
+Markdown render）。LLM 失敗永遠 200（`answer: null`），LLM 未配置回 503。
+
+### Hierarchical axes
+
+`axes.yaml` 加 `parent: <id>` 後，`wenji classify` 會把 leaf 命中的 axis
+propagate 到所有 ancestor。`/api/ask`、`/api/search`、`/` 的 axis filter
+直接接受 parent axis（subtree 包含）。範例見 `examples/axes.yaml` 末尾的
+hierarchical 區塊。
+
+### Entity facet sidebar
+
+`GET /api/facets?top=N`（cap 50）回 `{tags, source_types}`，搜尋頁面 sidebar
+有「熱門 Tag / 類型」的 `<details>` 區塊，點擊會把 `?tag=X` 或 `?source_type=Y`
+帶進 URL（與既有 `?q=` / `?axis=` 共存）。
+
+### Chunk anchor URL fragments
+
+文章瀏覽器 `/article/<id>` 對 `chunk_count > 0` 的文章 render
+`<section id="cN">`。搜尋結果連結會帶 `#cN` fragment 直接跳到 top-1 命中段落。

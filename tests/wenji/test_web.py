@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from wenji.classify.axes_loader import load_axes_config
 from wenji.web.app import create_app
 
 
@@ -71,6 +72,232 @@ def test_api_axes_returns_known_axis(client):
     body = r.json()
     axis_ids = {a["id"] for a in body["axes"]}
     assert "theology" in axis_ids
+
+
+def test_api_axes_parent_null_for_flat_config(client):
+    """Flat config (no axes_config wired) → every axis has parent=null."""
+    r = client.get("/api/axes")
+    body = r.json()
+    assert body["axes"]
+    assert all(a["parent"] is None for a in body["axes"])
+
+
+@pytest.fixture
+def hierarchy_setup(populated_db, tmp_path: Path):
+    """File DB + AxesConfig with hierarchical axes (theology → meta_theology)."""
+    import sqlite3 as _sqlite3
+
+    file_db = tmp_path / "wenji.db"
+    backup_conn = _sqlite3.connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+
+    cfg_path = tmp_path / "axes.yaml"
+    cfg_path.write_text(
+        """
+axes:
+  - {id: meta_theology, name: 上層神學, order: 0,
+     rules: [{source_type: never, primary: true}]}
+  - {id: theology, name: 神學, order: 1, parent: meta_theology,
+     rules: [{source_type: never, primary: true}]}
+""",
+        encoding="utf-8",
+    )
+    cfg = load_axes_config(cfg_path)
+    return file_db, cfg
+
+
+def test_api_axes_includes_parent_for_hierarchy(hierarchy_setup):
+    file_db, cfg = hierarchy_setup
+    app = create_app(db_path=file_db, searcher=None, axes_config=cfg)
+    c = TestClient(app)
+    r = c.get("/api/axes")
+    body = r.json()
+    by_id = {a["id"]: a for a in body["axes"]}
+    assert "theology" in by_id
+    assert by_id["theology"]["parent"] == "meta_theology"
+
+
+def test_api_facets_returns_top_tags_and_source_types(client):
+    r = client.get("/api/facets")
+    assert r.status_code == 200
+    body = r.json()
+    assert "tags" in body and "source_types" in body
+    if body["tags"]:
+        counts = [item["count"] for item in body["tags"]]
+        assert counts == sorted(counts, reverse=True)
+    assert len(body["tags"]) <= 15
+    assert len(body["source_types"]) <= 15
+
+
+def test_api_facets_caps_top_at_50(client):
+    r = client.get("/api/facets", params={"top": 200})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["tags"]) <= 50
+    assert len(body["source_types"]) <= 50
+
+
+def test_api_facets_default_top_is_15(client):
+    r = client.get("/api/facets")
+    body = r.json()
+    assert len(body["tags"]) <= 15
+    assert len(body["source_types"]) <= 15
+
+
+def test_api_facets_default_corpus_only_no_query_count(client):
+    """Without `q`, facets are corpus-wide and query_count is null."""
+    r = client.get("/api/facets")
+    body = r.json()
+    assert body.get("query_aware") is False
+    for entry in body["tags"]:
+        assert entry["query_count"] is None
+
+
+def test_index_browse_by_tag_without_query(client):
+    """Hitting /?tag=X with no query renders browse-mode (not the welcome banner)."""
+    r = client.get("/", params={"tag": "禱告"})
+    assert r.status_code == 200
+    # Browse-mode emits the 「瀏覽 tag=...」 banner or 「查無結果」 — never the welcome
+    assert "瀏覽" in r.text or "查無結果" in r.text
+    assert "在上方輸入查詢以開始搜尋" not in r.text
+
+
+def test_index_facets_query_aware_when_q_set(client):
+    """Facets are query-aware on /, sort query-relevant tags first."""
+    r = client.get("/", params={"q": "禱告"})
+    assert r.status_code == 200
+    # Each query-aware entry renders as `(corpus/query)`. At least one tag
+    # must surface query-aware count formatting in the rendered sidebar.
+    assert "/0)" in r.text or "/1)" in r.text or "/2)" in r.text or "/3)" in r.text
+
+
+def test_article_viewer_renders_chunk_anchors(populated_db, tmp_path):
+    """Chunked article uses id="cN" sections (D5 anchor convention)."""
+    import sqlite3 as _sqlite3
+
+    aid = populated_db.execute(
+        "SELECT article_id FROM articles_meta WHERE title LIKE '%因信%'"
+    ).fetchone()[0]
+    populated_db.execute("UPDATE articles_meta SET chunk_count = 2 WHERE article_id = ?", (aid,))
+    populated_db.execute(
+        "INSERT INTO chunks_fts (chunk_id, article_id, chunk_index, "
+        "title, title_raw, chunk_text, chunk_text_raw, "
+        "tags, tags_raw, source_type, pub_year) "
+        "VALUES (?, ?, ?, '', '', '', 'first chunk', '', '', 'sermon', 2024)",
+        (f"{aid}-0", aid, "0"),
+    )
+    populated_db.execute(
+        "INSERT INTO chunks_fts (chunk_id, article_id, chunk_index, "
+        "title, title_raw, chunk_text, chunk_text_raw, "
+        "tags, tags_raw, source_type, pub_year) "
+        "VALUES (?, ?, ?, '', '', '', 'second chunk', '', '', 'sermon', 2024)",
+        (f"{aid}-1", aid, "1"),
+    )
+    populated_db.commit()
+
+    file_db = tmp_path / "wenji.db"
+    backup_conn = _sqlite3.connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    app = create_app(db_path=file_db, searcher=None)
+    c = TestClient(app)
+    r = c.get(f"/article/{aid}")
+    assert r.status_code == 200
+    assert 'id="c0"' in r.text
+    assert 'id="c1"' in r.text
+    assert 'href="#c0"' in r.text
+    assert "#chunk-" not in r.text
+
+
+def test_article_viewer_omits_chunk_anchors_when_chunk_count_zero(client, populated_db):
+    """Articles with chunk_count = 0 fall back to whole-content rendering."""
+    # populated_db (in-memory) ingests short articles without chunking → chunk_count == 0
+    aid = populated_db.execute(
+        "SELECT article_id FROM articles_meta WHERE chunk_count = 0 LIMIT 1"
+    ).fetchone()
+    if aid is None:
+        pytest.skip("populated_db has every article chunked")
+    r = client.get(f"/article/{aid[0]}")
+    assert r.status_code == 200
+    assert 'id="c0"' not in r.text
+
+
+def test_search_result_title_link_carries_chunk_fragment(populated_db, tmp_path):
+    """Title link ends in `#cN` when matched_chunks is present in result dict."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    fake = _FakeSearcher(
+        results=[
+            {
+                "article_id": "x1",
+                "title": "因信稱義",
+                "source_type": "sermon",
+                "category": "",
+                "pub_date": "",
+                "hybrid_score": 0.5,
+                "content_snippet": "snippet",
+                "matched_chunks": [
+                    {"chunk_index": 7, "chunk_text": "...", "snippet": "...", "score": 0.0}
+                ],
+            }
+        ]
+    )
+    app = create_app(db_path=file_db, searcher=fake)
+    c = TestClient(app)
+    r = c.get("/", params={"q": "因信稱義"})
+    assert r.status_code == 200
+    assert "/article/x1?q=" in r.text
+    assert "#c7" in r.text
+
+
+def test_index_renders_facet_sidebar(client):
+    r = client.get("/", params={"q": "禱告"})
+    assert r.status_code == 200
+    assert "熱門 Tag / 類型" in r.text
+
+
+def test_index_renders_ask_panel(client):
+    """v0.3 自由問答 panel + ask.js script appear in the rendered page."""
+    r = client.get("/")
+    assert r.status_code == 200
+    assert 'class="ask-panel"' in r.text
+    assert "自由問答" in r.text
+    assert 'src="/static/ask.js"' in r.text
+
+
+def test_index_filter_by_tag_narrows_results(client, populated_db):
+    """Visiting ``/?q=...&tag=X`` post-filters search results by tag."""
+    r = client.get("/", params={"q": "禱告", "tag": "禱告"})
+    assert r.status_code == 200
+    assert "tag=" in r.text  # facet links present
+    r2 = client.get("/", params={"q": "禱告", "tag": "_no_such_tag_"})
+    assert r2.status_code == 200
+    assert "查無結果" in r2.text
+
+
+def test_index_sidebar_indents_child_axes(hierarchy_setup):
+    """Index sidebar applies padding-left for descendant axes (depth > 0)."""
+    import sqlite3 as _sqlite3
+
+    file_db, cfg = hierarchy_setup
+    with _sqlite3.connect(str(file_db)) as conn:
+        aid = conn.execute(
+            "SELECT article_id FROM articles_meta WHERE title LIKE '%因信%'"
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO article_axes (article_id, axis_id, is_primary) VALUES (?, ?, 0)",
+            (aid, "meta_theology"),
+        )
+        conn.commit()
+
+    app = create_app(db_path=file_db, searcher=None, axes_config=cfg)
+    c = TestClient(app)
+    r = c.get("/")
+    assert r.status_code == 200
+    assert "padding-left: 12px" in r.text
 
 
 def test_api_search_returns_results(client):

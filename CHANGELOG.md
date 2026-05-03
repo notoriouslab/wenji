@@ -9,6 +9,52 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`wenji.ask` module** — query-time RAG question answering on top of an
+  existing wenji DB:
+  - `Asker(db, llm_client, searcher=None)` with `ask(query, *, k=5,
+    axis=None, filter=None) -> Answer`. `llm_client` is required; passing
+    `None` raises `TypeError`.
+  - `Answer` dataclass `{query, answer, citations, retrieval}`. LLM failure
+    → `answer=None` while `retrieval` and `citations` remain populated
+    (D7 fallback inherited from `wenji.aggregate`).
+  - `Citation` dataclass `{article_id, chunk_index, title, snippet,
+    bm25_score}` — chunk-level so frontends can deep-link to
+    `/article/<id>#c<n>` (D3).
+  - Cached in the existing `aggregate_cache` table under the function name
+    `"ask"` (D6); `wenji aggregate clear-cache --db PATH` clears every
+    cache including ask.
+- **`POST /api/ask` web endpoint** — JSON `{q, k?, axis?, filter?}`,
+  returns `asdict(answer)` augmented with `narrative_html`. Malformed
+  input / unknown filter → 400. LLM failures stay 200 with `answer=null`.
+  503 returned only when the LLM client is not configured at startup.
+- **「自由問答」 chat-style answer panel UI** in the search page (collapsed
+  `<details>` parallel to the v0.2 「文章彙整」 panel; D8). Renders
+  `narrative_html` plus a numbered citations list whose links jump to
+  `/article/<id>#c<chunk_index>`. New `static/ask.js` + `style.css`
+  block, axis dropdown auto-populated from `/api/axes`.
+- **Hierarchical axis support** in `axes.yaml` — optional `parent: <id>`
+  field forms a tree (D4). `wenji classify` now propagates ancestors into
+  `article_axes` (`is_primary=0` for ancestors, leaf keeps its primary
+  flag; D5). The existing `Searcher` axis filter automatically matches
+  every descendant via the propagated rows. `GET /api/axes` includes a
+  `parent` field per axis; the search-page sidebar indents descendants.
+  Backward-compatible — flat `axes.yaml` files behave identically to
+  v0.2.
+- **Chunk anchor URL fragments** — article viewer wraps each chunk in
+  `<section id="c{chunk_index}">` (renamed from `chunk-{N}` for shorter
+  fragments; chunk_count=0 articles still fall back to whole-content
+  rendering). Search-result title links carry `#c<matched_chunk_index>`
+  when a chunk-level match is identifiable.
+- **Entity facet sidebar** — `GET /api/facets?top=N` (default 15, capped
+  at 50) returns top tags + source_types ordered by count. Search-page
+  sidebar gains a collapsed `<details>「熱門 Tag / 類型」` block where
+  every entry is a hyperlink that re-issues the search with `?tag=X` or
+  `?source_type=Y` appended. The `/` route post-filters search results
+  by these parameters, joined with the existing `q` and `axis`.
+- **`WENJI_AXES_YAML` env var** — when set, `wenji serve` loads the
+  hierarchical axis config so `/api/axes` and the sidebar can render the
+  tree. Unset → flat behaviour (every axis treated as a root).
+
 - **`wenji.aggregate` module** — query-time topic and concept aggregation,
   positioned as the differentiation surface vs. NotebookLM / GraphRAG / KAG
   per the LLM-essential-not-LLM-default philosophy:

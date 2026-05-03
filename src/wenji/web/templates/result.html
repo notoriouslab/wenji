@@ -1,6 +1,6 @@
 <li class="result-card">
   <div class="result-header">
-    <a href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}"
+    <a href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}{% if r.matched_chunks %}#c{{ r.matched_chunks[0].chunk_index }}{% endif %}"
        class="result-title">
       {{ r.title or '(無標題)' }}
     </a>
@@ -20,7 +20,7 @@
   <div class="chunk-badges">
     {% for mc in r.matched_chunks %}
     <a class="chunk-badge"
-       href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}#chunk-{{ mc.chunk_index }}"
+       href="/article/{{ r.article_id|urlencode }}{% if query %}?q={{ query|urlencode }}{% endif %}#c{{ mc.chunk_index }}"
        title="{{ mc.chunk_text[:120] if mc.chunk_text else mc.snippet }}">
       <span class="chunk-badge-anchor">¶{{ mc.chunk_index + 1 }}</span>
       <span class="chunk-badge-snippet">{{ mc.snippet|safe }}</span>

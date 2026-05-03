@@ -41,6 +41,25 @@ axes:
       - source_type: tech
         primary: true
 
+# Hierarchical axis example (v0.3) — uncomment to demonstrate the parent
+# chain. `wenji classify` propagates ancestors into article_axes so that a
+# search filtered by "theology" matches every descendant axis.
+#
+# axes:
+#   - {id: theology, name: 神學, order: 10,
+#      rules: [{source_type: tgc-theology, primary: true}]}
+#   - id: soteriology
+#     name: 救恩論
+#     order: 11
+#     parent: theology
+#     rules: [{source_type: tgc-theology, primary: false}]
+#   - id: justification
+#     name: 因信稱義
+#     order: 12
+#     parent: soteriology
+#     rules: [{source_type: classical, primary: true,
+#              title_regex: '因信稱義'}]
+
 # Validation bounds — permissive on a 9-article example corpus.
 validation:
   unclassified_max: 0
