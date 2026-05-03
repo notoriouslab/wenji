@@ -89,3 +89,18 @@ def test_classify_end_to_end(tmp_path: Path):
     result = runner.invoke(app, ["classify", "--db", str(db), "--config", str(cfg), "--validate"])
     assert result.exit_code == 0
     assert "PASS" in result.stdout
+
+
+def test_serve_enable_rewrite_without_env_exits_nonzero(monkeypatch):
+    for v in ("WENJI_LLM_BASE_URL", "WENJI_LLM_API_KEY", "WENJI_LLM_MODEL"):
+        monkeypatch.delenv(v, raising=False)
+    result = runner.invoke(app, ["serve", "--enable-rewrite"])
+    assert result.exit_code != 0
+    assert "missing" in result.stderr.lower() or "env" in result.stderr.lower()
+
+
+def test_search_accepts_no_rewrite_flag():
+    result = runner.invoke(app, ["search", "--help"])
+    assert result.exit_code == 0
+    assert "--no-rewrite" in result.stdout
+    assert "--enable-rewrite" in result.stdout

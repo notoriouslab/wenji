@@ -89,6 +89,16 @@ def run_benchmark_command(
     pipeline_mode: str = typer.Option(
         "rag_full", help="Tag for pipeline mode in run output (e.g. rag_full / hybrid_only)."
     ),
+    enable_rewrite: bool = typer.Option(
+        False,
+        "--enable-rewrite",
+        help="Tag this run as rewrite-on (server must be started with rewrite enabled).",
+    ),
+    no_rewrite: bool = typer.Option(
+        False,
+        "--no-rewrite",
+        help="Tag this run as rewrite-off (overrides env-derived default).",
+    ),
 ) -> None:
     """Run the 80-question v2 baseline against a running wenji serve.
 
@@ -96,7 +106,21 @@ def run_benchmark_command(
     ``<out>.summary.json`` digest. The output conforms to the logos benchmark
     v2 schema: each question gets per-hit ``gold_path_match`` (none/partial/full)
     and a question-level ``pass`` plus ``passing_paths``.
+
+    The ``--enable-rewrite`` / ``--no-rewrite`` flags do NOT control the
+    running server's rewrite state — they only tag the run output's
+    ``rewrite_enabled`` field for A/B comparison. Start the server with the
+    matching flag (e.g. ``wenji serve --enable-rewrite``) before running.
     """
+    if enable_rewrite and no_rewrite:
+        typer.echo("--enable-rewrite and --no-rewrite are mutually exclusive", err=True)
+        sys.exit(2)
+    rewrite_enabled = enable_rewrite or (
+        not no_rewrite
+        and __import__("wenji.config", fromlist=["load_llm_config_from_env"])
+        .load_llm_config_from_env()
+        .enabled
+    )
     import datetime
     import time
 
@@ -126,7 +150,8 @@ def run_benchmark_command(
     elapsed = time.time() - t0
 
     # Wrap in logos-v2-compatible run output schema.
-    run_id = f"wenji_r0_{datetime.date.today().isoformat()}"
+    suffix = "_rewrite_on" if rewrite_enabled else "_rewrite_off"
+    run_id = f"wenji_r0_{datetime.date.today().isoformat()}{suffix}"
     wenji_version = _detect_wenji_version()
     run_output = {
         "run_id": run_id,
@@ -137,6 +162,7 @@ def run_benchmark_command(
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "pipeline_mode": pipeline_mode,
         "top_k_requested": top_k,
+        "rewrite_enabled": rewrite_enabled,
         "questions": result["results"],
         "summary": {
             **result["summary"],

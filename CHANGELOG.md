@@ -7,6 +7,33 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (v0.3.2)
+
+- **LLM query rewrite wiring** — `QueryRewriter` (v0.3.0) now wired into
+  `wenji serve` / `wenji search` / `/api/search` / `wenji eval run-benchmark`.
+  Previously implemented but unreachable from user-facing entries.
+- **`wenji.config.LLMConfig`** dataclass + `load_llm_config_from_env()`
+  loader, shared by `wenji.aggregate.llm.LLMClient` and
+  `wenji.search.rewrite.QueryRewriter`. Env vars: `WENJI_LLM_BASE_URL` /
+  `WENJI_LLM_API_KEY` / `WENJI_LLM_MODEL` (required to enable) +
+  `WENJI_LLM_TIMEOUT` (default 10s) + `WENJI_LLM_REWRITE_CACHE_TTL_DAYS`
+  (default 30).
+- **`--enable-rewrite` / `--no-rewrite` flags** on `wenji serve`,
+  `wenji search`, and `wenji eval run-benchmark`. Mutually exclusive;
+  override env-derived default for that invocation.
+- **`/api/search` response** adds `rewritten_query` field
+  (`null` when rewrite disabled / fallback / unchanged; otherwise the
+  LLM-rewritten string used for retrieval). Frontend can surface to user.
+- **`wenji eval run-benchmark`** records `rewrite_enabled: bool` in run
+  output metadata + `_rewrite_on` / `_rewrite_off` suffix on `run_id` for
+  A/B baseline comparison.
+
+### Backward compat (v0.3.2)
+
+- Default behaviour unchanged from v0.3.1: if `WENJI_LLM_API_KEY` is unset,
+  no rewriter is instantiated and Searcher runs identically to v0.3.1.
+- No BREAKING changes from v0.3.1 → v0.3.2.
+
 ### Added (v0.3.1)
 
 - **Multi-path eval schema** — `Candidate` upgraded to `gold_paths: tuple[GoldPath, ...]`

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wenji"
-version = "0.3.1"
+version = "0.3.2"
 description = "Generic Chinese markdown RAG framework: hybrid BM25 + vector search, axis-aware classification, jitter-aware eval."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

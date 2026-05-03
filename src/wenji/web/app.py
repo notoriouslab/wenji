@@ -152,14 +152,42 @@ def create_app(
         return connect(state["db_path"], check_same_thread=False)
 
     def _get_searcher() -> Searcher | None:
-        """Lazy-construct Searcher; return None if model files missing (degraded mode)."""
+        """Lazy-construct Searcher; return None if model files missing (degraded mode).
+
+        v0.3.2: if WENJI_LLM_* env config is enabled (and not overridden by
+        WENJI_REWRITE_OVERRIDE=disabled), instantiate a QueryRewriter and
+        inject it into the Searcher.
+        """
         if state["searcher"] is not None:
             return state["searcher"]
         try:
+            from wenji.config import load_llm_config_from_env
             from wenji.ingest.embed import Embedder
+            from wenji.search.rewrite import QueryRewriter
 
             conn = _get_conn()
-            state["searcher"] = Searcher(conn, Embedder())
+            llm_cfg = load_llm_config_from_env()
+            override = os.environ.get("WENJI_REWRITE_OVERRIDE", "").lower()
+            rewrite_enabled = (
+                override == "enabled" or (override != "disabled" and llm_cfg.enabled)
+            )
+            rewriter: QueryRewriter | None = None
+            if rewrite_enabled and llm_cfg.enabled:
+                rewriter = QueryRewriter(
+                    conn,
+                    api_url=llm_cfg.base_url.rstrip("/") + "/chat/completions",
+                    api_key=llm_cfg.api_key,
+                    model=llm_cfg.model,
+                    timeout=1.5,  # rewriter uses fast fallback timeout, not shared LLM_TIMEOUT
+                    ttl_days=llm_cfg.rewrite_cache_ttl_days,
+                )
+            else:
+                logger.debug(
+                    "query rewrite disabled (override=%r, llm_cfg.enabled=%s)",
+                    override,
+                    llm_cfg.enabled,
+                )
+            state["searcher"] = Searcher(conn, Embedder(), rewriter=rewriter)
             return state["searcher"]
         except (ConfigError, WenjiError):
             return None
@@ -364,8 +392,23 @@ def create_app(
                 },
             )
         try:
+            # Compute rewritten_query for transparency (v0.3.2). Calling
+            # rewriter.rewrite() here is safe — Searcher.search() also calls it
+            # internally and the second call hits the cache (same row in
+            # query_rewrite_cache, no extra LLM API call).
+            rewritten_query: str | None = None
+            if getattr(s, "rewriter", None) is not None:
+                try:
+                    effective = s.rewriter.rewrite(q)
+                    if effective and effective != q:
+                        rewritten_query = effective
+                except Exception:
+                    # Rewriter has its own timeout/fallback; ignore here.
+                    pass
             results = s.search(q, axis=axis, limit=limit)
-            return JSONResponse({"results": results, "query": q})
+            return JSONResponse(
+                {"results": results, "query": q, "rewritten_query": rewritten_query}
+            )
         except WenjiError as exc:
             return JSONResponse(status_code=504, content={"error": str(exc)})
 

@@ -103,6 +103,50 @@ axes:
 
 See `examples/` for full configuration samples.
 
+### LLM query rewrite (optional, v0.3.2+)
+
+`QueryRewriter` rewrites user queries before retrieval (e.g. `因信稱義` →
+`因信稱義 救恩論 神學`), improving recall on short queries. Rewrites are
+cached in SQLite (`query_rewrite_cache` table) with a configurable TTL, so
+identical queries don't re-hit the LLM.
+
+Enable by setting these environment variables (any OpenAI-compatible endpoint
+works — Groq, OpenRouter, Together, Gemini OpenAI-compat, vLLM, llama.cpp, …):
+
+```bash
+export WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
+export WENJI_LLM_API_KEY=<your-key>
+export WENJI_LLM_MODEL=llama-3.3-70b-versatile
+# optional
+export WENJI_LLM_TIMEOUT=10.0                # seconds; rewriter uses 1.5s internally
+export WENJI_LLM_REWRITE_CACHE_TTL_DAYS=30
+```
+
+When all three required vars are set, `wenji serve` / `wenji search` /
+`/api/search` automatically wire a rewriter into the Searcher. To override
+the default for a single invocation:
+
+```bash
+wenji serve --enable-rewrite       # force on (errors if env incomplete)
+wenji serve --no-rewrite           # force off (e.g. for baseline reproducibility)
+```
+
+The `/api/search` JSON response includes a `rewritten_query` field when the
+LLM changed the query (else `null`), so frontends can surface the rewrite to
+the user. For A/B baseline runs:
+
+```bash
+wenji eval run-benchmark --enable-rewrite --db ... --out r0_on.json
+wenji eval run-benchmark --no-rewrite     --db ... --out r0_off.json
+```
+
+The `run_id` field is suffixed `_rewrite_on` / `_rewrite_off` and the run
+metadata records `rewrite_enabled: bool`.
+
+If `WENJI_LLM_API_KEY` is unset, no rewriter is instantiated and the Searcher
+runs identically to v0.3.1 — there is no behaviour change for users who
+don't opt in.
+
 ### Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing, and the PR

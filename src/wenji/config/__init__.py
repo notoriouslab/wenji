@@ -12,6 +12,7 @@ from wenji.config.defaults import (
     DEFAULT_DIRECTORY_MAP,
     DEFAULT_SEARCH_CONFIG,
 )
+from wenji.config.llm import LLMConfig, load_llm_config_from_env
 from wenji.config.loader import (
     SearchConfig,
     WenjiConfig,
@@ -25,4 +26,6 @@ __all__ = [
     "DEFAULT_DIRECTORY_MAP",
     "DEFAULT_SEARCH_CONFIG",
     "DEFAULT_CHUNK_STRATEGIES",
+    "LLMConfig",
+    "load_llm_config_from_env",
 ]
