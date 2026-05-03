@@ -1,4 +1,13 @@
-"""``wenji ingest`` subcommand."""
+"""``wenji ingest`` subapp.
+
+Subcommands:
+- ``dir``: ingest a markdown corpus directory (the original behaviour).
+- ``from-logos-db``: dump a logos sqlite database to a markdown corpus
+  directory ready for ``wenji ingest dir``.
+
+Note: ``wenji ingest <path>`` (no subcommand) is the legacy form and is no
+longer supported in v0.3.1. Use ``wenji ingest dir <path>`` explicitly.
+"""
 
 from __future__ import annotations
 
@@ -9,10 +18,16 @@ from pathlib import Path
 import typer
 import yaml
 
-from wenji.core.db import connect, initialise_schema
+app = typer.Typer(
+    name="ingest",
+    help="Ingest markdown corpora and external sources.",
+    no_args_is_help=True,
+    add_completion=False,
+)
 
 
-def command(
+@app.command("dir")
+def dir_command(
     corpus_dir: Path = typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
     db: Path = typer.Option(Path("data/wenji.db"), help="SQLite DB path."),
     config: Path | None = typer.Option(
@@ -23,6 +38,8 @@ def command(
     ),
     recursive: bool = typer.Option(True, help="Recurse into subdirectories."),
 ) -> None:
+    """Ingest a markdown corpus directory into a wenji DB."""
+    from wenji.core.db import connect, initialise_schema
     from wenji.ingest import ingest_dir
     from wenji.ingest.embed import Embedder
 
@@ -38,7 +55,6 @@ def command(
         chunk_strategies = cfg.get("chunk_strategies", {}) or {}
 
     embedder = Embedder()
-
     typer.echo(f"ingesting {corpus_dir} → {db}", err=True)
     article_ids = ingest_dir(
         corpus_dir,
@@ -51,3 +67,35 @@ def command(
     conn.close()
     typer.echo(json.dumps({"ingested": len(article_ids)}, ensure_ascii=False), err=False)
     sys.exit(0)
+
+
+@app.command("from-logos-db")
+def from_logos_db_command(
+    src: Path = typer.Option(..., "--src", exists=True, help="logos.db path."),
+    out: Path = typer.Option(..., "--out", help="Output directory for .md corpus."),
+) -> None:
+    """Dump a logos sqlite DB to a markdown corpus directory.
+
+    The output is consumed by ``wenji ingest dir <out>`` to perform the
+    actual jieba pre-tokenization, BGE-M3 embedding, and chunking.
+    """
+    from wenji.ingest.loader_logos_db import dump_logos_db
+
+    typer.echo(f"dumping {src} → {out}/", err=True)
+    manifest = dump_logos_db(src, out)
+    typer.echo(
+        json.dumps(
+            {
+                "article_count": manifest.article_count,
+                "out_dir": str(out),
+                "source_type_distribution": manifest.source_type_distribution,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+# Backward-compat shim for callers expecting a single ``command`` symbol.
+def command(*args, **kwargs) -> None:
+    return dir_command(*args, **kwargs)

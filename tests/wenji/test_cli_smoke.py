@@ -26,7 +26,7 @@ def test_subcommand_help(subcommand: str):
 
 
 def test_ingest_missing_corpus_dir_exits_nonzero():
-    result = runner.invoke(app, ["ingest", "/nonexistent/corpus/dir"])
+    result = runner.invoke(app, ["ingest", "dir", "/nonexistent/corpus/dir"])
     assert result.exit_code != 0
 
 
@@ -39,14 +39,19 @@ def test_classify_missing_config_exits_nonzero(tmp_path):
 
 
 def test_eval_missing_candidates_exits_nonzero():
-    result = runner.invoke(app, ["eval", "--candidates", "/nonexistent.jsonl"])
+    result = runner.invoke(app, ["eval", "run", "--candidates", "/nonexistent.jsonl"])
     assert result.exit_code != 0
 
 
 def test_eval_clear_cache_without_db_exits_2(tmp_path):
     candidates = tmp_path / "c.jsonl"
-    candidates.write_text('{"id": 1, "query": "Q", "expected_keywords": ["a"]}\n', encoding="utf-8")
-    result = runner.invoke(app, ["eval", "--candidates", str(candidates), "--clear-cache"])
+    candidates.write_text(
+        '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}\n',
+        encoding="utf-8",
+    )
+    result = runner.invoke(
+        app, ["eval", "run", "--candidates", str(candidates), "--clear-cache"]
+    )
     assert result.exit_code == 2
     assert "--clear-cache requires --db" in result.stderr
 

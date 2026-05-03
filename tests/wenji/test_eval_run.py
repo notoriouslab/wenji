@@ -1,4 +1,4 @@
-"""Tests for wenji.eval.run_baseline (mocked HTTP)."""
+"""Tests for wenji.eval.run_baseline (multi-path schema, mocked HTTP)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import pytest
 from wenji.core.db import connect, initialise_schema
 from wenji.core.errors import SearchError
 from wenji.eval import clear_rewrite_cache, run_baseline
-from wenji.eval.jsonl import Candidate
+from wenji.eval.jsonl import Candidate, GoldPath
 
 
 @pytest.fixture
@@ -33,7 +33,6 @@ def test_clear_rewrite_cache_returns_count(db_with_cache):
 
 class _FakeClient:
     def __init__(self, payloads):
-        """payloads: list of dicts to return per call (in order)."""
         self.payloads = list(payloads)
         self.requests = []
 
@@ -57,15 +56,43 @@ class _FakeResponse:
         return self._payload
 
 
-def test_run_baseline_basic_with_injected_client(tmp_path):
+def _multi_path_cand(cid: int, query: str, keywords: tuple[str, ...]) -> Candidate:
+    return Candidate(
+        id=cid,
+        query=query,
+        gold_paths=(GoldPath(path_tag="default", keywords=keywords),),
+    )
+
+
+def test_run_baseline_basic_with_injected_client_multi_path():
     cands = [
-        Candidate(id=1, query="因信稱義", expected_keywords=("恩典", "稱義")),
-        Candidate(id=2, query="禱告", expected_keywords=("禱告",)),
+        _multi_path_cand(1, "因信稱義", ("恩典", "稱義")),
+        _multi_path_cand(2, "禱告", ("禱告",)),
     ]
     fake_client = _FakeClient(
         [
-            {"results": [{"article_id": "a1", "title": "X", "content_raw": "恩典 稱義 主"}]},
-            {"results": [{"article_id": "a2", "title": "X", "content_raw": "禱告"}]},
+            {
+                "results": [
+                    {
+                        "article_id": "a1",
+                        "title": "X",
+                        "rank": 1,
+                        "score": 0.9,
+                        "content_full": "恩典 稱義 主",
+                    }
+                ]
+            },
+            {
+                "results": [
+                    {
+                        "article_id": "a2",
+                        "title": "X",
+                        "rank": 1,
+                        "score": 0.9,
+                        "content_full": "禱告",
+                    }
+                ]
+            },
         ]
     )
 
@@ -75,6 +102,8 @@ def test_run_baseline_basic_with_injected_client(tmp_path):
         http_client=fake_client,
     )
     assert out["summary"]["total"] == 2
+    assert out["summary"]["pass_count"] == 2
+    assert out["summary"]["pass_rate_pct"] == 100.0
     assert len(out["results"]) == 2
     assert len(fake_client.requests) == 2
 
@@ -85,7 +114,7 @@ def test_run_baseline_clear_cache_requires_db_path():
 
 
 def test_run_baseline_clear_cache_wipes_table(db_with_cache):
-    cands = [Candidate(id=1, query="Q", expected_keywords=("kw",))]
+    cands = [_multi_path_cand(1, "Q", ("kw",))]
     fake_client = _FakeClient([{"results": []}])
     run_baseline(
         candidates_path="ignored",
@@ -95,22 +124,32 @@ def test_run_baseline_clear_cache_wipes_table(db_with_cache):
         http_client=fake_client,
     )
     n_remaining = clear_rewrite_cache(db_with_cache)
-    assert n_remaining == 0  # already cleared by run_baseline
+    assert n_remaining == 0
 
 
-def test_run_baseline_summary_schema(tmp_path):
+def test_run_baseline_summary_schema_multi_path():
     cands = [
         Candidate(
             id=1,
             query="Q",
-            expected_keywords=("kw",),
+            gold_paths=(GoldPath(path_tag="p1", keywords=("kw",)),),
             category="cat-A",
             source="src-1",
         ),
     ]
     fake_client = _FakeClient(
         [
-            {"results": [{"article_id": "a1", "title": "X", "content_raw": "kw kw kw"}]},
+            {
+                "results": [
+                    {
+                        "article_id": "a1",
+                        "title": "X",
+                        "rank": 1,
+                        "score": 0.9,
+                        "content_full": "kw kw kw",
+                    }
+                ]
+            },
         ]
     )
     out = run_baseline(
@@ -119,18 +158,19 @@ def test_run_baseline_summary_schema(tmp_path):
         http_client=fake_client,
     )
     summary = out["summary"]
-    assert "pass_count" in summary
-    assert "pass_rate_pct" in summary
-    assert "by_predicate" in summary
-    assert "by_category" in summary
-    assert "by_source" in summary
-    assert summary["by_category"]["cat-A"]["total"] == 1
+    assert summary["pass_count"] == 1
+    assert summary["pass_rate_pct"] == 100.0
+    assert summary["partial_pass_count"] == 0
+    assert summary["mean_passing_path_count"] == 1.0
+    assert "mrr_at_5" in summary
+    assert "elapsed_total_sec" in summary
+    assert summary["by_category"]["cat-A"]["count"] == 1
 
 
 def test_run_baseline_loads_from_jsonl(tmp_path):
     p = tmp_path / "c.jsonl"
     p.write_text(
-        '{"id": 1, "query": "Q", "expected_keywords": ["kw"]}\n',
+        '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "default", "keywords": ["kw"]}]}\n',
         encoding="utf-8",
     )
     fake_client = _FakeClient([{"results": []}])
@@ -139,3 +179,29 @@ def test_run_baseline_loads_from_jsonl(tmp_path):
         http_client=fake_client,
     )
     assert out["summary"]["total"] == 1
+    assert out["summary"]["pass_count"] == 0
+
+
+def test_run_baseline_per_question_has_multi_path_metrics():
+    cands = [
+        Candidate(
+            id=1,
+            query="Q",
+            gold_paths=(
+                GoldPath(path_tag="p1", keywords=("a",)),
+                GoldPath(path_tag="p2", keywords=("b",)),
+            ),
+        )
+    ]
+    fake_client = _FakeClient(
+        [{"results": [{"article_id": "x", "title": "T", "rank": 1, "score": 0.9, "content_full": "a"}]}]
+    )
+    out = run_baseline(
+        candidates_path="ignored",
+        candidates=cands,
+        http_client=fake_client,
+    )
+    r0 = out["results"][0]
+    assert r0["pass"] is True
+    assert r0["passing_paths"] == ["p1"]
+    assert r0["article_results"][0]["gold_path_match"] == {"p1": "full", "p2": "none"}

@@ -7,7 +7,60 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
+### Added (v0.3.1)
+
+- **Multi-path eval schema** — `Candidate` upgraded to `gold_paths: tuple[GoldPath, ...]`
+  where each `GoldPath` is one independently-valid answer trajectory
+  (`path_tag` / `keywords` / `article_hints` / `expected_direction`). A question
+  passes when ANY one of its `gold_paths` achieves `full` keyword match in top-K
+  hits (OR semantics). Aligned with logos benchmark v2 schema.
+- **`wenji eval migrate-jsonl <old> <new>`** — wrap legacy single-path JSONL
+  entries as single-element `gold_paths` (`path_tag="default"`) for backward
+  compatibility of user-supplied JSONL files.
+- **`wenji eval run-benchmark`** — 80-question v2 baseline runner against a
+  running `wenji serve`. Produces `wenji_r0_<date>.json` (logos-v2-compatible
+  schema with per-hit `gold_path_match` none/partial/full + question-level
+  `pass` + `passing_paths`) plus a `<out>.summary.json` digest.
+- **`wenji eval sanity-eyeball`** — dual-gate sanity check for stage-1 baseline
+  promotion: objective top-10 hits overlap (`(content_hash, normalized_title)`
+  dual-key set, mean ≥ 0.70) + subjective 8-question eyeball review (≤ 1 flagged).
+- **`wenji ingest from-logos-db --src --out`** — adapter that dumps a logos
+  sqlite database to a markdown corpus directory ready for `wenji ingest dir`.
+  Each article → one `.md` with YAML frontmatter (`title`, `pubDate`, `tags`,
+  `source_type`, `article_id`, `content_hash`, optional `source_url`).
+  Atomic semantics via temp dir staging.
+- **`wenji corpus trim --ids --db`** — direct deletion of articles from a
+  wenji.db by `article_id` or `content_hash` (auto-detected by SHA-256 hex
+  format), atomic across `articles_meta` / `articles_fts` / `chunks_fts` /
+  `doc_vectors`. Powers stage-2 corpus trim for `wenji_r1` long-term baseline.
+- **`tests/benchmark_80_v2_snapshot.json`** — frozen snapshot of logos
+  benchmark v2 80-question gold set (commit `413642af`) with `logos_source_commit`
+  + `snapshot_taken_at` provenance metadata.
+- **Three-level `gold_path_match`** scoring (`none` / `partial` / `full`) +
+  chunk-to-article rollup (`rollup_chunks_to_articles`) using union of retrieved
+  chunks (NOT the full DB body) for keyword matching.
+- **MRR@5** added to summary aggregation.
+- **`src/wenji/eval/report.py`** — markdown baseline report generator
+  (6 sections: metadata / summary / sanity / per-question / overlap histogram /
+  classical poetry schema migration appendix; r1 reports add a 7th trim manifest
+  section).
+
+### Changed (v0.3.1, BREAKING)
+
+- **`wenji.eval.jsonl.Candidate`** — removed `expected_keywords` /
+  `expected_article_hints`. JSONL eval files using legacy schema raise
+  `IngestError` with a migration hint; run `wenji eval migrate-jsonl`.
+- **`wenji.eval.metrics`** — removed `kw1` / `kw3` / `fuzzy` / `pass` predicate
+  family; replaced with multi-path `gold_path_match` + per-path `rank_*` /
+  `hit1_*` / `hit3_*` / `hit5_*` / `rr_*` metrics.
+- **`wenji ingest <dir>`** → `wenji ingest dir <dir>` (subapp form). Legacy
+  positional form removed.
+- **`wenji eval --candidates ...`** → `wenji eval run --candidates ...` (subapp
+  form). Legacy positional form removed.
+- **`examples/eval.jsonl`** 10 classical poetry questions migrated to multi-path
+  schema (`path_tag="default"`, single-path wrap; demo path preserved).
+
+### Added (v0.3.0)
 
 - **`wenji.ask` module** — query-time RAG question answering on top of an
   existing wenji DB:

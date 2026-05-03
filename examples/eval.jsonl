@@ -1,10 +1,10 @@
-{"id": 1, "query": "明月", "expected_keywords": ["明月", "月光"], "expected_article_hints": ["靜夜思"], "category": "verse", "source": "classical"}
-{"id": 2, "query": "戰亂", "expected_keywords": ["國破", "烽火", "家書"], "expected_article_hints": ["春望"], "category": "verse", "source": "classical"}
-{"id": 3, "query": "山中秋天", "expected_keywords": ["空山", "秋", "明月"], "expected_article_hints": ["山居秋暝"], "category": "verse", "source": "classical"}
-{"id": 4, "query": "信仰 職場", "expected_keywords": ["信仰", "職場", "工作"], "expected_article_hints": ["職場的優勢"], "category": "sermon", "source": "sermon"}
-{"id": 5, "query": "穩定幣", "expected_keywords": ["穩定幣", "支付", "信任"], "expected_article_hints": ["邊界消失", "穩定幣"], "category": "article", "source": "article"}
-{"id": 6, "query": "AI 知識管理", "expected_keywords": ["AI", "Markdown", "library"], "expected_article_hints": ["AI Library"], "category": "article", "source": "article"}
-{"id": 7, "query": "勞動契約", "expected_keywords": ["勞動契約", "雇主", "勞工"], "expected_article_hints": ["勞動基準法"], "category": "article", "source": "law"}
-{"id": 8, "query": "工資 計算", "expected_keywords": ["工資", "平均", "計算"], "expected_article_hints": ["勞動基準法"], "category": "article", "source": "law"}
-{"id": 9, "query": "FTS5 全文搜尋", "expected_keywords": ["FTS5", "unicode61", "BM25"], "expected_article_hints": ["SQLite FTS5"], "category": "tutorial", "source": "tech"}
-{"id": 10, "query": "ONNX 推論 deterministic", "expected_keywords": ["ONNX", "CPU", "推論"], "expected_article_hints": ["ONNX 模型"], "category": "tutorial", "source": "tech"}
+{"id": 1, "query": "明月", "category": "verse", "source": "classical", "gold_paths": [{"path_tag": "default", "keywords": ["明月", "月光"], "article_hints": ["靜夜思"]}]}
+{"id": 2, "query": "戰亂", "category": "verse", "source": "classical", "gold_paths": [{"path_tag": "default", "keywords": ["國破", "烽火", "家書"], "article_hints": ["春望"]}]}
+{"id": 3, "query": "山中秋天", "category": "verse", "source": "classical", "gold_paths": [{"path_tag": "default", "keywords": ["空山", "秋", "明月"], "article_hints": ["山居秋暝"]}]}
+{"id": 4, "query": "信仰 職場", "category": "sermon", "source": "sermon", "gold_paths": [{"path_tag": "default", "keywords": ["信仰", "職場", "工作"], "article_hints": ["職場的優勢"]}]}
+{"id": 5, "query": "穩定幣", "category": "article", "source": "article", "gold_paths": [{"path_tag": "default", "keywords": ["穩定幣", "支付", "信任"], "article_hints": ["邊界消失", "穩定幣"]}]}
+{"id": 6, "query": "AI 知識管理", "category": "article", "source": "article", "gold_paths": [{"path_tag": "default", "keywords": ["AI", "Markdown", "library"], "article_hints": ["AI Library"]}]}
+{"id": 7, "query": "勞動契約", "category": "article", "source": "law", "gold_paths": [{"path_tag": "default", "keywords": ["勞動契約", "雇主", "勞工"], "article_hints": ["勞動基準法"]}]}
+{"id": 8, "query": "工資 計算", "category": "article", "source": "law", "gold_paths": [{"path_tag": "default", "keywords": ["工資", "平均", "計算"], "article_hints": ["勞動基準法"]}]}
+{"id": 9, "query": "FTS5 全文搜尋", "category": "tutorial", "source": "tech", "gold_paths": [{"path_tag": "default", "keywords": ["FTS5", "unicode61", "BM25"], "article_hints": ["SQLite FTS5"]}]}
+{"id": 10, "query": "ONNX 推論 deterministic", "category": "tutorial", "source": "tech", "gold_paths": [{"path_tag": "default", "keywords": ["ONNX", "CPU", "推論"], "article_hints": ["ONNX 模型"]}]}

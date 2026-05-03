@@ -1,11 +1,16 @@
-"""Tests for wenji.eval.jsonl."""
+"""Tests for wenji.eval.jsonl (multi-path schema, v0.3.1)."""
 
 from __future__ import annotations
 
 import pytest
 
 from wenji.core.errors import IngestError
-from wenji.eval.jsonl import load_candidates
+from wenji.eval.jsonl import (
+    Candidate,
+    GoldPath,
+    load_candidates,
+    wrap_legacy_candidate,
+)
 
 
 def write_jsonl(path, lines):
@@ -13,11 +18,13 @@ def write_jsonl(path, lines):
     return path
 
 
-def test_load_minimal(tmp_path):
+def test_load_minimal_multi_path(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "query": "因信稱義", "expected_keywords": ["恩典", "稱義"]}',
+            '{"id": 1, "query": "因信稱義", "gold_paths": ['
+            '{"path_tag": "p1", "keywords": ["恩典", "稱義"]}'
+            "]}",
         ],
     )
     cands = load_candidates(p)
@@ -25,20 +32,27 @@ def test_load_minimal(tmp_path):
     c = cands[0]
     assert c.id == 1
     assert c.query == "因信稱義"
-    assert c.expected_keywords == ("恩典", "稱義")
-    assert c.expected_article_hints == ()
+    assert len(c.gold_paths) == 1
+    gp = c.gold_paths[0]
+    assert gp.path_tag == "p1"
+    assert gp.keywords == ("恩典", "稱義")
+    assert gp.article_hints == ()
 
 
-def test_load_full_schema(tmp_path):
+def test_load_multiple_paths(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 7, "query": "Q", "expected_keywords": ["a"], '
-            '"expected_article_hints": ["t1"], "category": "theology", "source": "test"}',
+            '{"id": 7, "query": "Q", "gold_paths": ['
+            '{"path_tag": "a", "keywords": ["x"], "article_hints": ["t1"]},'
+            '{"path_tag": "b", "keywords": ["y"], "expected_direction": "support"}'
+            "], \"category\": \"theology\", \"source\": \"test\"}",
         ],
     )
     c = load_candidates(p)[0]
-    assert c.expected_article_hints == ("t1",)
+    assert len(c.gold_paths) == 2
+    assert c.gold_paths[0].article_hints == ("t1",)
+    assert c.gold_paths[1].expected_direction == "support"
     assert c.category == "theology"
     assert c.source == "test"
 
@@ -49,34 +63,78 @@ def test_skip_blank_and_comment_lines(tmp_path):
         [
             "# comment line",
             "",
-            '{"id": 1, "query": "Q", "expected_keywords": ["a"]}',
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}',
             "   # indented comment",
-            '{"id": 2, "query": "Q2", "expected_keywords": ["b"]}',
+            '{"id": 2, "query": "Q2", "gold_paths": [{"path_tag": "d", "keywords": ["b"]}]}',
         ],
     )
     cands = load_candidates(p)
     assert [c.id for c in cands] == [1, 2]
 
 
-def test_missing_query_raises(tmp_path):
+def test_legacy_schema_rejected_with_migration_hint(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "expected_keywords": ["a"]}',
+            '{"id": 1, "query": "Q", "expected_keywords": ["a"]}',
         ],
     )
-    with pytest.raises(IngestError, match="missing required field 'query'"):
+    with pytest.raises(IngestError, match="migrate-jsonl"):
         load_candidates(p)
 
 
-def test_missing_expected_keywords_raises(tmp_path):
+def test_missing_gold_paths_raises(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
             '{"id": 1, "query": "Q"}',
         ],
     )
-    with pytest.raises(IngestError, match="expected_keywords"):
+    with pytest.raises(IngestError, match="missing required field 'gold_paths'"):
+        load_candidates(p)
+
+
+def test_empty_gold_paths_raises(tmp_path):
+    p = write_jsonl(
+        tmp_path / "c.jsonl",
+        [
+            '{"id": 1, "query": "Q", "gold_paths": []}',
+        ],
+    )
+    with pytest.raises(IngestError, match="at least one entry"):
+        load_candidates(p)
+
+
+def test_gold_path_missing_keywords_raises(tmp_path):
+    p = write_jsonl(
+        tmp_path / "c.jsonl",
+        [
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "p"}]}',
+        ],
+    )
+    with pytest.raises(IngestError, match="missing required field 'keywords'"):
+        load_candidates(p)
+
+
+def test_gold_path_empty_keywords_raises(tmp_path):
+    p = write_jsonl(
+        tmp_path / "c.jsonl",
+        [
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "p", "keywords": []}]}',
+        ],
+    )
+    with pytest.raises(IngestError, match="must be non-empty"):
+        load_candidates(p)
+
+
+def test_missing_query_raises(tmp_path):
+    p = write_jsonl(
+        tmp_path / "c.jsonl",
+        [
+            '{"id": 1, "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}',
+        ],
+    )
+    with pytest.raises(IngestError, match="missing required field 'query'"):
         load_candidates(p)
 
 
@@ -84,7 +142,7 @@ def test_invalid_json_raises_with_lineno(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "query": "Q", "expected_keywords": ["a"]}',
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}',
             "{not json",
         ],
     )
@@ -96,7 +154,7 @@ def test_empty_query_raises(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "query": "  ", "expected_keywords": ["a"]}',
+            '{"id": 1, "query": "  ", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}',
         ],
     )
     with pytest.raises(IngestError, match="non-empty"):
@@ -107,8 +165,8 @@ def test_id_auto_assigned_from_lineno(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"query": "Q1", "expected_keywords": ["a"]}',
-            '{"query": "Q2", "expected_keywords": ["b"]}',
+            '{"query": "Q1", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}',
+            '{"query": "Q2", "gold_paths": [{"path_tag": "d", "keywords": ["b"]}]}',
         ],
     )
     cands = load_candidates(p)
@@ -119,18 +177,19 @@ def test_keywords_string_coerced_to_tuple(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "query": "Q", "expected_keywords": "single"}',
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": "single"}]}',
         ],
     )
     c = load_candidates(p)[0]
-    assert c.expected_keywords == ("single",)
+    assert c.gold_paths[0].keywords == ("single",)
 
 
 def test_extras_preserved(tmp_path):
     p = write_jsonl(
         tmp_path / "c.jsonl",
         [
-            '{"id": 1, "query": "Q", "expected_keywords": ["a"], "custom_field": "x"}',
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}], '
+            '"custom_field": "x"}',
         ],
     )
     c = load_candidates(p)[0]
@@ -140,3 +199,36 @@ def test_extras_preserved(tmp_path):
 def test_missing_file_raises(tmp_path):
     with pytest.raises(IngestError, match="not found"):
         load_candidates(tmp_path / "nope.jsonl")
+
+
+def test_wrap_legacy_candidate_basic():
+    old = {
+        "id": 1,
+        "query": "Q",
+        "expected_keywords": ["a", "b"],
+        "expected_article_hints": ["t1"],
+    }
+    new = wrap_legacy_candidate(old)
+    assert "expected_keywords" not in new
+    assert "expected_article_hints" not in new
+    assert new["gold_paths"] == [
+        {"path_tag": "default", "keywords": ["a", "b"], "article_hints": ["t1"]}
+    ]
+
+
+def test_wrap_legacy_candidate_already_multi_path_passthrough():
+    old = {"id": 1, "query": "Q", "gold_paths": [{"path_tag": "p", "keywords": ["a"]}]}
+    new = wrap_legacy_candidate(old)
+    assert new == old
+    assert new is not old  # returns a copy
+
+
+def test_wrap_legacy_candidate_missing_keywords_raises():
+    with pytest.raises(IngestError, match="missing 'expected_keywords'"):
+        wrap_legacy_candidate({"id": 1, "query": "Q"})
+
+
+def test_wrap_legacy_candidate_string_keywords():
+    old = {"id": 1, "query": "Q", "expected_keywords": "single"}
+    new = wrap_legacy_candidate(old)
+    assert new["gold_paths"][0]["keywords"] == ["single"]

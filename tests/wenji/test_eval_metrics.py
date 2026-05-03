@@ -1,178 +1,205 @@
-"""Tests for wenji.eval.metrics."""
+"""Tests for wenji.eval.metrics (multi-path schema, v0.3.1)."""
 
 from __future__ import annotations
 
-from wenji.eval.jsonl import Candidate
+from wenji.eval.jsonl import Candidate, GoldPath
 from wenji.eval.metrics import (
     aggregate,
     count_keyword_hits,
     evaluate_question,
+    score_gold_path,
     title_fuzzy_match,
 )
 
 
-def _cand(**overrides) -> Candidate:
-    base = {
-        "id": 1,
-        "query": "查詢",
-        "expected_keywords": ("恩典", "稱義"),
-        "expected_article_hints": (),
-        "category": "theology",
-        "source": "test",
-    }
-    base.update(overrides)
-    return Candidate(**base)
-
-
-def _resp(*results, elapsed_ms: int = 50) -> dict:
-    return {"results": list(results), "elapsed_ms": elapsed_ms}
-
-
-def _r(article_id: str, title: str = "T", content: str = "") -> dict:
-    return {
-        "article_id": article_id,
-        "title": title,
-        "content_raw": content,
-        "source_type": "sermon",
-        "hybrid_score": 0.5,
-    }
-
-
-def test_count_keyword_hits_basic():
-    n, hits = count_keyword_hits("我談恩典與稱義", ["恩典", "稱義", "禱告"])
+def test_count_keyword_hits_case_insensitive():
+    n, hits = count_keyword_hits("The Cat sat on a Mat", ["cat", "MAT"])
     assert n == 2
-    assert sorted(hits) == ["恩典", "稱義"]
+    assert hits == ["cat", "MAT"]
 
 
-def test_count_keyword_hits_no_match():
-    n, hits = count_keyword_hits("無關文字", ["恩典"])
-    assert n == 0
-    assert hits == []
+def test_count_keyword_hits_chinese():
+    n, hits = count_keyword_hits("神創造了萬物", ["神", "創造", "缺"])
+    assert n == 2
+    assert hits == ["神", "創造"]
 
 
-def test_title_fuzzy_match_high_similarity():
-    ok, hint = title_fuzzy_match("論恩典的意義", ["論恩典"])
-    assert ok is True
-    assert hint == "論恩典"
+def test_count_keyword_hits_empty_keywords():
+    assert count_keyword_hits("anything", []) == (0, [])
 
 
-def test_title_fuzzy_match_below_threshold():
-    ok, _ = title_fuzzy_match("完全不同的標題", ["論恩典"])
-    assert ok is False
+def test_score_gold_path_full():
+    gp = GoldPath(path_tag="p", keywords=("神", "創造", "聖經"))
+    assert score_gold_path("神創造了聖經中的世界", gp) == "full"
 
 
-def test_evaluate_question_pass_via_kw3():
-    cand = _cand(expected_keywords=("a", "b", "c"))
-    resp = _resp(_r("a1", title="X", content="a b c"), _r("a2", content="a"))
-    result = evaluate_question(cand, resp, min_hits=3)
-    assert result["auto_pass"] is True
-    assert result["max_keyword_hits"] == 3
-    assert result["rank_kw3"] == 1
-    assert result["hit1_kw3"] == 1
+def test_score_gold_path_partial():
+    gp = GoldPath(path_tag="p", keywords=("神", "創造", "聖經"))
+    assert score_gold_path("神在創造中", gp) == "partial"
 
 
-def test_evaluate_question_pass_via_fuzzy():
-    cand = _cand(
-        expected_keywords=("nope",),
-        expected_article_hints=("論恩典",),
+def test_score_gold_path_none():
+    gp = GoldPath(path_tag="p", keywords=("神", "創造"))
+    assert score_gold_path("hello world", gp) == "none"
+
+
+def test_score_gold_path_empty_keywords_returns_none():
+    gp = GoldPath(path_tag="p", keywords=())
+    assert score_gold_path("anything", gp) == "none"
+
+
+def test_score_gold_path_case_insensitive():
+    gp = GoldPath(path_tag="p", keywords=("Hello", "World"))
+    assert score_gold_path("hello WORLD here", gp) == "full"
+
+
+def test_evaluate_question_pass_via_full_match():
+    cand = Candidate(
+        id=1,
+        query="Q",
+        gold_paths=(GoldPath(path_tag="p1", keywords=("神", "創造")),),
     )
-    resp = _resp(_r("a1", title="論恩典的意義"))
-    result = evaluate_question(cand, resp, min_hits=3)
-    assert result["auto_pass"] is True
-    assert result["rank_fuzzy"] == 1
+    resp = {
+        "results": [
+            {"article_id": "a1", "title": "T", "rank": 1, "score": 0.9, "content_full": "神 創造"},
+        ],
+        "elapsed_ms": 100,
+    }
+    out = evaluate_question(cand, resp)
+    assert out["pass"] is True
+    assert out["passing_paths"] == ["p1"]
+    assert out["article_results"][0]["gold_path_match"] == {"p1": "full"}
 
 
-def test_evaluate_question_no_pass():
-    cand = _cand(expected_keywords=("xyz",))
-    resp = _resp(_r("a1", title="完全無關"))
-    result = evaluate_question(cand, resp, min_hits=3)
-    assert result["auto_pass"] is False
-    assert result["rank_pass"] is None
-
-
-def test_evaluate_question_top_k_truncates():
-    cand = _cand(expected_keywords=("kw",))
-    long_resp = _resp(*[_r(f"a{i}", content="kw kw kw") for i in range(20)])
-    result = evaluate_question(cand, long_resp, top_k=5)
-    assert len(result["top_k_results"]) == 5
-
-
-def test_evaluate_question_rank_at_three():
-    cand = _cand(expected_keywords=("kw1", "kw2", "kw3"))
-    resp = _resp(
-        _r("a1", content="nothing"),
-        _r("a2", content="nothing"),
-        _r("a3", content="kw1 kw2 kw3"),
+def test_evaluate_question_fail_via_partial_only():
+    cand = Candidate(
+        id=1,
+        query="Q",
+        gold_paths=(GoldPath(path_tag="p1", keywords=("神", "創造", "聖經")),),
     )
-    result = evaluate_question(cand, resp, min_hits=3)
-    assert result["rank_kw3"] == 3
-    assert result["hit1_kw3"] == 0
-    assert result["hit3_kw3"] == 1
-    assert result["rr_kw3"] == 1.0 / 3.0
+    resp = {
+        "results": [
+            {"article_id": "a1", "title": "T", "rank": 1, "score": 0.9, "content_full": "神在"},
+        ],
+    }
+    out = evaluate_question(cand, resp)
+    assert out["pass"] is False
+    assert out["passing_paths"] == []
+    assert out["partial_only"] is True
 
 
-def test_aggregate_empty():
-    out = aggregate([])
-    assert out["total"] == 0
-    assert out["pass_count"] == 0
-    assert out["pass_rate_pct"] == 0.0
+def test_evaluate_question_pass_via_any_path():
+    cand = Candidate(
+        id=1,
+        query="Q",
+        gold_paths=(
+            GoldPath(path_tag="p1", keywords=("神", "創造", "缺失")),
+            GoldPath(path_tag="p2", keywords=("禱告",)),
+        ),
+    )
+    resp = {
+        "results": [
+            {"article_id": "a1", "title": "T", "rank": 1, "score": 0.9, "content_full": "禱告"},
+        ],
+    }
+    out = evaluate_question(cand, resp)
+    assert out["pass"] is True
+    assert out["passing_paths"] == ["p2"]
 
 
-def test_aggregate_basic():
-    qs = [
+def test_evaluate_question_chunk_union_rolls_up():
+    cand = Candidate(
+        id=1,
+        query="Q",
+        gold_paths=(GoldPath(path_tag="p1", keywords=("神", "創造")),),
+    )
+    resp = {
+        "results": [
+            {"article_id": "a1", "title": "T", "rank": 1, "score": 0.9, "content_full": "神"},
+            {"article_id": "a1", "title": "T", "rank": 4, "score": 0.5, "content_full": "創造"},
+        ],
+    }
+    out = evaluate_question(cand, resp)
+    assert out["pass"] is True
+    assert len(out["article_results"]) == 1
+
+
+def test_evaluate_question_per_path_metrics():
+    cand = Candidate(
+        id=1,
+        query="Q",
+        gold_paths=(
+            GoldPath(path_tag="p1", keywords=("神",)),
+            GoldPath(path_tag="p2", keywords=("缺失",)),
+        ),
+    )
+    resp = {
+        "results": [
+            {"article_id": "a1", "title": "T", "rank": 1, "score": 0.9, "content_full": "神"},
+        ],
+    }
+    out = evaluate_question(cand, resp)
+    assert out["rank_p1"] == 1
+    assert out["hit1_p1"] == 1
+    assert out["hit3_p1"] == 1
+    assert out["hit5_p1"] == 1
+    assert out["rr_p1"] == 1.0
+    assert out["rank_p2"] is None
+    assert out["rr_p2"] == 0.0
+
+
+def test_aggregate_summary_seven_fields():
+    per_q = [
         {
-            "auto_pass": True,
-            "category": "theo",
-            "source": "s1",
+            "id": 1,
+            "category": "cat-A",
+            "source": "src-1",
+            "pass": True,
+            "passing_paths": ["p1"],
+            "n_passing_paths": 1,
+            "partial_only": False,
+            "rr_at_5": 1.0,
             "elapsed_ms": 100,
-            "hit1_kw1": 1,
-            "hit3_kw1": 1,
-            "hit5_kw1": 1,
-            "rr_kw1": 1.0,
-            "hit1_kw3": 1,
-            "hit3_kw3": 1,
-            "hit5_kw3": 1,
-            "rr_kw3": 1.0,
-            "hit1_fuzzy": 0,
-            "hit3_fuzzy": 0,
-            "hit5_fuzzy": 0,
-            "rr_fuzzy": 0.0,
-            "hit1_pass": 1,
-            "hit3_pass": 1,
-            "hit5_pass": 1,
-            "rr_pass": 1.0,
         },
         {
-            "auto_pass": False,
-            "category": "prac",
-            "source": "s1",
+            "id": 2,
+            "category": "cat-A",
+            "source": "src-1",
+            "pass": False,
+            "passing_paths": [],
+            "n_passing_paths": 0,
+            "partial_only": True,
+            "rr_at_5": 0.0,
             "elapsed_ms": 200,
-            "hit1_kw1": 0,
-            "hit3_kw1": 0,
-            "hit5_kw1": 0,
-            "rr_kw1": 0.0,
-            "hit1_kw3": 0,
-            "hit3_kw3": 0,
-            "hit5_kw3": 0,
-            "rr_kw3": 0.0,
-            "hit1_fuzzy": 0,
-            "hit3_fuzzy": 0,
-            "hit5_fuzzy": 0,
-            "rr_fuzzy": 0.0,
-            "hit1_pass": 0,
-            "hit3_pass": 0,
-            "hit5_pass": 0,
-            "rr_pass": 0.0,
         },
     ]
-    out = aggregate(qs)
-    assert out["total"] == 2
-    assert out["pass_count"] == 1
-    assert out["pass_rate_pct"] == 50.0
-    assert out["elapsed_total_s"] == 0.30
-    assert out["by_predicate"]["pass"]["mrr_at_5"] == 0.5
-    assert out["by_category"] == {
-        "theo": {"total": 1, "pass": 1},
-        "prac": {"total": 1, "pass": 0},
-    }
-    assert out["by_source"]["s1"] == {"total": 2, "pass": 1}
+    summary = aggregate(per_q)
+    assert summary["pass_count"] == 1
+    assert summary["pass_rate_pct"] == 50.0
+    assert summary["partial_pass_count"] == 1
+    assert summary["mean_passing_path_count"] == 1.0
+    assert summary["mrr_at_5"] == 0.5
+    assert summary["elapsed_total_sec"] == 0.3
+    assert summary["by_category"]["cat-A"]["count"] == 2
+    assert summary["by_category"]["cat-A"]["pass_count"] == 1
+    assert summary["by_category"]["cat-A"]["pass_rate_pct"] == 50.0
+
+
+def test_aggregate_empty_returns_zero_summary():
+    summary = aggregate([])
+    assert summary["total"] == 0
+    assert summary["pass_count"] == 0
+    assert summary["pass_rate_pct"] == 0.0
+    assert summary["mrr_at_5"] == 0.0
+
+
+def test_title_fuzzy_match_basic():
+    matched, hint = title_fuzzy_match("論因信稱義", ["因信稱義", "其他"])
+    assert matched
+    assert hint == "因信稱義"
+
+
+def test_title_fuzzy_match_no_match():
+    matched, hint = title_fuzzy_match("論信仰", ["禱告"])
+    assert not matched
+    assert hint == ""

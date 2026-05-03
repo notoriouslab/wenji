@@ -1,0 +1,4612 @@
+{
+  "logos_source_commit": "413642afa95ccc824d72a41c427b94f2cbc2e10c",
+  "snapshot_taken_at": "2026-05-03",
+  "snapshot_source_path": "tests/benchmark_80.json (logos repo)",
+  "version": "R8",
+  "date": "2026-03-22",
+  "description": "80 題福音問答品質測試集，18 個主題，涵蓋神學、護教、文化、社會議題",
+  "categories": [
+    {
+      "id": 1,
+      "name": "神的存在與本質",
+      "questions": [
+        {
+          "id": 1,
+          "query": "到底有沒有神，憑什麼證明有神？",
+          "keywords": [
+            "宇宙論論證",
+            "設計論論證",
+            "道德論論證"
+          ],
+          "expected_direction": "宇宙論、設計論、道德論三大論證",
+          "gold_paths": [
+            {
+              "path_tag": "classical_theistic_arguments",
+              "desc": "古典三大論證（原 Phase 1 gold 路線）",
+              "keywords": [
+                "宇宙論論證",
+                "設計論論證",
+                "道德論論證",
+                "自然神學",
+                "有神論"
+              ],
+              "expected_direction": "古典自然神學三論證：宇宙論（第一因）、設計論（精細調控）、道德論（客觀道德實在）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "cumulative_case",
+              "desc": "累積性證據",
+              "keywords": [
+                "累積性證據",
+                "cumulative case",
+                "多重線索",
+                "整體證明",
+                "或然率"
+              ],
+              "expected_direction": "單一論證無法絕對證明；但多論證累積（宇宙、設計、道德、歷史耶穌、宗教經驗）指向神是最佳解釋",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "response_to_atheism",
+              "desc": "回應無神論（公允描述）",
+              "keywords": [
+                "新無神論",
+                "Dawkins",
+                "Hitchens",
+                "反駁",
+                "回應"
+              ],
+              "expected_direction": "公允介紹新無神論主要論點（Dawkins、Hitchens）再逐一回應；不貶抑但清楚指出其論證缺陷",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "personal_encounter_witness",
+              "desc": "個人遇見神的見證（實踐面）",
+              "keywords": [
+                "個人見證",
+                "遇見神",
+                "生命改變",
+                "禱告蒙應允",
+                "見證力量"
+              ],
+              "expected_direction": "最有說服力的證據常是個人遇見神的見證；雖不能代替論證，但是論證的活化與驗證",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "query": "沒有宇宙以前，有什麼東西存在？",
+          "keywords": [
+            "自有永有",
+            "無中生有",
+            "時間",
+            "空間"
+          ],
+          "expected_direction": "神是自有永有的，先於時間與空間",
+          "gold_paths": [
+            {
+              "path_tag": "self_existent_god",
+              "desc": "神自有永有（原 gold 路線）",
+              "keywords": [
+                "自有永有",
+                "I AM",
+                "出埃及 3:14",
+                "無中生有",
+                "先於時間"
+              ],
+              "expected_direction": "神是自有永有的本體（出 3:14）；祂先於時間與空間存在，不需被別的東西創造",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "before_time_theology",
+              "desc": "神在時間之外",
+              "keywords": [
+                "時間之外",
+                "永恆",
+                "timeless",
+                "創造時間",
+                "絕對"
+              ],
+              "expected_direction": "時間是神創造的；問「宇宙以前」已預設時間；神不在時間流中而是時間之創造者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "kalam_cosmological",
+              "desc": "卡拉姆宇宙論論證",
+              "keywords": [
+                "卡拉姆",
+                "kalam",
+                "第一因",
+                "凡有開始必有原因",
+                "有限不能回溯"
+              ],
+              "expected_direction": "卡拉姆論證：凡有開始的必有原因；宇宙有開始；故宇宙有一不受限原因（即神）",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "query": "你能不能把神拿給我看，我就相信了",
+          "keywords": [
+            "神是靈",
+            "創造秩序",
+            "信心"
+          ],
+          "expected_direction": "神是靈，從創造秩序和生命改變來感知",
+          "gold_paths": [
+            {
+              "path_tag": "god_as_spirit",
+              "desc": "神是靈（原 Phase 1 gold 路線）",
+              "keywords": [
+                "神是靈",
+                "約翰 4:24",
+                "非物質",
+                "看不見",
+                "本質超越"
+              ],
+              "expected_direction": "約 4:24「神是靈」；靈的本質不能用肉眼看見；要求物理證明是類別錯誤",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "creation_reveals_creator",
+              "desc": "創造秩序啟示神",
+              "keywords": [
+                "創造秩序",
+                "羅馬書 1:20",
+                "普遍啟示",
+                "自然顯明",
+                "見證"
+              ],
+              "expected_direction": "羅 1:20 神的永能與神性從所造之物就顯明出來；創造秩序是神可見的見證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "conscience_moral_witness",
+              "desc": "良心的見證（實踐面）",
+              "keywords": [
+                "良心",
+                "道德感",
+                "羅馬書 2:15",
+                "內心見證",
+                "普世道德"
+              ],
+              "expected_direction": "羅 2:15 良心是神寫在人心裡的律法；每個人內心的是非感即是神存在的內在見證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "christ_as_incarnate_image",
+              "desc": "基督是看得見的神",
+              "keywords": [
+                "道成肉身",
+                "看見基督就是看見父",
+                "約翰 14:9",
+                "神的形象",
+                "啟示"
+              ],
+              "expected_direction": "約 14:9 耶穌說「人看見了我就是看見了父」；若要看見神，看耶穌即是",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "query": "人是神造的，神又從何而來？",
+          "keywords": [
+            "自有永有",
+            "因果律",
+            "被造物"
+          ],
+          "expected_direction": "神不受時間因果律約束，問神從何來是偽命題",
+          "gold_paths": [
+            {
+              "path_tag": "uncaused_cause",
+              "desc": "神不受因果律約束（原 gold 路線）",
+              "keywords": [
+                "自有永有",
+                "因果律",
+                "被造物",
+                "無限回溯",
+                "第一因"
+              ],
+              "expected_direction": "神不受時間因果律約束；「神從何而來」把適用於被造物的因果律強加給非被造者，是類別錯誤",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "category_distinction",
+              "desc": "被造 vs 非被造類別區分",
+              "keywords": [
+                "被造",
+                "非被造",
+                "類別錯誤",
+                "邏輯",
+                "本質差異"
+              ],
+              "expected_direction": "有兩類實在：被造者與非被造者；問題適用於前者不適用於後者；神屬後者（必然存在）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "aquinas_first_cause",
+              "desc": "阿奎那第一因論",
+              "keywords": [
+                "阿奎那",
+                "第一因",
+                "Thomistic",
+                "無限回溯不可能",
+                "必然存在"
+              ],
+              "expected_direction": "阿奎那論無限回溯不可能，必有一不被別者所動的第一因；這第一因即我們所稱的神",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "query": "神為何要造人？",
+          "keywords": [
+            "神的形像",
+            "愛的關係",
+            "榮耀"
+          ],
+          "expected_direction": "神的本質是愛，創造人為建立愛的關係",
+          "gold_paths": [
+            {
+              "path_tag": "image_of_god",
+              "desc": "按神形像受造（原 gold 路線）",
+              "keywords": [
+                "神的形像",
+                "imago dei",
+                "榮耀",
+                "代表",
+                "管家"
+              ],
+              "expected_direction": "神按自己形像造人（創 1:26-27）；人承載神的榮耀並作受造界的管家",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "love_relationship",
+              "desc": "為建立愛的關係",
+              "keywords": [
+                "愛的關係",
+                "三一神內的愛",
+                "分享",
+                "相愛"
+              ],
+              "expected_direction": "神本體是愛（三位一體內部永恆相愛）；造人是要分享此愛、建立愛的關係",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "worship_and_glory",
+              "desc": "敬拜與彰顯榮耀",
+              "keywords": [
+                "敬拜",
+                "榮耀",
+                "神的計畫",
+                "以神為樂"
+              ],
+              "expected_direction": "人受造為認識、敬拜神、以神為樂（西敏小要理問答）；這是人生終極目的",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "query": "神既是萬能的，祂能不能造一塊祂自己搬不動的石頭？",
+          "keywords": [
+            "全能",
+            "邏輯",
+            "偽命題"
+          ],
+          "expected_direction": "全能不等於做邏輯上自相矛盾的事",
+          "gold_paths": [
+            {
+              "path_tag": "omnipotence_not_logical_contradiction",
+              "desc": "全能不含邏輯矛盾（原 gold）",
+              "keywords": [
+                "全能",
+                "邏輯",
+                "偽命題",
+                "自相矛盾",
+                "nothing"
+              ],
+              "expected_direction": "全能指做一切可能的事；邏輯矛盾者本質即「無」不是「事」；造不可動之石是偽命題",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "omnipotence_definition",
+              "desc": "全能的正確定義",
+              "keywords": [
+                "定義",
+                "can do all possibles",
+                "本質可能",
+                "神的本性"
+              ],
+              "expected_direction": "神學全能定義：做符合祂本性且邏輯可能之事；祂不能說謊、不能自我否定——這是神本性堅定",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "apologetic_response",
+              "desc": "回應類似悖論",
+              "keywords": [
+                "全能悖論",
+                "巴頓",
+                "C.S. Lewis",
+                "apologetics"
+              ],
+              "expected_direction": "C.S. Lewis 等護教家已回應此類悖論：語言看似有意義但實無所指；不構成對全能的真正挑戰",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "query": "神既是全能的，當初為何不造一個不犯罪的好人？",
+          "keywords": [
+            "自由意志",
+            "機器人",
+            "真愛"
+          ],
+          "expected_direction": "沒有自由意志的好人只是機器人，真愛必須是自由選擇",
+          "gold_paths": [
+            {
+              "path_tag": "free_will_genuine_love",
+              "desc": "真愛必自由（原 gold 路線）",
+              "keywords": [
+                "自由意志",
+                "機器人",
+                "真愛",
+                "強迫非愛",
+                "道德"
+              ],
+              "expected_direction": "沒有自由意志的「好人」只是機器人；真愛必是自由選擇；神選擇給人此冒險的自由",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "soul_making_theodicy",
+              "desc": "靈魂塑造神義論",
+              "keywords": [
+                "靈魂塑造",
+                "Hick",
+                "品格發展",
+                "道德抉擇",
+                "成熟"
+              ],
+              "expected_direction": "Hick 靈魂塑造論：透過真實道德抉擇（含犯罪可能）人能發展真實品格；完全不犯罪非真品格",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "greater_good_redemption",
+              "desc": "更大善 + 救贖計畫",
+              "keywords": [
+                "更大善",
+                "救贖",
+                "基督的愛",
+                "福哉罪咎",
+                "O felix culpa"
+              ],
+              "expected_direction": "神允許犯罪可能以成就更大善（救贖計畫）；奧古斯丁「福哉罪咎」論引出基督十架愛",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "人生意義、死亡與永恆",
+      "questions": [
+        {
+          "id": 8,
+          "query": "人生為什麼那麼空虛無望，應該如何解決？",
+          "keywords": [
+            "奧古斯丁",
+            "空缺",
+            "安息"
+          ],
+          "expected_direction": "人心有神留下的空缺，與神連結是意義根源",
+          "gold_paths": [
+            {
+              "path_tag": "augustinian_empty_heart",
+              "desc": "奧古斯丁心向神的空缺（原 Phase 1 gold 路線）",
+              "keywords": [
+                "奧古斯丁",
+                "空缺",
+                "不安息",
+                "心靈空虛",
+                "confessions"
+              ],
+              "expected_direction": "奧古斯丁《懺悔錄》論心靈若不安息於神則無法真正滿足；虛無源自人心為神所造卻背離神的本源",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "spiritual_weariness_diagnosis",
+              "desc": "靈性疲乏診斷路線",
+              "keywords": [
+                "靈性懶怠",
+                "筋疲力竭",
+                "靈魂焦躁",
+                "營養不足",
+                "方向感"
+              ],
+              "expected_direction": "從具體青年虛無現象診斷屬靈根源；給出屬靈爭戰策略與重建方向",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "meaning_in_christ",
+              "desc": "意義源於基督路線",
+              "keywords": [
+                "生命意義",
+                "基督裡",
+                "目的",
+                "使命",
+                "gospel hope"
+              ],
+              "expected_direction": "生命意義唯有在與基督的關係中才得建立；福音給予超越存在焦慮的永恆目的",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "community_counseling_practice",
+              "desc": "教會 counseling 與群體實踐",
+              "keywords": [
+                "教會群體",
+                "牧養",
+                "屬靈同伴",
+                "輔導",
+                "陪伴"
+              ],
+              "expected_direction": "空虛常需群體陪伴與牧養輔導介入；教會是對抗孤立虛無的基督身體",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "query": "人生如燈火，一滅全完，人一死百了，這樣的人生觀有何錯誤？",
+          "keywords": [
+            "靈魂",
+            "復活",
+            "道德"
+          ],
+          "expected_direction": "人有靈魂不滅，耶穌復活是確據",
+          "gold_paths": [
+            {
+              "path_tag": "soul_immortality",
+              "desc": "靈魂不滅（原 Phase 1 gold 路線）",
+              "keywords": [
+                "靈魂不滅",
+                "永恆",
+                "與肉體分開",
+                "屬靈生命"
+              ],
+              "expected_direction": "聖經多處教導靈魂不隨肉體結束；人是為永恆造的，死亡不是終點",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "bodily_resurrection",
+              "desc": "肉身復活",
+              "keywords": [
+                "復活",
+                "哥林多前書 15",
+                "新身體",
+                "不朽壞",
+                "肉身復活"
+              ],
+              "expected_direction": "林前 15 保羅論復活核心：不是只有靈魂存留而是肉身復活；得榮耀的新身體",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "final_judgment_meaning",
+              "desc": "末後審判與人生意義",
+              "keywords": [
+                "最終審判",
+                "人生意義",
+                "永恆價值",
+                "希伯來書 9:27"
+              ],
+              "expected_direction": "希 9:27 死後有審判；人生有永恆後果不是空白結束；這賦予現世選擇真實意義",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "meaning_beyond_grave",
+              "desc": "意義超越墳墓（實踐面）",
+              "keywords": [
+                "存在主義虛無",
+                "超越死亡",
+                "永恆盼望",
+                "現世 meaning"
+              ],
+              "expected_direction": "無神論必導向虛無（人死百了則愛、犧牲、美德都無最終意義）；永恆盼望讓現世有真實價值",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "query": "地獄真的存在嗎？一個愛的神怎能讓人永遠受苦？",
+          "keywords": [
+            "公義",
+            "隔絕",
+            "自由選擇"
+          ],
+          "expected_direction": "地獄是沒有神的狀態，是人自由選擇的後果",
+          "gold_paths": [
+            {
+              "path_tag": "justice_and_separation",
+              "desc": "公義 + 與神隔絕（原 gold 路線）",
+              "keywords": [
+                "公義",
+                "隔絕",
+                "自由選擇",
+                "hell as self-chosen"
+              ],
+              "expected_direction": "地獄本質是與神隔絕；是愛的神給人選擇「不要神」的終極尊重；公義要求罪與神不能並存",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "free_choice_consequence",
+              "desc": "自由選擇的後果",
+              "keywords": [
+                "自由意志結果",
+                "無悔意",
+                "鎖門",
+                "C.S. Lewis 大離婚"
+              ],
+              "expected_direction": "C.S. Lewis《大離婚》論地獄之門由內鎖——人拒絕神的真愛是自我選擇的隔絕",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "christ_bore_hell",
+              "desc": "基督代受地獄",
+              "keywords": [
+                "基督十架",
+                "代贖",
+                "受神離棄",
+                "我的神我的神為什麼離棄我"
+              ],
+              "expected_direction": "基督十架上經歷被父神離棄的地獄（太 27:46）；信者因基督代受而得免；愛的神已付代價",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "query": "從沒聽過福音的人死後怎麼辦？",
+          "keywords": [
+            "良知",
+            "自然啟示",
+            "公義"
+          ],
+          "expected_direction": "神按每人所得的光來判斷",
+          "gold_paths": [
+            {
+              "path_tag": "general_revelation_conscience",
+              "desc": "普遍啟示 + 良知（原 gold 路線）",
+              "keywords": [
+                "良知",
+                "自然啟示",
+                "普遍啟示",
+                "羅馬書 1-2",
+                "所得的光"
+              ],
+              "expected_direction": "羅 1-2 論普遍啟示（自然 + 良心）；神按每人所得之光判斷；從未聽福音者按此標準",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gods_fair_judgment",
+              "desc": "神的公平判斷",
+              "keywords": [
+                "公平審判",
+                "亞伯拉罕",
+                "審判全地的主",
+                "創世記 18:25"
+              ],
+              "expected_direction": "創 18:25「審判全地的主豈不行公義嗎」；神是公平的審判者；我們可信祂處理未聽福音者會公義",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "mystery_and_mission",
+              "desc": "奧秘 + 宣教責任",
+              "keywords": [
+                "奧秘",
+                "不能完全理解",
+                "宣教動力",
+                "大使命"
+              ],
+              "expected_direction": "此問題有奧秘面我們不能完全理解；但不減損傳福音責任——我們有確據的是福音，該傳",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "query": "天堂是什麼樣子？永遠唱詩歌，會不會很無聊？",
+          "keywords": [
+            "新天新地",
+            "啟示錄",
+            "滿足"
+          ],
+          "expected_direction": "新天新地是更新後的真實世界，與神同在是最深滿足",
+          "gold_paths": [
+            {
+              "path_tag": "new_heaven_new_earth_description",
+              "desc": "新天新地描述（原 Phase 1 gold 路線）",
+              "keywords": [
+                "新天新地",
+                "啟示錄 21-22",
+                "沒有眼淚",
+                "神親自同在"
+              ],
+              "expected_direction": "啟示錄 21-22 新天新地描述：沒有眼淚、死亡、疼痛；神親自與人同住；非單調而是完全的幸福",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "worship_is_delight_not_boring",
+              "desc": "敬拜是喜樂非無聊",
+              "keywords": [
+                "敬拜",
+                "喜樂",
+                "非重複",
+                "活水湧流",
+                "持續發現"
+              ],
+              "expected_direction": "天堂敬拜不是重複單調而是持續發現神的榮美；每次發現都新鮮（如最深的愛關係無止境）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "glorified_bodies_reunion",
+              "desc": "榮耀身體 + 相聚",
+              "keywords": [
+                "榮耀身體",
+                "不朽壞",
+                "相聚所愛",
+                "完美關係"
+              ],
+              "expected_direction": "得榮耀的身體能享受完全的人際與神際關係；與所愛之人相聚、無罪攔阻",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "abundant_eternal_life",
+              "desc": "豐盛永生樣貌（實踐面）",
+              "keywords": [
+                "豐盛生命",
+                "新城市",
+                "工作敬拜",
+                "創造力",
+                "治理萬物"
+              ],
+              "expected_direction": "天堂不是脫離世界的純靈境界而是新創造（城市、工作、治理）；人類本有的創造力、關係在那裡達到完滿",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "耶穌是誰",
+      "questions": [
+        {
+          "id": 13,
+          "query": "耶穌究竟是怎樣的一個人？",
+          "keywords": [
+            "歷史",
+            "C.S. Lewis",
+            "瘋子",
+            "騙子",
+            "神的兒子"
+          ],
+          "expected_direction": "歷史文獻證實存在，Lewis 三選一論證",
+          "gold_paths": [
+            {
+              "path_tag": "lewis_trilemma",
+              "desc": "Lewis 三選一論證（原 Phase 1 gold 路線）",
+              "keywords": [
+                "C.S. Lewis",
+                "瘋子",
+                "騙子",
+                "神的兒子",
+                "trilemma",
+                "三難推論",
+                "歷史人物"
+              ],
+              "expected_direction": "Lewis 在 Mere Christianity 論證耶穌宣稱神性的三種可能性，邏輯上只有『神的兒子』可成立",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "biblical_theology",
+              "desc": "聖經神學：耶穌的神性 + 人性 + 拯救者角色",
+              "keywords": [
+                "神性",
+                "人性",
+                "二性合一",
+                "救主",
+                "彌賽亞",
+                "道成肉身",
+                "基督論"
+              ],
+              "expected_direction": "從聖經內部論耶穌既是完全的神又是完全的人，是唯一的拯救者",
+              "representative_corpus_articles": [
+                "耶穌的特質在《聖經》中被描述得非常豐富和獨特"
+              ]
+            },
+            {
+              "path_tag": "new_moses_typology",
+              "desc": "新摩西對比路線：耶穌超越舊約中介",
+              "keywords": [
+                "新摩西",
+                "超越",
+                "中保",
+                "新約",
+                "舊約預表",
+                "應許實現"
+              ],
+              "expected_direction": "耶穌不僅是新摩西，祂是舊約所有應許與預表的終極實現",
+              "representative_corpus_articles": [
+                "另一種榮耀：耶穌不僅僅是一個新的摩西"
+              ]
+            },
+            {
+              "path_tag": "historical_person",
+              "desc": "歷史人物視角：否定神話化觀點",
+              "keywords": [
+                "歷史",
+                "非神話",
+                "拿撒勒人",
+                "公元一世紀",
+                "新約記載",
+                "同代見證"
+              ],
+              "expected_direction": "耶穌是歷史上真實存在的人物，有可考的新約記載與公元一世紀同代資料",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "query": "耶穌明明是猶太人，卻說自己是神的兒子，有何憑證？",
+          "keywords": [
+            "預言",
+            "神蹟",
+            "復活",
+            "空墳墓"
+          ],
+          "expected_direction": "舊約300+預言應驗，死後復活",
+          "gold_paths": [
+            {
+              "path_tag": "prophecy_resurrection",
+              "desc": "預言 + 復活（原 gold 路線）",
+              "keywords": [
+                "預言",
+                "神蹟",
+                "復活",
+                "空墳墓",
+                "舊約應驗"
+              ],
+              "expected_direction": "舊約 300+ 預言在耶穌身上應驗（機率極低）+ 空墳墓與復活事實是耶穌神性的硬證據",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "own_divine_claims",
+              "desc": "耶穌自己的神性宣告",
+              "keywords": [
+                "我與父原為一",
+                "約翰 10:30",
+                "我是",
+                "ego eimi",
+                "赦罪權柄"
+              ],
+              "expected_direction": "耶穌自稱「我與父原為一」（約 10:30）、用 ego eimi 神名、赦人的罪；這些是明確神性宣告",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "miracles_and_authority",
+              "desc": "神蹟與權柄",
+              "keywords": [
+                "神蹟",
+                "管轄自然",
+                "趕鬼",
+                "使死人復活",
+                "權柄"
+              ],
+              "expected_direction": "耶穌行神蹟管轄自然、趕鬼、使死人復活——這些是神的特權；猶太人指控祂僭神即是明證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "lewis_trilemma_complement",
+              "desc": "Lewis 三難推論補強",
+              "keywords": [
+                "Lewis 三難",
+                "瘋子",
+                "騙子",
+                "主"
+              ],
+              "expected_direction": "C.S. Lewis 三難：既稱自己是神，邏輯上只有瘋子/騙子/主三種可能；耶穌言行排除前二",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "query": "耶穌死了如何能復活？你見過嗎？",
+          "keywords": [
+            "空墳墓",
+            "500人",
+            "殉道"
+          ],
+          "expected_direction": "空墳墓、500人見證、門徒殉道",
+          "gold_paths": [
+            {
+              "path_tag": "empty_tomb_500_witnesses",
+              "desc": "空墳墓 + 500 見證（原 Phase 1 gold 路線）",
+              "keywords": [
+                "空墳墓",
+                "500 見證",
+                "復活見證",
+                "早期信仰",
+                "保羅 哥林多前書 15"
+              ],
+              "expected_direction": "保羅引用 500 餘人見證（林前 15:6）+ 空墳墓事實 + 早期信仰宣告構成歷史證據鏈",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "martyrdom_of_witnesses",
+              "desc": "見證人殉道論證路線",
+              "keywords": [
+                "殉道",
+                "喪命",
+                "使徒殉道",
+                "不為謊言死",
+                "信念的代價"
+              ],
+              "expected_direction": "使徒與早期見證人因堅持復活宣告而殉道喪命；人不會為已知的謊言付生命代價",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "minimal_facts_approach",
+              "desc": "最小事實論證法（Habermas）",
+              "keywords": [
+                "最小事實",
+                "minimal facts",
+                "Habermas",
+                "歷史共識",
+                "替代假說"
+              ],
+              "expected_direction": "採學界普遍接受的最小歷史事實（耶穌被釘死、空墳墓、門徒經驗）反推復活是最佳解釋",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "transformed_disciples_testimony",
+              "desc": "門徒生命改變見證（實踐面）",
+              "keywords": [
+                "門徒轉變",
+                "膽怯變勇敢",
+                "生命見證",
+                "兩千年教會",
+                "福音傳播"
+              ],
+              "expected_direction": "膽怯門徒瞬間轉為勇敢宣教、兩千年教會存續見證復活的現實力量",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "query": "耶穌降世，何不直接從天降下？經過胎生，怎能被稱為神？",
+          "keywords": [
+            "道成肉身",
+            "認同",
+            "代替"
+          ],
+          "expected_direction": "道成肉身是神主動進入人的處境",
+          "gold_paths": [
+            {
+              "path_tag": "incarnation_theology",
+              "desc": "道成肉身神學（原 Phase 1 gold 路線）",
+              "keywords": [
+                "道成肉身",
+                "約翰 1:14",
+                "神人二性",
+                "基督論",
+                "降世"
+              ],
+              "expected_direction": "約 1:14「道成了肉身」；基督既是完全的神又是完全的人；二性合一是基督論核心",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "virgin_birth_heidelberg",
+              "desc": "童貞受孕（海德堡 35-36 問）",
+              "keywords": [
+                "童女懷孕",
+                "以賽亞 7:14",
+                "馬利亞",
+                "聖靈感孕",
+                "神人二性"
+              ],
+              "expected_direction": "海德堡 35-36 問論基督由童貞馬利亞因聖靈感孕；此方式確立祂同時是神又是真人",
+              "representative_corpus_articles": [
+                "《海德堡要理問答》第35-36問",
+                "以賽亞預言『必有童女懷孕生子』（賽七14）"
+              ]
+            },
+            {
+              "path_tag": "humility_of_kenosis",
+              "desc": "虛己降卑（腓 2）",
+              "keywords": [
+                "虛己",
+                "降卑",
+                "腓立比書 2",
+                "kenosis",
+                "僕人樣式"
+              ],
+              "expected_direction": "腓 2:5-8 基督本有神的形象卻虛己取了僕人樣式；胎生是神主動降卑的方式以真正進入人性",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "redemption_requires_humanity",
+              "desc": "救贖需要真人性（實踐面）",
+              "keywords": [
+                "救贖",
+                "代表人類",
+                "真人性",
+                "大祭司",
+                "體恤"
+              ],
+              "expected_direction": "來 2:14-17 基督必須與人同樣有血有肉才能作大祭司體恤我們、並代替我們死；胎生是救贖邏輯的必要",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "query": "為什麼一定要耶穌才能得救？",
+          "keywords": [
+            "罪的代價",
+            "赦免",
+            "十字架",
+            "公義"
+          ],
+          "expected_direction": "罪需要完全赦免，耶穌是唯一能承擔代價的",
+          "gold_paths": [
+            {
+              "path_tag": "substitutionary_atonement",
+              "desc": "代贖神學（原 Phase 1 gold 路線）",
+              "keywords": [
+                "罪的代價",
+                "赦免",
+                "十字架",
+                "公義",
+                "代贖",
+                "救贖"
+              ],
+              "expected_direction": "罪的代價是死；基督在十字架上作代贖，滿足神的公義同時彰顯慈愛；這是唯一能解決罪問題的路",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "unique_mediator",
+              "desc": "基督的獨特中保地位（海德堡 29-30 問路線）",
+              "keywords": [
+                "中保",
+                "唯獨基督",
+                "拿撒勒人耶穌",
+                "脫離罪惡",
+                "在天下人間"
+              ],
+              "expected_direction": "海德堡 29-30 問論拿撒勒人耶穌是唯一能救人脫離罪惡的中保；不論佛陀或默罕默德皆非",
+              "representative_corpus_articles": [
+                "《海德堡要理問答》第29-30問"
+              ]
+            },
+            {
+              "path_tag": "religious_pluralism_critique",
+              "desc": "批判宗教多元主義",
+              "keywords": [
+                "宗教多元",
+                "pluralism",
+                "條條大路",
+                "基督唯一",
+                "排他性"
+              ],
+              "expected_direction": "回應「條條大路通羅馬」的多元主義；從邏輯與聖經論基督的排他宣告（約 14:6）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "personal_salvation_testimony",
+              "desc": "個人得救見證（實踐面）",
+              "keywords": [
+                "生命改變",
+                "罪得赦免經歷",
+                "個人見證",
+                "認識基督",
+                "新生命"
+              ],
+              "expected_direction": "得救是親身經歷罪得赦免、生命被更新的事件；理論必須落在個人遇見基督的實際",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "聖經",
+      "questions": [
+        {
+          "id": 18,
+          "query": "聖經創世記記載神的創造可靠嗎？經得起科學考驗嗎？",
+          "keywords": [
+            "神學文學",
+            "大爆炸",
+            "科學家"
+          ],
+          "expected_direction": "創世記是神學文學非科學教科書，回答誰創造而非怎麼創造",
+          "gold_paths": [
+            {
+              "path_tag": "theological_literature_genre",
+              "desc": "創世記體裁論（原 Phase 1 gold 路線）",
+              "keywords": [
+                "神學文學",
+                "非科學手冊",
+                "詩意語言",
+                "啟示目的",
+                "體裁"
+              ],
+              "expected_direction": "創世記是神學文學（非科學手冊），用詩意語言啟示創造者與被造物的關係；應按體裁解讀",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "young_earth_creationism",
+              "desc": "年輕地球創造論（並列派別）",
+              "keywords": [
+                "六日創造",
+                "字面解",
+                "年輕地球",
+                "YEC",
+                "洪水地質學"
+              ],
+              "expected_direction": "YEC 立場主張字面六日 24 小時創造、地球約 6000 年；洪水造成化石與地層",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "old_earth_creationism",
+              "desc": "年老地球創造論（並列派別）",
+              "keywords": [
+                "年老地球",
+                "大爆炸",
+                "科學家",
+                "OEC",
+                "日為時代"
+              ],
+              "expected_direction": "OEC 立場接受地球 45 億年、大爆炸；創世記「日」可解為時代；許多信徒科學家持此立場",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "believing_scientists_witness",
+              "desc": "信徒科學家見證（實踐面）",
+              "keywords": [
+                "信徒科學家",
+                "Collins 基因組",
+                "Polkinghorne",
+                "信仰與科學",
+                "非衝突"
+              ],
+              "expected_direction": "當代頂尖科學家（Francis Collins、John Polkinghorne 等）同時是虔誠信徒，見證信仰與科學非衝突",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 19,
+          "query": "聖經裡無非是一些神話，不合科學，能信嗎？",
+          "keywords": [
+            "預言",
+            "考古",
+            "神蹟"
+          ],
+          "expected_direction": "預言應驗、考古證實歷史真實性",
+          "gold_paths": [
+            {
+              "path_tag": "prophecy_fulfillment",
+              "desc": "預言應驗（原 Phase 1 gold 路線）",
+              "keywords": [
+                "預言應驗",
+                "舊約預言",
+                "彌賽亞預言",
+                "歷史驗證",
+                "機率"
+              ],
+              "expected_direction": "舊約 300+ 彌賽亞預言在基督身上應驗；機率計算極微（不可能是巧合）；這是聖經可信的硬證據",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "archaeological_evidence",
+              "desc": "考古證據",
+              "keywords": [
+                "考古",
+                "死海古卷",
+                "希律王城",
+                "歷史人物",
+                "地點驗證"
+              ],
+              "expected_direction": "死海古卷、迦百農遺址、希律王城等考古發現不斷驗證聖經敘事的歷史可靠性",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "historical_reliability",
+              "desc": "歷史可靠性",
+              "keywords": [
+                "歷史可靠",
+                "抄本多",
+                "跨越時間短",
+                "地名人物",
+                "外史印證"
+              ],
+              "expected_direction": "新約抄本數量、跨時間短、與外史（約瑟夫、塔西佗）的印證證明其歷史可靠遠超任何古代文獻",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "science_bible_harmony",
+              "desc": "科學與聖經和諧",
+              "keywords": [
+                "科學與聖經",
+                "非衝突",
+                "信徒科學家",
+                "正確解讀"
+              ],
+              "expected_direction": "聖經不是神話：正確解讀下與科學無本質衝突；許多頂尖科學家同時是信徒",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 20,
+          "query": "何以聖經是唯一可信的根據？",
+          "keywords": [
+            "66卷",
+            "40位作者",
+            "預言",
+            "生命改變"
+          ],
+          "expected_direction": "66卷書跨1500年核心一致，預言應驗率極高",
+          "gold_paths": [
+            {
+              "path_tag": "historical_statistical_evidence",
+              "desc": "歷史統計性證據（原 Phase 1 gold 路線）",
+              "keywords": [
+                "66卷",
+                "40位作者",
+                "1600年",
+                "一致性",
+                "預言應驗",
+                "考古",
+                "生命改變"
+              ],
+              "expected_direction": "66 卷 40 位作者跨 1600 年寫出一致的救贖主題；預言應驗可考；讀經改變生命",
+              "representative_corpus_articles": [
+                "《為真道爭辯》第七章,聖經可信(下)"
+              ]
+            },
+            {
+              "path_tag": "reformation_sola_scriptura",
+              "desc": "宗教改革『唯獨聖經』教義路線",
+              "keywords": [
+                "唯獨聖經",
+                "sola scriptura",
+                "聖經權威",
+                "宗教改革",
+                "史普羅"
+              ],
+              "expected_direction": "聖經作為教會唯一最高權威，改教家反對傳統與聖經並立，唯聖經能教導救恩",
+              "representative_corpus_articles": [
+                "唯獨聖經(史普羅)",
+                "如果我們只接受聖經中我們想相信的部分(奧古斯丁)"
+              ]
+            },
+            {
+              "path_tag": "inspired_inerrancy",
+              "desc": "聖經默示無誤論",
+              "keywords": [
+                "神所默示",
+                "無誤",
+                "原文可靠",
+                "文本鑑定",
+                "抄本證據"
+              ],
+              "expected_direction": "聖經是神所默示（提後 3:16），原文無誤；抄本考據證明傳遞準確",
+              "representative_corpus_articles": [
+                "聖經都是神所默示的（康來昌）"
+              ]
+            },
+            {
+              "path_tag": "living_testimony",
+              "desc": "生命見證路線：讀經改變生命的實證",
+              "keywords": [
+                "生命改變",
+                "讀經見證",
+                "信仰實踐",
+                "真理果效"
+              ],
+              "expected_direction": "聖經的可信度不只是理論，更由兩千年來無數改變的生命見證",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "query": "傳講聖經的人解說常有出入，我要相信誰說的？",
+          "keywords": [
+            "基本要道",
+            "詮釋差異",
+            "原文"
+          ],
+          "expected_direction": "基本要道各宗派一致，回歸聖經原文",
+          "gold_paths": [
+            {
+              "path_tag": "core_doctrines_consensus",
+              "desc": "基本要道共識（原 Phase 1 gold 路線）",
+              "keywords": [
+                "基本要道",
+                "核心教義",
+                "各宗派一致",
+                "信經"
+              ],
+              "expected_direction": "核心教義（三位一體、基督二性、因信稱義）各正統宗派一致；分歧多在非核心問題",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "hermeneutics_principles",
+              "desc": "釋經原則",
+              "keywords": [
+                "釋經",
+                "聖經解聖經",
+                "上下文",
+                "原意",
+                "文法歷史"
+              ],
+              "expected_direction": "可靠釋經原則：聖經解聖經、尊重上下文、留意文法歷史脈絡、避免靈意過度推演",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "trusted_teacher_marks",
+              "desc": "可信教師標記（實踐面）",
+              "keywords": [
+                "可信教師",
+                "忠於聖經",
+                "品格",
+                "果子",
+                "群體見證"
+              ],
+              "expected_direction": "判斷可信教師的實際標準：是否忠於聖經原意、品格是否與教導一致、所結果子如何、群體見證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "return_to_scripture",
+              "desc": "回歸聖經原文",
+              "keywords": [
+                "回歸聖經",
+                "原文",
+                "自己查考",
+                "庇哩亞人",
+                "個人讀經"
+              ],
+              "expected_direction": "徒 17:11 庇哩亞人天天考查聖經是否如此；信徒應有能力回到原文判別教導，不盲從任何教師",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "神的公義與苦難",
+      "questions": [
+        {
+          "id": 22,
+          "query": "神既是賞善罰惡的，為何惡人不見遭報，善人卻常遇苦難？",
+          "keywords": [
+            "末日審判",
+            "品格",
+            "苦難"
+          ],
+          "expected_direction": "末日審判是最終公義，苦難塑造品格",
+          "gold_paths": [
+            {
+              "path_tag": "final_judgment_vindication",
+              "desc": "末日審判 + 品格塑造（原 gold 路線）",
+              "keywords": [
+                "末日審判",
+                "品格",
+                "苦難",
+                "最終公義",
+                "詩篇 73"
+              ],
+              "expected_direction": "詩 73 論惡人暫時亨通但最終結局；末日審判是最終公義；今世苦難塑造品格",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "present_sufferings_temporary",
+              "desc": "現今苦楚暫時",
+              "keywords": [
+                "暫時苦楚",
+                "羅馬書 8:18",
+                "永恆榮耀",
+                "重若千鈞"
+              ],
+              "expected_direction": "羅 8:18 現今苦楚不足介意比將來要顯的榮耀；永恆視野下現世不公是暫時",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "wicked_apparent_prosperity",
+              "desc": "惡人表面亨通",
+              "keywords": [
+                "惡人亨通",
+                "滑跌",
+                "結局",
+                "傳道書",
+                "虛空"
+              ],
+              "expected_direction": "惡人表面亨通其實是「站滑地」；結局滅亡；現世擁有的一切死時帶不走",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 23,
+          "query": "如果神是愛，為何讓地震海嘯等災難發生？",
+          "keywords": [
+            "墮落世界",
+            "同在",
+            "受苦"
+          ],
+          "expected_direction": "自然災害是墮落世界的一部分，神在苦難中與人同在",
+          "gold_paths": [
+            {
+              "path_tag": "fallen_world_theology",
+              "desc": "墮落世界神學（原 Phase 1 gold 路線）",
+              "keywords": [
+                "墮落世界",
+                "自然邪惡",
+                "創世記 3",
+                "受造物嘆息"
+              ],
+              "expected_direction": "自然災害是墮落世界的現象；創 3 + 羅 8:19-22 說明整個受造界因罪的影響而嘆息",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "god_suffers_with_us",
+              "desc": "神同在於苦難",
+              "keywords": [
+                "同在",
+                "受苦的神",
+                "以馬內利",
+                "基督十架",
+                "體恤"
+              ],
+              "expected_direction": "基督教不是回答「為何苦難」的哲學而是宣告「神親自進入苦難」——基督十架是神與受苦者同在",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "natural_evil_defense",
+              "desc": "自然邪惡神義論",
+              "keywords": [
+                "自然邪惡",
+                "神義論",
+                "theodicy",
+                "更大善",
+                "自由意志"
+              ],
+              "expected_direction": "自由意志防護 + 靈魂塑造 + 更大善等神義論理論說明為何全善全能的神允許自然災難發生",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "hope_in_new_creation",
+              "desc": "新創造盼望（實踐面）",
+              "keywords": [
+                "新天新地",
+                "盼望",
+                "痛苦不是終點",
+                "復原",
+                "現世回應"
+              ],
+              "expected_direction": "基督徒面對災難不否認痛苦但持有新創造的盼望；這使我們能在痛苦中仍有力量救助他人",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 24,
+          "query": "神沒有成就我的禱告，我為何還要信祂？",
+          "keywords": [
+            "禱告",
+            "計畫",
+            "等待"
+          ],
+          "expected_direction": "禱告是對話不是交易，神有更大計畫",
+          "gold_paths": [
+            {
+              "path_tag": "prayer_is_relationship",
+              "desc": "禱告是關係非交易（原 gold 路線）",
+              "keywords": [
+                "禱告",
+                "計畫",
+                "等待",
+                "對話",
+                "不是交易"
+              ],
+              "expected_direction": "禱告不是投幣式自動售貨機；是與父神的對話；神有更大的計畫超越我們的即時願望",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "no_is_also_answer",
+              "desc": "神說不也是回答",
+              "keywords": [
+                "no 是答覆",
+                "保羅的刺",
+                "林後 12",
+                "我恩夠你用"
+              ],
+              "expected_direction": "保羅三次求去刺神說不（林後 12:9）；神說 no 也是回答；祂知道什麼對我們最好",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gods_bigger_plan",
+              "desc": "神更大的計畫",
+              "keywords": [
+                "更大計畫",
+                "時間觀差異",
+                "整全藍圖",
+                "羅馬書 8:28"
+              ],
+              "expected_direction": "羅 8:28 萬事互相效力；神從永恆角度編織計畫；我們只看片段",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "query": "神為什麼讓撒但存在？",
+          "keywords": [
+            "自由意志",
+            "審判",
+            "試煉"
+          ],
+          "expected_direction": "撒但存在展示對自由意志的尊重",
+          "gold_paths": [
+            {
+              "path_tag": "free_will",
+              "desc": "自由意志論（原 Phase 1 gold 路線）",
+              "keywords": [
+                "自由意志",
+                "free will",
+                "道德選擇",
+                "真愛需自由",
+                "不強迫"
+              ],
+              "expected_direction": "神允許撒但存在以維護人類自由意志：若無選擇對象則愛與忠心無意義",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "divine_glory_displayed",
+              "desc": "神的榮耀彰顯路線",
+              "keywords": [
+                "神的榮耀",
+                "忍耐",
+                "憐憫",
+                "公義顯明",
+                "神的主權"
+              ],
+              "expected_direction": "神允許撒但是為在對抗中彰顯祂的榮耀、忍耐、憐憫與最終公義",
+              "representative_corpus_articles": [
+                "為什麼神仍允許撒但在世上游蕩？"
+              ]
+            },
+            {
+              "path_tag": "testing_refinement",
+              "desc": "試煉淬煉信心路線",
+              "keywords": [
+                "試煉",
+                "試探",
+                "信心淬煉",
+                "信心的 authentic",
+                "聖徒忍耐"
+              ],
+              "expected_direction": "撒但作為試探工具（約伯記範式），淬煉信徒信心使之 authentic",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "eschatological_judgment",
+              "desc": "末世審判伏筆路線",
+              "keywords": [
+                "末世",
+                "最終審判",
+                "火湖",
+                "撒但結局",
+                "啟示錄二十章"
+              ],
+              "expected_direction": "撒但的存在是末世審判的伏筆，終將被扔入火湖；神的公義在歷史終點彰顯",
+              "representative_corpus_articles": [
+                "惡者的起源"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 26,
+          "query": "神為什麼要有審判？",
+          "keywords": [
+            "公義",
+            "審判",
+            "受害者"
+          ],
+          "expected_direction": "沒有審判就沒有公義，審判是對受害者的平反",
+          "gold_paths": [
+            {
+              "path_tag": "justice_for_victims",
+              "desc": "公義 + 受害者平反（原 gold 路線）",
+              "keywords": [
+                "公義",
+                "審判",
+                "受害者",
+                "平反",
+                "無辜者"
+              ],
+              "expected_direction": "沒有審判就沒有公義；審判是給予歷史無數受害者的平反；一個不審判的神不愛受害者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "love_requires_justice",
+              "desc": "愛必然包含公義",
+              "keywords": [
+                "愛 vs 公義",
+                "不可分",
+                "父母管教",
+                "真愛有原則"
+              ],
+              "expected_direction": "真愛必然包含公義；父母愛子女也會管教；無公義的愛是縱容非真愛",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "final_restoration",
+              "desc": "終極復原",
+              "keywords": [
+                "復原",
+                "新天新地",
+                "眼淚擦乾",
+                "罪惡消除"
+              ],
+              "expected_direction": "審判之後是終極復原——新天新地眼淚擦乾（啟 21:4）；審判是通往復原的必要關口",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "宗教比較與教派",
+      "questions": [
+        {
+          "id": 27,
+          "query": "每種宗教都有自己的神，究竟哪一個最大？真神假神如何區別？",
+          "keywords": [
+            "預言",
+            "歷史",
+            "生命改變"
+          ],
+          "expected_direction": "從預言應驗、歷史可查、生命改變來辨別",
+          "gold_paths": [
+            {
+              "path_tag": "prophecy_history_life_change",
+              "desc": "預言 + 歷史 + 生命改變（原 gold）",
+              "keywords": [
+                "預言應驗",
+                "歷史可查",
+                "生命改變",
+                "辨別",
+                "真神假神"
+              ],
+              "expected_direction": "辨別真假神的三指標：預言應驗可查（客觀歷史）、歷史文獻可查、跟隨者生命真改變",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "exclusive_claims_analysis",
+              "desc": "排他宣告分析",
+              "keywords": [
+                "排他宣告",
+                "獨一真神",
+                "不能都對",
+                "邏輯"
+              ],
+              "expected_direction": "各宗教的排他宣告邏輯上不能都對；至少其中多數或全部錯；需細緻比對而非相對主義",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "incarnation_uniqueness",
+              "desc": "道成肉身的獨特性",
+              "keywords": [
+                "道成肉身",
+                "神主動找人",
+                "唯一",
+                "其他宗教人找神"
+              ],
+              "expected_direction": "基督教獨特在神主動道成肉身尋找人；其他宗教多是人努力尋找神；這反映神的本質是愛",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 28,
+          "query": "基督教和其他宗教究竟有何差異？",
+          "keywords": [
+            "恩典",
+            "功德",
+            "神來找人"
+          ],
+          "expected_direction": "恩典vs功德，基督教是神來找人",
+          "gold_paths": [
+            {
+              "path_tag": "grace_vs_works",
+              "desc": "恩典 vs 功德（原 gold 路線）",
+              "keywords": [
+                "恩典",
+                "功德",
+                "神來找人",
+                "不配得",
+                "禮物"
+              ],
+              "expected_direction": "其他宗教多是人靠功德賺取救恩；基督教是神白白賜下恩典；我們不配得卻領受",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "relationship_not_religion",
+              "desc": "關係非宗教",
+              "keywords": [
+                "關係",
+                "個人父神",
+                "abba",
+                "不是規則清單"
+              ],
+              "expected_direction": "基督教核心是與神建立父子關係（稱阿爸父）而非遵守規則；耶穌說「我是道路」不是「這些是規則」",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "person_of_christ",
+              "desc": "基督本人的獨特",
+              "keywords": [
+                "耶穌是誰",
+                "既神又人",
+                "能救罪",
+                "復活"
+              ],
+              "expected_direction": "最終差異在耶穌本人——祂既是神又是人、死在十架代罪、復活勝過死亡；這是沒有他人能提供的",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 29,
+          "query": "宗教無非是勸人為善，憑良心行事，何必一定要信耶穌？",
+          "keywords": [
+            "罪的問題",
+            "赦免",
+            "行善"
+          ],
+          "expected_direction": "行善解決不了罪的根本問題",
+          "gold_paths": [
+            {
+              "path_tag": "cant_solve_sin",
+              "desc": "行善解不了罪的根本（原 gold 路線）",
+              "keywords": [
+                "罪的問題",
+                "赦免",
+                "行善",
+                "標準",
+                "失敗"
+              ],
+              "expected_direction": "行善高尚但解不了罪的根本（已犯的罪不能被未來的善抵消）；需要神的赦免非累積功德",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "standards_beyond_reach",
+              "desc": "標準超越人能力",
+              "keywords": [
+                "登山寶訓",
+                "動念也算",
+                "完全",
+                "達不到"
+              ],
+              "expected_direction": "耶穌的標準極高（登山寶訓動念也算）；憑良心行事不足；人無法自救到達神的聖潔",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "new_nature_needed",
+              "desc": "需要新生命而非新規則",
+              "keywords": [
+                "新生命",
+                "重生",
+                "聖靈",
+                "內在改變",
+                "以西結 36"
+              ],
+              "expected_direction": "結 36:26 神賜新心新靈；需要的是內在生命更新而非外在規則遵守；信耶穌得新生命",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 30,
+          "query": "基督教宗派林立，哪一個才是正統？",
+          "keywords": [
+            "三位一體",
+            "因信稱義",
+            "聖經權威"
+          ],
+          "expected_direction": "基本要道一致，宗派差異在形式而非核心",
+          "gold_paths": [
+            {
+              "path_tag": "core_doctrine_test",
+              "desc": "三大核心教義判準（原 Phase 1 gold 路線）",
+              "keywords": [
+                "三位一體",
+                "因信稱義",
+                "聖經權威",
+                "尼西亞信經",
+                "基要主義"
+              ],
+              "expected_direction": "正統基督教判準是核心教義：三位一體、因信稱義、聖經權威；符合尼西亞 / 使徒信經者為正統",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "historical_three_branches",
+              "desc": "東正/羅馬/新教三大分支介紹",
+              "keywords": [
+                "東正教",
+                "羅馬天主教",
+                "新教",
+                "大公教會",
+                "宗派傳統"
+              ],
+              "expected_direction": "基督教分東正教、羅馬天主教、新教三大分支；各自有歷史傳承與神學特色，核心教義相通",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "sola_scriptura_standard",
+              "desc": "唯獨聖經作為判準",
+              "keywords": [
+                "唯獨聖經",
+                "sola scriptura",
+                "聖經終極權威",
+                "傳統 vs 聖經"
+              ],
+              "expected_direction": "宗教改革「唯獨聖經」原則：任何宗派教導若與聖經原意衝突則非正統；聖經是終極判準",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "practical_church_discernment",
+              "desc": "如何實際選教會（實踐面）",
+              "keywords": [
+                "選教會",
+                "聽道判準",
+                "牧者品格",
+                "群體",
+                "實際辨認"
+              ],
+              "expected_direction": "普通信徒可從講道是否忠於聖經、牧者品格、群體愛的見證等實際面向辨認教會是否健康正統",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 31,
+          "query": "如何分辨不正統信仰的基督教（異端）？",
+          "keywords": [
+            "耶穌神性",
+            "救恩",
+            "聖經權威"
+          ],
+          "expected_direction": "三個關鍵：耶穌神性、救恩根據、聖經權威",
+          "gold_paths": [
+            {
+              "path_tag": "three_key_doctrine_tests",
+              "desc": "三大教義檢驗（原 Phase 1 gold 路線）",
+              "keywords": [
+                "耶穌神性",
+                "救恩",
+                "聖經權威",
+                "異端判準",
+                "教義檢驗"
+              ],
+              "expected_direction": "異端三大檢驗：否認耶穌完全神性、加添救恩條件、否定聖經權威；符任一即為異端",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "common_heresies_list",
+              "desc": "常見異端清單（實踐面）",
+              "keywords": [
+                "耶和華見證人",
+                "摩門教",
+                "新紀元",
+                "靈恩極端",
+                "異端特徵"
+              ],
+              "expected_direction": "列出當代常見異端（耶和華見證人、摩門教、新紀元運動等）各自偏離正統的核心點",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "church_history_creeds",
+              "desc": "大公會議信經傳承",
+              "keywords": [
+                "尼西亞信經",
+                "使徒信經",
+                "大公會議",
+                "教父",
+                "正統傳承"
+              ],
+              "expected_direction": "早期大公會議（尼西亞、迦克墩等）定義的正統教義是分辨異端的歷史判準",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "scripture_as_final_authority",
+              "desc": "聖經為終極判準",
+              "keywords": [
+                "聖經權威",
+                "原文驗證",
+                "約聖使徒教導",
+                "信仰根基"
+              ],
+              "expected_direction": "所有分辨最終回到聖經原意；任何額外啟示、秘傳知識、新先知書皆應被聖經檢驗",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "台灣本土文化脈絡",
+      "questions": [
+        {
+          "id": 32,
+          "query": "信耶穌是否等於背棄祖先、不孝？",
+          "keywords": [
+            "孝順",
+            "十誡",
+            "祖先"
+          ],
+          "expected_direction": "孝順是聖經命令，尊重祖先和崇拜偶像是不同的事",
+          "gold_paths": [
+            {
+              "path_tag": "honor_parents_command",
+              "desc": "孝順是神命令（原 gold 路線）",
+              "keywords": [
+                "孝順",
+                "第五誡",
+                "十誡",
+                "當孝敬父母",
+                "祖先"
+              ],
+              "expected_direction": "孝順是十誡第五條「當孝敬父母」；基督徒反而更重孝道；信耶穌不等於背棄祖先",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "honoring_vs_worshipping",
+              "desc": "記念 vs 崇拜區別",
+              "keywords": [
+                "記念",
+                "崇拜",
+                "區分",
+                "對祖先的愛"
+              ],
+              "expected_direction": "記念祖先（愛與感恩）與崇拜祖先（視為神）不同；基督徒可前者，不可後者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "family_remains_important",
+              "desc": "家庭關係依然重要",
+              "keywords": [
+                "家人",
+                "愛家人",
+                "見證",
+                "家族"
+              ],
+              "expected_direction": "信主不是疏遠家人而是更愛家人；活出福音生命是給祖先最好的紀念",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gospel_gift_to_ancestors",
+              "desc": "福音是給祖先的禮物",
+              "keywords": [
+                "福音傳承",
+                "後代蒙福",
+                "生命影響",
+                "屬靈遺產"
+              ],
+              "expected_direction": "信耶穌讓整個家族有機會蒙福——父母信仰能成為子孫屬靈遺產；非保證全家得救但確是家族的祝福",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "query": "信耶穌的人家裡可不可以供奉祖先牌位？清明掃墓、中元普渡可以參加嗎？",
+          "keywords": [
+            "祖先牌位",
+            "清明",
+            "中元",
+            "文化習俗"
+          ],
+          "expected_direction": "文化習俗和宗教崇拜要分清",
+          "gold_paths": [
+            {
+              "path_tag": "cultural_vs_religious",
+              "desc": "文化習俗 vs 宗教崇拜（原 gold 路線）",
+              "keywords": [
+                "文化習俗",
+                "宗教崇拜",
+                "分辨",
+                "祖先牌位",
+                "清明"
+              ],
+              "expected_direction": "需區分文化習俗（可）與宗教崇拜（不可）；牌位若是膜拜對象不宜，若是紀念象徵可斟酌",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "tomb_sweeping_appropriate",
+              "desc": "清明掃墓合宜",
+              "keywords": [
+                "清明掃墓",
+                "紀念",
+                "孝道",
+                "家人同行"
+              ],
+              "expected_direction": "清明掃墓本質是紀念與孝道表達；基督徒可參與——打掃、獻花、述說祖先事蹟，但不燒香跪拜",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "ghost_month_avoid",
+              "desc": "中元普渡宜避開",
+              "keywords": [
+                "中元普渡",
+                "祭祀鬼神",
+                "屬靈爭戰",
+                "避開"
+              ],
+              "expected_direction": "中元普渡本質是祭祀鬼神；基督徒不參與；可用其他方式表達對亡者的尊重",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "query": "台灣有自己的神明保佑，為什麼要信外來的耶穌？",
+          "keywords": [
+            "真理",
+            "國界",
+            "民族"
+          ],
+          "expected_direction": "真理沒有國界，問題不是哪裡來的而是是不是真的",
+          "gold_paths": [
+            {
+              "path_tag": "universal_truth_beyond_ethnicity",
+              "desc": "真理無國界（原 Phase 1 gold 路線）",
+              "keywords": [
+                "真理",
+                "國界",
+                "民族",
+                "universal",
+                "救恩普世性"
+              ],
+              "expected_direction": "真理不分國界民族；神是萬國萬民的神；耶穌雖生於猶太文化，祂是全人類的救主",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "chinese_folk_religion_analysis",
+              "desc": "華人民間信仰分析（實踐面）",
+              "keywords": [
+                "神明",
+                "拜祖先",
+                "儒道佛混合",
+                "民間信仰",
+                "靈驗功利"
+              ],
+              "expected_direction": "華人民間信仰多為儒道佛混合 + 功利靈驗導向；公允分析其文化根源再對照基督信仰的不同",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "ancestors_and_gospel",
+              "desc": "祖先敬拜與福音",
+              "keywords": [
+                "祖先",
+                "孝道",
+                "記念",
+                "第五誡命",
+                "文化處理"
+              ],
+              "expected_direction": "基督信仰不反對孝道與記念祖先；區別敬拜（歸神）與記念（歸祖先）可化解文化張力",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "contextual_incarnation",
+              "desc": "處境化福音",
+              "keywords": [
+                "處境神學",
+                "本土化",
+                "保羅雅典",
+                "福音使者",
+                "文化橋樑"
+              ],
+              "expected_direction": "福音在每文化都需處境化表達（保羅在雅典的示範）；耶穌進入台灣不是外來而是成為在地的",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 35,
+          "query": "拜拜、燒香是台灣的文化傳統，信基督教要放棄這些，是否等於放棄自己的文化身份？",
+          "keywords": [
+            "文化",
+            "身份",
+            "假神"
+          ],
+          "expected_direction": "信仰改變的是心不是文化身份",
+          "gold_paths": [
+            {
+              "path_tag": "heart_changes_culture_remains",
+              "desc": "心改而文化身份不變（原 gold 路線）",
+              "keywords": [
+                "心改",
+                "文化身份",
+                "台灣人",
+                "識別",
+                "不變"
+              ],
+              "expected_direction": "信主改變的是心（敬拜對象）不是文化身份；信耶穌的台灣人依然是台灣人",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "worship_redirected_not_culture",
+              "desc": "敬拜重新定向",
+              "keywords": [
+                "敬拜對象",
+                "歸一真神",
+                "文化延續",
+                "語言飲食"
+              ],
+              "expected_direction": "改變的是敬拜對象（從偶像轉向真神）；語言、飲食、節日、音樂等文化元素皆可延續",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "culture_redeemed_in_christ",
+              "desc": "文化在基督裡被救贖",
+              "keywords": [
+                "文化救贖",
+                "處境神學",
+                "宣教學",
+                "contextualization"
+              ],
+              "expected_direction": "基督信仰能救贖每文化中的美善；本土神學、教會本色化都是見證——成為更豐富的台灣基督徒",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 36,
+          "query": "神明顯靈、乩童起乩這麼真實，基督教怎麼解釋？",
+          "keywords": [
+            "靈界",
+            "辨別",
+            "捆綁"
+          ],
+          "expected_direction": "聖經承認靈界存在，但能力真實不等於來自真神",
+          "gold_paths": [
+            {
+              "path_tag": "reality_of_spiritual_realm",
+              "desc": "靈界真實（原 Phase 1 gold 路線）",
+              "keywords": [
+                "靈界",
+                "屬靈戰爭",
+                "鬼魔真實",
+                "多層實在",
+                "聖經世界觀"
+              ],
+              "expected_direction": "聖經世界觀包含靈界真實（以弗所 6:12）；乩童顯靈現象印證聖經說的屬靈世界存在",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "demonology_biblical_view",
+              "desc": "鬼魔聖經觀",
+              "keywords": [
+                "鬼魔",
+                "墮落天使",
+                "撒但角色",
+                "附身",
+                "欺騙"
+              ],
+              "expected_direction": "聖經教導鬼魔是墮落天使；屬撒但權勢；可附身迷惑人；乩童起乩不必然是假可能是鬼魔作為",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "discernment_of_spirits",
+              "desc": "分辨諸靈（實踐面）",
+              "keywords": [
+                "分辨諸靈",
+                "約翰一書 4:1",
+                "試驗",
+                "聖靈 vs 惡靈",
+                "果子"
+              ],
+              "expected_direction": "約一 4:1 試驗諸靈：看是否高舉基督、承認基督道成肉身、結出聖靈果子；顯靈不等於來自神",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "victory_through_christ",
+              "desc": "基督得勝不需懼怕",
+              "keywords": [
+                "得勝",
+                "基督權柄",
+                "不需懼怕",
+                "馬可 1:25",
+                "奉主名"
+              ],
+              "expected_direction": "基督在十架上勝過一切執政掌權（西 2:15）；信徒在基督裡有權柄不必懼怕靈界勢力",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "非基督教觀點批判——佛道儒",
+      "questions": [
+        {
+          "id": 37,
+          "query": "佛教說因果業報、輪迴轉世，這不是比基督教更公平嗎？",
+          "keywords": [
+            "輪迴",
+            "業報",
+            "恩典",
+            "審判"
+          ],
+          "expected_direction": "輪迴無法確認公平，基督教是神白白的恩典",
+          "gold_paths": [
+            {
+              "path_tag": "grace_vs_karma",
+              "desc": "恩典 vs 業力對比（原 Phase 1 gold 路線）",
+              "keywords": [
+                "恩典",
+                "業力",
+                "業報",
+                "因信稱義",
+                "白白賜下"
+              ],
+              "expected_direction": "業力要求自力累積功德；恩典是神白白賜下；基督教的救恩不是交易而是禮物",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "karma_fairness_critique",
+              "desc": "業報公平性的神學回應",
+              "keywords": [
+                "公平",
+                "業報邏輯",
+                "命定宿命",
+                "無盡輪迴",
+                "出路"
+              ],
+              "expected_direction": "業報看似公平實際是無盡循環且無救贖出路；基督教提供罪得赦免與重生的真正出路",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "buddhism_christianity_dialogue",
+              "desc": "佛基對話（公允描述佛教立場）",
+              "keywords": [
+                "佛教觀點",
+                "四聖諦",
+                "緣起",
+                "對比",
+                "尊重"
+              ],
+              "expected_direction": "公允介紹佛教四聖諦 + 緣起論再對照基督教對苦難與解脫的觀點；不貶抑但清楚差異",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "one_life_final_judgment",
+              "desc": "一次人生 + 末世審判（非輪迴）",
+              "keywords": [
+                "一次人生",
+                "最終審判",
+                "希伯來書 9:27",
+                "單次死亡",
+                "永恆後果"
+              ],
+              "expected_direction": "按希伯來書 9:27「按著定命，人人都有一死，死後且有審判」；基督教不是輪迴而是一次人生 + 最終審判",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 38,
+          "query": "儒家說修身齊家，做好人盡本分就夠了，何必信教？",
+          "keywords": [
+            "儒家",
+            "罪性",
+            "新生命"
+          ],
+          "expected_direction": "知道當行善卻行不出來，需要新生命而非新規則",
+          "gold_paths": [
+            {
+              "path_tag": "knowledge_action_gap",
+              "desc": "知行差距（原 gold 路線）",
+              "keywords": [
+                "儒家",
+                "修身",
+                "罪性",
+                "新生命",
+                "知行"
+              ],
+              "expected_direction": "儒家修身理想崇高；但人都有知行差距（知當行善卻常行不出來，羅 7:19）；需要新生命",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "confucian_strengths_and_gaps",
+              "desc": "儒家長處與不足",
+              "keywords": [
+                "儒家倫理",
+                "五倫",
+                "關係",
+                "超越缺席"
+              ],
+              "expected_direction": "儒家在倫理五倫方面深刻；但缺乏面對人性罪的根本解方，也缺乏超越性的神啟示",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gospel_beyond_morality",
+              "desc": "福音超越道德",
+              "keywords": [
+                "福音",
+                "恩典",
+                "不只做好人",
+                "被更新"
+              ],
+              "expected_direction": "福音不只要人做好人而是要人被更新；不是給好人的，是給死人的（以弗所 2:1-5）",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 39,
+          "query": "道家說道可道非常道，基督教把神說得太具體、太人格化，這樣對嗎？",
+          "keywords": [
+            "位格神",
+            "道家",
+            "同在"
+          ],
+          "expected_direction": "基督教的神是位格神，能愛你、赦免你、與你同在",
+          "gold_paths": [
+            {
+              "path_tag": "personal_god",
+              "desc": "位格神（原 gold 路線）",
+              "keywords": [
+                "位格神",
+                "道家",
+                "同在",
+                "愛你",
+                "赦免你"
+              ],
+              "expected_direction": "基督教神是位格（有思想意志情感）；能愛你、赦免你、與你同在；非道家那種無位格的道",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "abstract_vs_incarnate",
+              "desc": "抽象 vs 道成肉身",
+              "keywords": [
+                "抽象",
+                "道成肉身",
+                "約翰 1:1-14",
+                "耶穌是道"
+              ],
+              "expected_direction": "約 1 耶穌是「道」但這道成肉身住在人中間；基督教的道不是抽象原則而是可認識的位格",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "personal_relationship_possible",
+              "desc": "關係的可能性",
+              "keywords": [
+                "關係",
+                "禱告對話",
+                "個人認識神",
+                "親近"
+              ],
+              "expected_direction": "位格神可被認識、禱告、愛；這是道家「道不可道」無法提供的——與神建立個人關係的可能",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "query": "無神論者說道德不需要宗教，人可以自己定義善惡，基督教怎麼回應？",
+          "keywords": [
+            "無神論",
+            "道德",
+            "善惡"
+          ],
+          "expected_direction": "普世道德感指向超越的道德立法者",
+          "gold_paths": [
+            {
+              "path_tag": "moral_grounding",
+              "desc": "道德基礎問題（原 gold 路線）",
+              "keywords": [
+                "無神論",
+                "道德",
+                "善惡",
+                "相對主義",
+                "基礎"
+              ],
+              "expected_direction": "無神論面臨道德基礎問題：若無超越立法者，道德成為主觀偏好；為何希特勒錯而德蕾莎對？",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "universal_moral_intuition",
+              "desc": "普世道德直覺",
+              "keywords": [
+                "普世道德",
+                "良心",
+                "殘忍是錯",
+                "跨文化"
+              ],
+              "expected_direction": "普世道德直覺（殘忍是錯、公平是對）跨文化一致——這指向客觀道德實在，非社會建構",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "lawgiver_implied",
+              "desc": "立法者暗示",
+              "keywords": [
+                "道德立法者",
+                "客觀道德",
+                "C.S. Lewis",
+                "道德律"
+              ],
+              "expected_direction": "C.S. Lewis 論道德律指向立法者；若有客觀的「應該」則必有超越的 ought-giver；神是最佳解釋",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "教會醜聞與歷史",
+      "questions": [
+        {
+          "id": 41,
+          "query": "十字軍東征、宗教審判——這是愛的宗教嗎？",
+          "keywords": [
+            "十字軍",
+            "罪性",
+            "耶穌"
+          ],
+          "expected_direction": "人的罪性不是耶穌的教導，應看耶穌本人",
+          "gold_paths": [
+            {
+              "path_tag": "human_sin_not_christ_teaching",
+              "desc": "人的罪性非基督教導（原 gold）",
+              "keywords": [
+                "罪性",
+                "教會人失敗",
+                "基督教導",
+                "區分"
+              ],
+              "expected_direction": "應區分基督本人教導（愛仇敵、饒恕）與歷史上某些基督徒的失敗；後者違背前者非代表前者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "look_at_christ_himself",
+              "desc": "看耶穌本人",
+              "keywords": [
+                "看耶穌",
+                "福音書",
+                "本人教導",
+                "根源"
+              ],
+              "expected_direction": "評斷基督教應看根源耶穌本人；讀福音書看祂如何對待罪人、仇敵、邊緣人",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "historical_context_nuance",
+              "desc": "歷史脈絡的複雜性",
+              "keywords": [
+                "十字軍",
+                "宗教審判",
+                "政治因素",
+                "複雜"
+              ],
+              "expected_direction": "十字軍、宗教審判有複雜政治經濟因素（不只宗教原因）；完整歷史分析避免簡化歸咎",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "repentance_modern_church",
+              "desc": "教會當代悔改",
+              "keywords": [
+                "公開道歉",
+                "悔改",
+                "修和",
+                "近代教會"
+              ],
+              "expected_direction": "近代教會已就歷史錯誤公開悔改（如教宗道歉）；承認過錯是福音該有的果子",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "query": "宣教士跟著殖民主義進來，基督教不是帝國主義的工具嗎？",
+          "keywords": [
+            "殖民",
+            "宣教",
+            "馬偕",
+            "解放"
+          ],
+          "expected_direction": "要區分共謀者和反對者，福音本身解放人",
+          "gold_paths": [
+            {
+              "path_tag": "supporters_vs_opposers",
+              "desc": "共謀者 vs 反對者（原 gold 路線）",
+              "keywords": [
+                "殖民共謀",
+                "反對宣教士",
+                "複雜歷史",
+                "馬偕"
+              ],
+              "expected_direction": "宣教士中有人共謀殖民也有人反抗；不可一概而論；馬偕等在地紮根、反對殖民壓迫",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "mackay_indigenous_contribution",
+              "desc": "馬偕本土貢獻範例",
+              "keywords": [
+                "馬偕",
+                "本土語言",
+                "醫療",
+                "教育",
+                "原住民"
+              ],
+              "expected_direction": "馬偕學台語、辦醫院學校、關懷原住民；建立本土神學；這是宣教反殖民的具體見證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gospel_liberates_people",
+              "desc": "福音本身解放人",
+              "keywords": [
+                "福音解放",
+                "加拉太 3:28",
+                "不分族群",
+                "同一在基督"
+              ],
+              "expected_direction": "加 3:28 並不分猶太人希利尼人；福音根本反種族主義；歷史上福音推動廢奴、反壓迫",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "indigenous_church_rising",
+              "desc": "本土教會興起",
+              "keywords": [
+                "本土教會",
+                "本色化",
+                "自傳自養自治",
+                "第三波宣教"
+              ],
+              "expected_direction": "當代宣教已由本土領袖擔綱；自傳自養自治教會遍地；這證明福音超越任何特定文化殖民",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 43,
+          "query": "牧師性醜聞、教會財務問題——這樣的教會還值得信嗎？",
+          "keywords": [
+            "醜聞",
+            "罪人",
+            "耶穌"
+          ],
+          "expected_direction": "教會是罪人聚集的地方，評判對象是耶穌不是跟隨者",
+          "gold_paths": [
+            {
+              "path_tag": "church_is_sinners",
+              "desc": "教會是罪人聚集（原 gold 路線）",
+              "keywords": [
+                "罪人",
+                "教會",
+                "醫院",
+                "不完美",
+                "過程"
+              ],
+              "expected_direction": "教會不是聖人俱樂部而是罪人醫院；不完美是預期中的；但這不是縱容的理由",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "judge_christ_not_followers",
+              "desc": "評判基督非跟隨者",
+              "keywords": [
+                "評判對象",
+                "跟隨者失敗",
+                "基督完美",
+                "根源"
+              ],
+              "expected_direction": "醜聞反映跟隨者失敗不是基督失敗；評判一個信仰要看其教導與根源（耶穌），不是有缺陷的跟隨者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "accountability_systems",
+              "desc": "問責機制與透明",
+              "keywords": [
+                "問責",
+                "透明",
+                "監督",
+                "治理"
+              ],
+              "expected_direction": "健康教會應有問責機制：財務透明、牧者監督、受害者保護；這些是成熟教會的標誌",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "true_vs_false_teachers",
+              "desc": "真假教師辨別",
+              "keywords": [
+                "真假教師",
+                "果子",
+                "品格",
+                "教義"
+              ],
+              "expected_direction": "耶穌教導憑果子認出他們（太 7:16）；品格與教義皆需檢驗；並非所有「牧師」皆真",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 44,
+          "query": "歷史上那麼多宗教戰爭與迫害，如果神是愛，怎麼解釋？",
+          "keywords": [
+            "宗教戰爭",
+            "無神論政權",
+            "捨己"
+          ],
+          "expected_direction": "用神的名義犯罪不代表神支持",
+          "gold_paths": [
+            {
+              "path_tag": "sinful_human_misuse",
+              "desc": "人性罪惡濫用信仰（原 Phase 1 gold 路線）",
+              "keywords": [
+                "人性罪惡",
+                "濫用宗教",
+                "假藉神名",
+                "罪的普遍",
+                "教會不等於基督"
+              ],
+              "expected_direction": "宗教戰爭是人類罪惡濫用信仰之名（如十字軍、宗教審判）；這反映人性墮落而非基督教導",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "distinguish_christ_teaching",
+              "desc": "區分基督教導與歷史錯誤",
+              "keywords": [
+                "基督教導",
+                "愛仇敵",
+                "歷史錯誤",
+                "回歸聖經"
+              ],
+              "expected_direction": "應區分基督教導（愛仇敵、饒恕）與歷史上某些基督徒錯誤行為；後者違背前者而非代表前者",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "historical_context_of_conflicts",
+              "desc": "宗教衝突歷史脈絡",
+              "keywords": [
+                "十字軍",
+                "宗教審判",
+                "歷史脈絡",
+                "政治利用",
+                "複雜因素"
+              ],
+              "expected_direction": "十字軍、宗教審判等有複雜政治經濟因素；單歸咎宗教過度簡化；需完整歷史脈絡分析",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "repentance_reconciliation",
+              "desc": "教會悔改與修和（實踐面）",
+              "keywords": [
+                "悔改",
+                "修和",
+                "主教道歉",
+                "加害歷史",
+                "和好"
+              ],
+              "expected_direction": "近代教會已就歷史錯誤公開悔改（如二世紀教宗對十字軍的道歉）；承認過錯是福音該有的果子",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "婚姻、家庭與兩性",
+      "questions": [
+        {
+          "id": 45,
+          "query": "聖經說女人要順服丈夫，這不是性別歧視嗎？",
+          "keywords": [
+            "順服",
+            "捨命",
+            "互相順服"
+          ],
+          "expected_direction": "順服在互相順服框架下，丈夫要求更高",
+          "gold_paths": [
+            {
+              "path_tag": "mutual_submission_context",
+              "desc": "互相順服框架（原 gold 路線）",
+              "keywords": [
+                "順服",
+                "互相順服",
+                "以弗所 5:21",
+                "框架"
+              ],
+              "expected_direction": "弗 5:21 先說「存敬畏基督的心，彼此順服」；再說妻子順服丈夫；須在互相順服大框架下理解",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "husband_costlier_sacrifice",
+              "desc": "丈夫要求更高捨命的愛",
+              "keywords": [
+                "捨己愛妻",
+                "如基督愛教會",
+                "代死",
+                "更高要求"
+              ],
+              "expected_direction": "弗 5:25 丈夫要如基督愛教會捨己；這要求遠超「順服」——是捨命的愛；男性責任更重",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "cultural_application_wisdom",
+              "desc": "當代文化應用智慧",
+              "keywords": [
+                "文化應用",
+                "21 世紀",
+                "職業女性",
+                "實務"
+              ],
+              "expected_direction": "順服不是決策獨裁而是 unity 優先、合議共決；當代基督徒需以智慧應用此原則於文化處境",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "equal_dignity",
+              "desc": "平等尊嚴",
+              "keywords": [
+                "平等",
+                "神的形像",
+                "加拉太 3:28",
+                "共同繼承"
+              ],
+              "expected_direction": "男女同按神形像受造（創 1:27）；共同繼承恩典（加 3:28）；順服不意味價值不等",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 46,
+          "query": "基督徒可以離婚嗎？再婚呢？",
+          "keywords": [
+            "盟約",
+            "離婚",
+            "恩典"
+          ],
+          "expected_direction": "婚姻是永久盟約，有例外情況，神的恩典大過失敗",
+          "gold_paths": [
+            {
+              "path_tag": "covenant_permanence",
+              "desc": "婚姻盟約的永久性（原 gold 路線）",
+              "keywords": [
+                "盟約",
+                "永久",
+                "至死不渝",
+                "一生之約"
+              ],
+              "expected_direction": "婚姻是神面前立的永久盟約；神的心意是一生之約，不是隨時可解約的契約",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "exception_clauses",
+              "desc": "聖經例外條款",
+              "keywords": [
+                "姦淫",
+                "遺棄",
+                "保羅特權",
+                "例外"
+              ],
+              "expected_direction": "太 19:9 姦淫例外；林前 7:15 非信徒遺棄例外；聖經承認特定情況下離婚合法",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "grace_greater_than_failure",
+              "desc": "恩典大過失敗",
+              "keywords": [
+                "恩典",
+                "失敗",
+                "離婚再婚",
+                "赦免"
+              ],
+              "expected_direction": "婚姻失敗不是不可饒恕的罪；神的恩典大過失敗；再婚情況需牧養智慧引導",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "pastoral_case_by_case",
+              "desc": "牧養個案智慧",
+              "keywords": [
+                "個案",
+                "牧養",
+                "家暴",
+                "情感虐待",
+                "安全"
+              ],
+              "expected_direction": "家暴、長期情感虐待等情況下人身安全優先；需牧養個案處理；不強迫留在危險婚姻",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 47,
+          "query": "基督徒怎麼教養孩子？可以讓孩子自己選擇信不信嗎？",
+          "keywords": [
+            "教養",
+            "信仰",
+            "選擇"
+          ],
+          "expected_direction": "培養信仰是父母責任，但信仰必須是個人選擇",
+          "gold_paths": [
+            {
+              "path_tag": "parent_responsibility",
+              "desc": "父母的信仰責任（原 gold 路線）",
+              "keywords": [
+                "父母責任",
+                "教養",
+                "申命記 6",
+                "家庭敬拜"
+              ],
+              "expected_direction": "申 6:4-9 父母有責任教導神的律法給兒女；家庭是第一個教會；父母不能推卸此責任",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "personal_choice_needed",
+              "desc": "信仰需個人選擇",
+              "keywords": [
+                "個人選擇",
+                "成年責任",
+                "不強迫",
+                "自主"
+              ],
+              "expected_direction": "信仰最終是個人選擇；父母可培育栽種但不能代替孩子相信；成年後需本人歸信",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "model_not_coerce",
+              "desc": "示範非強迫",
+              "keywords": [
+                "示範",
+                "真實信仰",
+                "雙重標準",
+                "親身活出"
+              ],
+              "expected_direction": "父母最有效的教養是親身活出真實信仰；雙重標準（口是心非）比不教還傷",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 48,
+          "query": "未婚同居、婚前性行為，聖經怎麼看？",
+          "keywords": [
+            "聖潔",
+            "婚姻",
+            "盟約"
+          ],
+          "expected_direction": "性是美好的但有婚姻盟約的框架保護",
+          "gold_paths": [
+            {
+              "path_tag": "sex_within_covenant",
+              "desc": "性在盟約內（原 gold 路線）",
+              "keywords": [
+                "盟約",
+                "婚姻",
+                "性",
+                "聖潔",
+                "一體"
+              ],
+              "expected_direction": "聖經設計性是婚姻盟約內的表達（創 2:24）；兩人成為一體；不是禁慾而是在保護框架內",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "sexuality_is_good",
+              "desc": "性本是美好",
+              "keywords": [
+                "性美好",
+                "雅歌",
+                "神所造",
+                "慶祝"
+              ],
+              "expected_direction": "雅歌整本書慶祝性的美好；基督教不是禁慾宗教；性是神美好的設計",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "protection_not_prohibition",
+              "desc": "保護非禁止",
+              "keywords": [
+                "保護",
+                "情感",
+                "心理",
+                "長期關係"
+              ],
+              "expected_direction": "婚前禁令是保護——保護情感、心理、長期關係；盟約承諾下的性最深刻、最安全",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "性別認同與同性戀",
+      "questions": [
+        {
+          "id": 49,
+          "query": "聖經怎麼看同性戀？基督徒應該如何對待同性戀者？",
+          "keywords": [
+            "同性戀",
+            "一男一女",
+            "接納"
+          ],
+          "expected_direction": "聖經婚姻觀一男一女，但要愛人接納人",
+          "gold_paths": [
+            {
+              "path_tag": "biblical_marriage_one_man_one_woman",
+              "desc": "聖經婚姻一男一女（原 gold）",
+              "keywords": [
+                "一男一女",
+                "創世記 2",
+                "耶穌引用",
+                "太 19",
+                "一夫一妻"
+              ],
+              "expected_direction": "創 2:24 + 太 19:4-6 耶穌引用論婚姻是一男一女的結合；此為歷史正統基督教立場",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "love_person_with_truth",
+              "desc": "愛人同時傳真理",
+              "keywords": [
+                "愛人",
+                "真理",
+                "不矛盾",
+                "耶穌示範"
+              ],
+              "expected_direction": "愛同性戀者與堅持聖經教導不矛盾；耶穌對罪人的愛與對罪的清楚立場並存",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "all_sinners_need_grace",
+              "desc": "皆罪人皆需恩典",
+              "keywords": [
+                "皆罪人",
+                "羅馬書 3:23",
+                "都虧缺",
+                "恩典"
+              ],
+              "expected_direction": "所有人都犯了罪虧缺了神的榮耀（羅 3:23）；同性戀不是獨特的罪；皆需基督恩典",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "church_as_safe_place",
+              "desc": "教會是安全之地",
+              "keywords": [
+                "安全",
+                "掙扎者",
+                "接納",
+                "不審判"
+              ],
+              "expected_direction": "教會應是掙扎同性傾向的信徒能安全分享的地方；接納人同時持守聖經倫理",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 50,
+          "query": "神創造男女，那性別認同多元的人怎麼辦？",
+          "keywords": [
+            "性別",
+            "墮落",
+            "憐憫"
+          ],
+          "expected_direction": "創造設計是男女二性，但要以憐憫回應",
+          "gold_paths": [
+            {
+              "path_tag": "binary_design_in_creation",
+              "desc": "創造中的二性設計（原 gold）",
+              "keywords": [
+                "二性",
+                "男女",
+                "創造設計",
+                "藍圖"
+              ],
+              "expected_direction": "創造秩序是男女二性（創 1:27）；這是神的原初設計藍圖；不等於所有生物性變化都是罪",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "fall_affects_embodied_identity",
+              "desc": "墮落影響肉身認同",
+              "keywords": [
+                "墮落",
+                "肉身影響",
+                "罪入世界",
+                "不完美世界"
+              ],
+              "expected_direction": "墮落使受造界不完美——含生物性層面；性別認同困擾可能是此失序的表現；不等於罪但需憐憫處理",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "compassionate_pastoral_care",
+              "desc": "憐憫的牧養回應",
+              "keywords": [
+                "憐憫",
+                "牧養",
+                "陪伴",
+                "不羞辱"
+              ],
+              "expected_direction": "面對性別認同困擾的人：憐憫優先、陪伴長期、提供聖經輔導、不羞辱；尋求心理與屬靈整合",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 51,
+          "query": "教會反對同性婚姻，是不是歧視、不包容？",
+          "keywords": [
+            "婚姻",
+            "歧視",
+            "包容"
+          ],
+          "expected_direction": "定義婚姻不等於歧視人，包容不等於認同一切",
+          "gold_paths": [
+            {
+              "path_tag": "defining_vs_discriminating",
+              "desc": "定義 vs 歧視（原 gold 路線）",
+              "keywords": [
+                "定義婚姻",
+                "歧視",
+                "區別",
+                "原則"
+              ],
+              "expected_direction": "定義婚姻（根據聖經）與歧視人（貶低價值）不同；持不同婚姻觀不必然是仇恨或歧視",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "love_without_endorsing",
+              "desc": "愛不等於認同一切",
+              "keywords": [
+                "愛",
+                "不認同",
+                "獨立",
+                "信念與關係"
+              ],
+              "expected_direction": "我可以愛一個人但不認同其所有選擇；這在各種關係中都是如此；婚姻立場亦然",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "disagreement_is_not_hate",
+              "desc": "不同意非仇恨",
+              "keywords": [
+                "不同意",
+                "非仇恨",
+                "多元社會",
+                "公共討論"
+              ],
+              "expected_direction": "多元社會中不同意見並存是正常；將道德不同意直接等同仇恨會扼殺公共對話",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 52,
+          "query": "如果同性戀是天生的，神為什麼造這樣的人，又說這是罪？",
+          "keywords": [
+            "天生",
+            "傾向",
+            "恩典"
+          ],
+          "expected_direction": "天生傾向不等於神的設計藍圖",
+          "gold_paths": [
+            {
+              "path_tag": "inclination_vs_divine_blueprint",
+              "desc": "傾向非神的設計藍圖（原 gold）",
+              "keywords": [
+                "天生傾向",
+                "設計藍圖",
+                "墮落影響",
+                "非神本意"
+              ],
+              "expected_direction": "天生傾向不等於神的原初設計藍圖；許多天生傾向（如易怒）也非神本意；天生不等於對",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "fallen_nature_reality",
+              "desc": "墮落本性的現實",
+              "keywords": [
+                "墮落本性",
+                "羅馬書 5",
+                "全人類",
+                "失序"
+              ],
+              "expected_direction": "羅 5 論全人類在亞當裡墮落；所有人都有各種失序傾向；同性傾向是其中一類表現",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "grace_for_all_orientations",
+              "desc": "恩典給所有傾向的人",
+              "keywords": [
+                "恩典",
+                "重生",
+                "新創造",
+                "林後 5:17"
+              ],
+              "expected_direction": "林後 5:17 若有人在基督裡就是新造的人；恩典臨到所有認罪悔改的人，不論原本傾向",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "金錢與職場",
+      "questions": [
+        {
+          "id": 53,
+          "query": "繁榮福音說信主帶來財富，這是真的嗎？",
+          "keywords": [
+            "繁榮福音",
+            "扭曲",
+            "受苦"
+          ],
+          "expected_direction": "繁榮福音是對聖經的扭曲",
+          "gold_paths": [
+            {
+              "path_tag": "prosperity_distortion",
+              "desc": "繁榮福音扭曲聖經（原 gold 路線）",
+              "keywords": [
+                "繁榮福音",
+                "扭曲",
+                "受苦",
+                "假教師"
+              ],
+              "expected_direction": "繁榮福音（信主即富裕健康）是對聖經的扭曲；忽視基督十架召人背十字架的呼召",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "suffering_part_of_gospel",
+              "desc": "受苦是福音一部分",
+              "keywords": [
+                "受苦",
+                "背十字架",
+                "腓 1:29",
+                "為基督受苦"
+              ],
+              "expected_direction": "腓 1:29 得以為基督受苦是恩賜；門徒必背十字架（路 9:23）；受苦是福音正常部分",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "true_riches_in_christ",
+              "desc": "真財富在基督",
+              "keywords": [
+                "真財富",
+                "屬靈",
+                "以弗所 1:3",
+                "屬天福氣"
+              ],
+              "expected_direction": "真財富是在基督裡的屬靈祝福（弗 1:3）；不是物質富裕的保證；窮人富人都可享此真財富",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 54,
+          "query": "奉獻十一，教會是在斂財嗎？",
+          "keywords": [
+            "十一",
+            "奉獻",
+            "甘心"
+          ],
+          "expected_direction": "奉獻是回應恩典，不是斂財",
+          "gold_paths": [
+            {
+              "path_tag": "giving_as_worship",
+              "desc": "奉獻是敬拜（原 gold 路線）",
+              "keywords": [
+                "奉獻",
+                "敬拜",
+                "甘心",
+                "不勉強",
+                "林後 9:7"
+              ],
+              "expected_direction": "林後 9:7 神喜愛甘心樂意的人；奉獻是敬拜行動不是稅金；十一是傳統標準不是死規定",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "grace_response_not_obligation",
+              "desc": "恩典回應非義務",
+              "keywords": [
+                "恩典回應",
+                "白白得",
+                "白白給",
+                "馬太 10:8"
+              ],
+              "expected_direction": "奉獻是對神恩典的感恩回應；白白的得白白的捨（太 10:8）；教會不該強迫或操弄",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "transparency_accountability",
+              "desc": "透明與問責",
+              "keywords": [
+                "透明",
+                "財務公開",
+                "問責",
+                "健康教會"
+              ],
+              "expected_direction": "健康教會財務應公開透明；若教會拒絕帳目公開或領袖奢華生活是警訊；避免不透明教會",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 55,
+          "query": "基督徒在職場上遇到潛規則、貪腐，怎麼辦？",
+          "keywords": [
+            "職場",
+            "誠信",
+            "見證"
+          ],
+          "expected_direction": "誠信是見證，需要智慧在原則和現實間找出路",
+          "gold_paths": [
+            {
+              "path_tag": "integrity_witness",
+              "desc": "誠信作見證（原 gold 路線）",
+              "keywords": [
+                "誠信",
+                "見證",
+                "約瑟",
+                "但以理",
+                "職場"
+              ],
+              "expected_direction": "約瑟、但以理是職場誠信的聖經範例；基督徒在潛規則貪腐環境中以誠信為見證",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "wisdom_in_costly_choices",
+              "desc": "智慧面對代價抉擇",
+              "keywords": [
+                "代價",
+                "拒絕",
+                "智慧",
+                "神的眷顧",
+                "換工作"
+              ],
+              "expected_direction": "拒絕貪腐可能付出代價（失職、被排擠）；需智慧求問神；必要時換工作是合理的",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gods_care_reward",
+              "desc": "神的眷顧與報償",
+              "keywords": [
+                "神看見",
+                "永恆報償",
+                "希伯來書 6:10",
+                "不忘所做"
+              ],
+              "expected_direction": "來 6:10 神不忘記所做的工；或許現世無回報但永恆有報償；神看見每一次不易的誠信",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 56,
+          "query": "工作太忙、壓力太大，哪有時間信主、聚會？",
+          "keywords": [
+            "優先次序",
+            "安息日",
+            "更新"
+          ],
+          "expected_direction": "最忙的人最需要靈魂的休息",
+          "gold_paths": [
+            {
+              "path_tag": "kingdom_priorities",
+              "desc": "天國優先次序（原 Phase 1 gold 路線）",
+              "keywords": [
+                "優先次序",
+                "先求神的國",
+                "馬太 6:33",
+                "取捨",
+                "時間管理"
+              ],
+              "expected_direction": "耶穌教導先求神的國和義（太 6:33）；時間不是藉口而是優先次序問題",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "sabbath_rest_rhythm",
+              "desc": "安息日節奏（實踐面）",
+              "keywords": [
+                "安息日",
+                "節奏",
+                "停工安息",
+                "休息神學",
+                "身心靈恢復"
+              ],
+              "expected_direction": "安息日原則是造物主設立的節奏；工作過度不是敬虔而是違反神設立的人體律",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "spiritual_renewal_in_busyness",
+              "desc": "忙碌中屬靈更新",
+              "keywords": [
+                "屬靈更新",
+                "每日靈修",
+                "簡短禱告",
+                "日常聖化",
+                "碎片時間"
+              ],
+              "expected_direction": "屬靈更新不需大塊時間；清晨 10 分鐘靈修、午間禱告、通勤聽道皆可聖化日常",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "workplace_witness",
+              "desc": "職場見證",
+              "keywords": [
+                "職場見證",
+                "工作即敬拜",
+                "coram deo",
+                "誠信",
+                "同事關係"
+              ],
+              "expected_direction": "信仰不需離開工作；職場本身是敬拜場所；誠信工作與愛同事即是見證",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "政治與社會公義",
+      "questions": [
+        {
+          "id": 57,
+          "query": "基督徒應該關心社會公義、上街抗議嗎？",
+          "keywords": [
+            "先知",
+            "公義",
+            "鄰舍"
+          ],
+          "expected_direction": "先知傳統不迴避社會不公，參與是信仰延伸",
+          "gold_paths": [
+            {
+              "path_tag": "prophetic_neighbor_tradition",
+              "desc": "先知傳統 + 鄰舍神學（原 Phase 1 gold 路線）",
+              "keywords": [
+                "先知",
+                "公義",
+                "鄰舍",
+                "愛鄰舍",
+                "先知書"
+              ],
+              "expected_direction": "從舊約先知書（阿摩司、彌迦）+ 路 10:25-37 好撒瑪利亞人論基督徒不能對公義冷漠",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "neighbor_love_in_action",
+              "desc": "愛鄰舍具體行動（實踐面）",
+              "keywords": [
+                "具體行動",
+                "受壓迫者",
+                "扶貧",
+                "種族和解",
+                "教會參與"
+              ],
+              "expected_direction": "愛鄰舍是具體行動：扶貧、反對壓迫、種族和解；不是抽象情感而是代價行動",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "historical_christian_activism",
+              "desc": "歷史例證（廢奴、人權）",
+              "keywords": [
+                "廢奴",
+                "Wilberforce",
+                "馬丁路德金",
+                "基督徒社會改革"
+              ],
+              "expected_direction": "基督徒歷史上推動廢奴（Wilberforce）、民權運動（MLK）；基督教倫理是社會改革的重要推力",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "prophetic_versus_partisan",
+              "desc": "先知性 vs 黨派分辨（SOP 中性）",
+              "keywords": [
+                "先知性",
+                "非黨派",
+                "超越政黨",
+                "見證優先",
+                "辨識"
+              ],
+              "expected_direction": "基督徒的公義關心是先知性（對所有不義發聲）而非黨派（支持特定陣營）；需謹慎分辨",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 58,
+          "query": "教會應該涉入政治嗎？",
+          "keywords": [
+            "先知性聲音",
+            "黨派",
+            "道德議題"
+          ],
+          "expected_direction": "先知性聲音vs黨派政治是不同的事",
+          "gold_paths": [
+            {
+              "path_tag": "prophetic_not_partisan",
+              "desc": "先知性 vs 黨派政治（原 Phase 1 gold 路線）",
+              "keywords": [
+                "先知性聲音",
+                "黨派",
+                "道德議題",
+                "非黨派",
+                "原則"
+              ],
+              "expected_direction": "教會宜發先知性聲音（針對道德議題發聲）而非黨派政治（支持特定政黨）；區分原則與立場",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "moral_issues_engagement",
+              "desc": "道德議題介入",
+              "keywords": [
+                "墮胎",
+                "婚姻",
+                "人權",
+                "宗教自由",
+                "倫理議題"
+              ],
+              "expected_direction": "教會針對墮胎、婚姻、宗教自由等明確道德議題可表態；此類議題超越黨派之爭",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "two_kingdoms_theology",
+              "desc": "教會國家關係神學",
+              "keywords": [
+                "兩個國度",
+                "政教分立",
+                "凱撒的歸凱撒",
+                "神的歸神"
+              ],
+              "expected_direction": "耶穌「凱撒的歸凱撒」原則；教會與國家有各自領域；分立不等於絕緣",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "practical_boundaries",
+              "desc": "實務參與界線（實踐面）",
+              "keywords": [
+                "講台使用",
+                "站台",
+                "講道 vs 政見",
+                "個人 vs 教會",
+                "界線"
+              ],
+              "expected_direction": "具體界線：牧者個人可投票、參與但不宜以講台為政見平台；教會整體不站台特定候選人",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 59,
+          "query": "面對威權、戰爭與壓迫，基督徒的立場是什麼？",
+          "keywords": [
+            "順服",
+            "殉道",
+            "非暴力"
+          ],
+          "expected_direction": "順服政府與順服神的張力需智慧平衡",
+          "gold_paths": [
+            {
+              "path_tag": "submission_and_martyrdom",
+              "desc": "順服至殉道（原 Phase 1 gold 路線）",
+              "keywords": [
+                "順服",
+                "殉道",
+                "非暴力",
+                "早期教會",
+                "忍耐"
+              ],
+              "expected_direction": "早期教會面對羅馬迫害多選順服甚至殉道而非武裝反抗；以 agape 愛仇敵為基礎",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "civil_disobedience",
+              "desc": "公民不服從（但以理、使徒）",
+              "keywords": [
+                "公民不服從",
+                "但以理",
+                "使徒行傳",
+                "聽神不聽人",
+                "界線"
+              ],
+              "expected_direction": "但以理、使徒都曾違抗不義法令（聽神不聽人，徒 5:29）；當政權強制違反信仰時基督徒可拒絕",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "peace_theology",
+              "desc": "和平神學（山上寶訓）",
+              "keywords": [
+                "山上寶訓",
+                "使人和睦",
+                "愛仇敵",
+                "非暴力",
+                "重浸派傳統"
+              ],
+              "expected_direction": "耶穌山上寶訓呼召使人和睦、愛仇敵；重浸派、門諾會特別持守和平主義",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "accompaniment_of_oppressed",
+              "desc": "與受壓迫者同行（實踐面）",
+              "keywords": [
+                "陪伴",
+                "受壓迫者",
+                "香港",
+                "政治難民",
+                "基督徒人道"
+              ],
+              "expected_direction": "當代基督徒回應威權戰爭的實踐是陪伴受壓迫者、接納難民、提供人道支持",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "環境議題",
+      "questions": [
+        {
+          "id": 60,
+          "query": "聖經說神把大地交給人管理，這是否給了人類破壞環境的藉口？",
+          "keywords": [
+            "管理",
+            "管家",
+            "服侍"
+          ],
+          "expected_direction": "管理是照顧者角色，不是剝削者",
+          "gold_paths": [
+            {
+              "path_tag": "stewardship_not_exploitation",
+              "desc": "管家非剝削（原 gold 路線）",
+              "keywords": [
+                "管家",
+                "管理",
+                "創世記 1:28",
+                "照顧",
+                "非剝削"
+              ],
+              "expected_direction": "創 1:28「治理管理」的希伯來詞 radah 含照顧責任；不是剝削權；人是管家非主人",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "creation_as_gods_gift",
+              "desc": "創造是神的禮物",
+              "keywords": [
+                "神的禮物",
+                "美好創造",
+                "感恩",
+                "尊重"
+              ],
+              "expected_direction": "創造是神賜的禮物（詩 24:1「地和其中所充滿的都屬耶和華」）；使用時應尊重與感恩",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "responsibility_to_future",
+              "desc": "對後代的責任",
+              "keywords": [
+                "後代",
+                "永續",
+                "責任",
+                "代際公義"
+              ],
+              "expected_direction": "當代決策影響後代；留給子孫宜居地球是基督徒倫理責任；代際公義是聖經原則延伸",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 61,
+          "query": "既然啟示錄說這個世界終將毀滅，基督徒還需要在乎環保嗎？",
+          "keywords": [
+            "新天新地",
+            "更新",
+            "創造"
+          ],
+          "expected_direction": "啟示錄說的是更新不是棄置",
+          "gold_paths": [
+            {
+              "path_tag": "new_heaven_new_earth_continuity",
+              "desc": "新天新地延續性（原 Phase 1 gold 路線）",
+              "keywords": [
+                "新天新地",
+                "更新",
+                "創造延續",
+                "非毀滅重造",
+                "復原"
+              ],
+              "expected_direction": "啟示錄不是毀滅重造而是更新復原；新天新地與現世有延續性，故當前創造非一次性用品",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "creation_care_stewardship",
+              "desc": "創造管家職份（實踐面）",
+              "keywords": [
+                "管家",
+                "治理",
+                "創世記 1:28",
+                "責任",
+                "環境倫理"
+              ],
+              "expected_direction": "神造人為管家（創 1:28）；治理不等於掠奪；末世盼望不取消當下管家責任",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "eschatology_and_ecology",
+              "desc": "末世論與生態神學",
+              "keywords": [
+                "末世論",
+                "生態神學",
+                "氣候變遷",
+                "受造嘆息",
+                "羅馬書 8:19-22"
+              ],
+              "expected_direction": "羅 8:19-22 受造物嘆息等候更新；基督教末世論不是放棄地球而是盼望其復原",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gospel_hope_in_crisis",
+              "desc": "危機中的福音盼望",
+              "keywords": [
+                "氣候焦慮",
+                "福音盼望",
+                "末世絕望",
+                "行動信心"
+              ],
+              "expected_direction": "氣候惡化帶來絕望焦慮；福音盼望給予堅持行動的信心（非虛無放棄也非烏托邦）",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 62,
+          "query": "從創世記到啟示錄，神對這片大地的心意究竟是什麼？",
+          "keywords": [
+            "創造",
+            "墮落",
+            "救贖",
+            "新天新地"
+          ],
+          "expected_direction": "創造→墮落→救贖→新天新地的完整敘事",
+          "gold_paths": [
+            {
+              "path_tag": "four_act_drama",
+              "desc": "創造墮落救贖新創造四幕劇（原 gold）",
+              "keywords": [
+                "創造",
+                "墮落",
+                "救贖",
+                "新天新地",
+                "四幕"
+              ],
+              "expected_direction": "聖經敘事是四幕劇：創造（美好）→墮落（失序）→救贖（基督十架復活）→新創造（萬物復原）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "material_world_not_dismissed",
+              "desc": "物質世界不被棄絕",
+              "keywords": [
+                "物質世界",
+                "非 gnostic",
+                "身體復活",
+                "實體新天新地"
+              ],
+              "expected_direction": "基督教不同於靈智派——物質世界非壞的待丟棄；新天新地是實體的；這片大地的終局是復原",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "current_actions_matter",
+              "desc": "當下行動有永恆意義",
+              "keywords": [
+                "當下行動",
+                "永恆延續",
+                "林前 15:58",
+                "勞苦不徒然"
+              ],
+              "expected_direction": "林前 15:58 勞苦不徒然；當下對創造的關顧會在新創造中有延續意義；今天做的事有永恆價值",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 63,
+          "query": "氣候變遷這麼嚴重，神在哪裡？祂不在乎這個世界嗎？",
+          "keywords": [
+            "氣候",
+            "貪婪",
+            "守護"
+          ],
+          "expected_direction": "氣候危機是人類貪婪後果，神呼召基督徒作守護先鋒",
+          "gold_paths": [
+            {
+              "path_tag": "human_greed_consequence",
+              "desc": "人類貪婪的後果（原 gold 路線）",
+              "keywords": [
+                "貪婪",
+                "後果",
+                "氣候危機",
+                "自食果實"
+              ],
+              "expected_direction": "氣候危機根源在人類貪婪無節制；是罪的社會後果；神未缺席而是讓人承擔自由選擇的結果",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "god_weeps_with_creation",
+              "desc": "神與受造物同嘆息",
+              "keywords": [
+                "神嘆息",
+                "羅馬書 8:22",
+                "受造物",
+                "神的痛苦"
+              ],
+              "expected_direction": "羅 8:19-22 受造物嘆息；神不是冷眼旁觀而是與受造界一同在痛苦中；這是神的心",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "called_to_stewardship_action",
+              "desc": "呼召作守護先鋒",
+              "keywords": [
+                "守護",
+                "先鋒",
+                "基督徒責任",
+                "領頭改變"
+              ],
+              "expected_direction": "基督徒受呼召作創造的守護先鋒——不是被動旁觀而是主動領頭；愛鄰舍含愛受氣候影響的弱勢",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "自由意志",
+      "questions": [
+        {
+          "id": 64,
+          "query": "神既然是全知的，早知道人會犯罪，為什麼還要給人自由意志？",
+          "keywords": [
+            "全知",
+            "自由意志",
+            "真愛"
+          ],
+          "expected_direction": "全知不等於強迫，沒有自由意志就沒有真愛",
+          "gold_paths": [
+            {
+              "path_tag": "foreknowledge_not_coercion",
+              "desc": "全知非強迫（原 gold 路線）",
+              "keywords": [
+                "全知",
+                "非強迫",
+                "預見",
+                "不決定",
+                "自由並存"
+              ],
+              "expected_direction": "神預見人會做什麼不等於神強迫人這樣做；預見與決定不同；自由意志與神全知可並存",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "true_love_needs_freedom",
+              "desc": "真愛需要自由",
+              "keywords": [
+                "真愛",
+                "自由",
+                "選擇的可能",
+                "robots"
+              ],
+              "expected_direction": "沒有自由意志就沒有真愛，只有程式化反應；神冒險給自由以得真愛；這比無罪機器人更有價值",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "god_uses_evil_for_good",
+              "desc": "神使用邪惡成就善",
+              "keywords": [
+                "羅馬書 8:28",
+                "萬事互相效力",
+                "救贖計畫",
+                "更大善"
+              ],
+              "expected_direction": "羅 8:28 萬事互相效力；神能使用人自由選擇的惡成就更大的善（如十架救恩）",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 65,
+          "query": "自由意志和神的主權，不是互相矛盾嗎？",
+          "keywords": [
+            "相容論",
+            "主權",
+            "自由"
+          ],
+          "expected_direction": "相容論認為兩者可並存",
+          "gold_paths": [
+            {
+              "path_tag": "compatibilism",
+              "desc": "相容論（原 gold 路線）",
+              "keywords": [
+                "相容論",
+                "compatibilism",
+                "主權",
+                "自由",
+                "並存"
+              ],
+              "expected_direction": "相容論主張神的主權與人的自由並非互斥——神主權含攝人的真實選擇；兩者在更高層次和諧",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "mystery_of_both",
+              "desc": "奧秘二者並存",
+              "keywords": [
+                "奧秘",
+                "雙線真理",
+                "不完全理解",
+                "信心接受"
+              ],
+              "expected_direction": "聖經同時堅定教導神主權與人責任；不必強行調和；可接受為超越人理性的奧秘",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "pastoral_implications",
+              "desc": "牧養層面的應用",
+              "keywords": [
+                "牧養",
+                "傳福音責任",
+                "禱告",
+                "信心",
+                "不被動"
+              ],
+              "expected_direction": "不論主權理論立場如何，牧養上都應積極傳福音（人有責任）同時禱告（神有主權）；不能被動",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 66,
+          "query": "如果神早已預定誰得救、誰滅亡，人還有選擇的自由嗎？",
+          "keywords": [
+            "加爾文",
+            "預定論",
+            "阿民念"
+          ],
+          "expected_direction": "加爾文vs阿民念的張力，神邀請每一個人",
+          "gold_paths": [
+            {
+              "path_tag": "calvinist_predestination",
+              "desc": "加爾文預定論（並列觀點）",
+              "keywords": [
+                "加爾文",
+                "預定論",
+                "以弗所 1:4",
+                "創立世界以前",
+                "揀選"
+              ],
+              "expected_direction": "加爾文派：弗 1:4 神創立世界以前揀選屬祂的人；人自由出自被更新的心；揀選是恩典的最高表達",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "arminian_free_will",
+              "desc": "阿民念自由意志論（並列觀點）",
+              "keywords": [
+                "阿民念",
+                "自由意志",
+                "普世呼召",
+                "可拒絕",
+                "先行恩典"
+              ],
+              "expected_direction": "阿民念派：神呼召人普遍；每人真正有拒絕或接受的自由；先行恩典開啟人選擇的可能",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "mystery_plus_universal_invitation",
+              "desc": "奧秘 + 普世邀請",
+              "keywords": [
+                "奧秘",
+                "普世邀請",
+                "約翰 3:16",
+                "彼後 3:9",
+                "願萬人得救"
+              ],
+              "expected_direction": "約 3:16 + 彼後 3:9 神願萬人得救；真理雙線並存為奧秘；但神的邀請是實在的——向每個人",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "practical_priority_gospel",
+              "desc": "實踐面：優先傳福音",
+              "keywords": [
+                "傳福音",
+                "實踐",
+                "責任",
+                "不看理論看呼召"
+              ],
+              "expected_direction": "理論爭辯不應癱瘓實踐；不論立場如何，每位信徒都蒙呼召傳福音、邀人回應；今天就是得救之日",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "科技與AI",
+      "questions": [
+        {
+          "id": 67,
+          "query": "神創造人，人創造AI，這符合神的心意嗎？",
+          "keywords": [
+            "AI",
+            "創造力",
+            "工具"
+          ],
+          "expected_direction": "AI是工具，人按神形像有創造力",
+          "gold_paths": [
+            {
+              "path_tag": "ai_as_tool",
+              "desc": "AI 是工具（原 gold 路線）",
+              "keywords": [
+                "AI",
+                "工具",
+                "中性",
+                "用途",
+                "倫理"
+              ],
+              "expected_direction": "AI 是工具本身中性；端賴人如何使用；如同火、槍、網路——使用的倫理才是重點",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "image_of_god_creativity",
+              "desc": "神形像中的創造力",
+              "keywords": [
+                "神的形像",
+                "創造力",
+                "sub-creator",
+                "Tolkien"
+              ],
+              "expected_direction": "人按神形像有創造力；能作「次創造者」（Tolkien 語）；創造 AI 是此創造力的表現",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "ethical_usage_required",
+              "desc": "倫理使用要求",
+              "keywords": [
+                "倫理",
+                "負面影響",
+                "人性尊嚴",
+                "取代工作",
+                "責任"
+              ],
+              "expected_direction": "AI 使用需有倫理約束：不能貶損人性尊嚴、武器化、取代關懷；創造工具含著使用責任",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 68,
+          "query": "AI愈來愈強大，有一天會超越人類，這讓神的地位動搖嗎？",
+          "keywords": [
+            "AI",
+            "靈魂",
+            "生命"
+          ],
+          "expected_direction": "AI沒有靈魂和道德主體性",
+          "gold_paths": [
+            {
+              "path_tag": "ai_has_no_soul",
+              "desc": "AI 無靈魂無道德主體（原 gold）",
+              "keywords": [
+                "靈魂",
+                "道德主體",
+                "AI 無良心",
+                "本質差異"
+              ],
+              "expected_direction": "AI 無靈魂非道德主體；再強大也是算法不是生命；人與 AI 本質差異是神賦的靈魂",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "god_beyond_all_creation",
+              "desc": "神超越一切受造",
+              "keywords": [
+                "超越",
+                "創造者",
+                "受造物",
+                "不可比"
+              ],
+              "expected_direction": "神是創造者；AI 是受造物中一種（人造的次創造）；不論 AI 多強都是受造者，不動搖神超越地位",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "ultimate_questions_remain",
+              "desc": "終極問題 AI 不能答",
+              "keywords": [
+                "終極問題",
+                "生命意義",
+                "罪",
+                "死亡",
+                "AI 不答"
+              ],
+              "expected_direction": "AI 不能回答生命意義、罪、死亡等終極問題；只能操作資訊；人對神的需要不被 AI 取代",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 69,
+          "query": "科技讓人愈來愈不需要神，信仰是否會被科技取代？",
+          "keywords": [
+            "科技",
+            "罪的問題",
+            "死亡",
+            "生命意義"
+          ],
+          "expected_direction": "科技解決不了罪、死亡、意義等根本問題",
+          "gold_paths": [
+            {
+              "path_tag": "tech_cant_solve_fundamentals",
+              "desc": "科技解不了根本問題（原 gold）",
+              "keywords": [
+                "科技",
+                "罪",
+                "死亡",
+                "意義",
+                "根本"
+              ],
+              "expected_direction": "科技再進步解決不了罪、死亡、人生意義三大根本問題；這些需要神而非技術方案",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "meaning_needs_transcendence",
+              "desc": "意義需超越性",
+              "keywords": [
+                "超越",
+                "meaning",
+                "內在不足",
+                "永恆盼望"
+              ],
+              "expected_direction": "意義需要超越性來源；內在文化 / 科技無法提供終極 meaning；只有指向永恆的才能給人生終極理由",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "tech_is_double_edged",
+              "desc": "科技是雙刃劍",
+              "keywords": [
+                "雙刃",
+                "新問題",
+                "社群媒體",
+                "AI 偏見"
+              ],
+              "expected_direction": "科技解決一些舊問題卻帶來新問題（孤獨、偏見、監控）；不會讓人更不需要神反而更顯需要",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 70,
+          "query": "社群媒體和手機讓人更孤獨、更焦慮，神怎麼看這個問題？",
+          "keywords": [
+            "社群媒體",
+            "孤獨",
+            "群體"
+          ],
+          "expected_direction": "神設計人需要真實群體，教會是數位時代的解藥",
+          "gold_paths": [
+            {
+              "path_tag": "god_designed_real_community",
+              "desc": "神設計真群體（原 gold 路線）",
+              "keywords": [
+                "真群體",
+                "教會",
+                "面對面",
+                "神的設計"
+              ],
+              "expected_direction": "神造人為群體存有（創 2:18「那人獨居不好」）；社群媒體無法替代真群體的親密與委身",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "church_as_digital_antidote",
+              "desc": "教會是數位時代解藥",
+              "keywords": [
+                "教會",
+                "數位解藥",
+                "面對面相聚",
+                "委身"
+              ],
+              "expected_direction": "教會是數位時代的解藥——真實聚集、面對面、跨世代、長期委身——這是社群媒體不能提供的",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "embodied_presence_essential",
+              "desc": "實體臨在不可替代",
+              "keywords": [
+                "實體",
+                "embodied",
+                "擁抱",
+                "眼神接觸",
+                "肢體語言"
+              ],
+              "expected_direction": "實體臨在（擁抱、眼神接觸、同席吃飯）傳遞虛擬無法複製的愛；基督教是道成肉身的信仰",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 71,
+          "query": "AI能寫詩、作畫、甚至講道，這會威脅教會和信仰的獨特性嗎？",
+          "keywords": [
+            "AI",
+            "聖靈",
+            "福音"
+          ],
+          "expected_direction": "AI無法經歷悔改更新，聖靈的工作無法被演算法取代",
+          "gold_paths": [
+            {
+              "path_tag": "ai_cannot_repent_renewal",
+              "desc": "AI 無法悔改更新（原 gold 路線）",
+              "keywords": [
+                "悔改",
+                "重生",
+                "聖靈工作",
+                "AI 局限"
+              ],
+              "expected_direction": "信仰核心是人悔改、接受聖靈更新、與基督建立關係——這些是 AI 本質上無法經歷或傳遞的",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "spirit_work_irreplaceable",
+              "desc": "聖靈工作不可取代",
+              "keywords": [
+                "聖靈",
+                "感動",
+                "醒悟",
+                "生命改變",
+                "算法無法"
+              ],
+              "expected_direction": "講道的真實果效是聖靈透過人心動工；算法可模仿講道形式但無法傳遞聖靈感動與生命改變",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "embodied_ministry_essential",
+              "desc": "實體牧養必要性",
+              "keywords": [
+                "實體牧養",
+                "陪伴",
+                "代禱",
+                "眼淚同哭",
+                "AI 不能"
+              ],
+              "expected_direction": "牧養含陪病患、臨終關懷、與哭的人同哭（羅 12:15）；這些實體牧養 AI 無法取代",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "憂鬱與心理健康",
+      "questions": [
+        {
+          "id": 72,
+          "query": "基督徒也會得憂鬱症嗎？信心夠就不會憂鬱了嗎？",
+          "keywords": [
+            "憂鬱症",
+            "以利亞",
+            "大衛"
+          ],
+          "expected_direction": "憂鬱症是病不是信心不足，聖經人物也有憂鬱",
+          "gold_paths": [
+            {
+              "path_tag": "depression_is_illness_not_faith_deficit",
+              "desc": "憂鬱是病非信心問題（原 gold）",
+              "keywords": [
+                "憂鬱症",
+                "病",
+                "非信心",
+                "醫療",
+                "以利亞"
+              ],
+              "expected_direction": "憂鬱症是真實的病不是信心不足；生理與心理因素交織；需醫療介入而非屬靈譴責",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "biblical_figures_depressed",
+              "desc": "聖經人物也憂鬱",
+              "keywords": [
+                "以利亞",
+                "大衛",
+                "約伯",
+                "耶利米",
+                "聖經憂鬱"
+              ],
+              "expected_direction": "以利亞列王記上 19 求死、大衛詩篇多處絕望、約伯、耶利米皆經歷憂鬱；聖經不否認信者也會憂鬱",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "integrated_holistic_care",
+              "desc": "整全關顧",
+              "keywords": [
+                "整全",
+                "身心靈",
+                "醫療",
+                "屬靈",
+                "輔導"
+              ],
+              "expected_direction": "憂鬱需整全關顧：醫療、屬靈陪伴、專業輔導、群體支持；身心靈是一體不能只單方面處理",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 73,
+          "query": "我長期憂鬱、對生命失去盼望，神真的在乎我嗎？",
+          "keywords": [
+            "詩篇88",
+            "哀歌",
+            "客西馬尼"
+          ],
+          "expected_direction": "神允許哀歌進入聖經，耶穌也經歷憂傷",
+          "gold_paths": [
+            {
+              "path_tag": "lament_and_presence",
+              "desc": "哀歌中的神同在（原 Phase 1 gold 路線）",
+              "keywords": [
+                "哀歌",
+                "詩篇",
+                "神的同在",
+                "傾訴",
+                "不獨行"
+              ],
+              "expected_direction": "詩篇大量哀歌示範可以向神傾訴絕望；神在憂鬱中與你同在（「我的神為什麼離棄我」亦是禱告）",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "gethsemane_christ_sorrow",
+              "desc": "客西馬尼基督的憂愁",
+              "keywords": [
+                "客西馬尼",
+                "基督憂愁",
+                "甚是憂傷",
+                "同情",
+                "能體恤"
+              ],
+              "expected_direction": "基督在客西馬尼「甚是憂傷」（太 26:38）；祂親身經歷極深憂鬱；是能體恤你的大祭司",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "pastoral_care_of_depression",
+              "desc": "憂鬱症牧養（實踐面）",
+              "keywords": [
+                "牧養",
+                "屬靈陪伴",
+                "非罪非懲罰",
+                "長期支持",
+                "群體接納"
+              ],
+              "expected_direction": "憂鬱不是信心不足也不是神懲罰；需要教會長期陪伴而非快速修復；接納是關鍵",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "medical_theological_integration",
+              "desc": "醫療信仰整合",
+              "keywords": [
+                "醫療",
+                "藥物",
+                "專業治療",
+                "身心靈合一",
+                "整合"
+              ],
+              "expected_direction": "憂鬱症有生理成因；尋求專業醫療治療不違背信仰；身心靈是整體，需醫療 + 屬靈陪伴同時",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 74,
+          "query": "教會常說禱告就好，但我已經禱告了，憂鬱還是沒有好，是我信心不夠嗎？",
+          "keywords": [
+            "禱告",
+            "專業幫助",
+            "醫治"
+          ],
+          "expected_direction": "不是信心問題，需多管齊下包括專業幫助",
+          "gold_paths": [
+            {
+              "path_tag": "not_faith_issue",
+              "desc": "非信心問題（原 gold 路線）",
+              "keywords": [
+                "非信心",
+                "疾病",
+                "多管道",
+                "避免羞辱"
+              ],
+              "expected_direction": "禱告了仍憂鬱不代表信心不足；這是疾病；把患者歸咎信心不足是錯誤且傷人的牧養",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "multiple_means_of_grace",
+              "desc": "恩典的多管道",
+              "keywords": [
+                "恩典管道",
+                "禱告",
+                "藥物",
+                "輔導",
+                "群體",
+                "皆是神所用"
+              ],
+              "expected_direction": "神透過多種管道施恩：禱告、藥物、輔導、群體——都是神所用的工具，非屬靈等級分高下",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "community_and_professionals",
+              "desc": "群體 + 專業整合",
+              "keywords": [
+                "群體",
+                "教會支援",
+                "專業輔導",
+                "整合"
+              ],
+              "expected_direction": "教會群體提供屬靈陪伴；專業輔導提供技術支援；兩者互補不互斥",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 75,
+          "query": "基督徒需要看心理諮商、吃抗憂鬱藥嗎？",
+          "keywords": [
+            "諮商",
+            "藥物",
+            "醫療"
+          ],
+          "expected_direction": "看醫生不是不信任神，身心靈整全醫治",
+          "gold_paths": [
+            {
+              "path_tag": "medical_help_not_unbelief",
+              "desc": "醫療非不信（原 gold 路線）",
+              "keywords": [
+                "看醫生",
+                "吃藥",
+                "非不信任神",
+                "醫療恩典"
+              ],
+              "expected_direction": "看醫生、吃抗憂鬱藥不等於不信任神；醫療是神所賜恩典；與禱告並行不衝突",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "holistic_human_nature",
+              "desc": "人是身心靈整全",
+              "keywords": [
+                "身心靈",
+                "整全",
+                "帖前 5:23",
+                "不分離"
+              ],
+              "expected_direction": "帖前 5:23 願你們的靈與魂與身子都得蒙保守；身心靈是一體；病在任何一面都影響整體",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "prayer_and_professional_together",
+              "desc": "禱告與專業並行",
+              "keywords": [
+                "禱告",
+                "專業",
+                "並行",
+                "皆需要"
+              ],
+              "expected_direction": "禱告求醫治也尋求專業幫助——不是二擇一；如同斷腿既禱告也去看骨科；憂鬱亦是如此",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 76,
+          "query": "現代年輕人普遍焦慮、內耗、躺平，基督信仰能給他們什麼？",
+          "keywords": [
+            "焦慮",
+            "身份認同",
+            "盼望"
+          ],
+          "expected_direction": "身份認同建立在神對你的看法",
+          "gold_paths": [
+            {
+              "path_tag": "anxiety_and_gospel",
+              "desc": "焦慮與福音（原 Phase 1 gold 路線）",
+              "keywords": [
+                "焦慮",
+                "盼望",
+                "身份認同",
+                "焦躁",
+                "內耗"
+              ],
+              "expected_direction": "年輕世代焦慮內耗源於身份認同危機 + 無永恆盼望；福音給予牢靠身份與終極盼望",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "identity_in_christ",
+              "desc": "基督裡的身份認同",
+              "keywords": [
+                "身份",
+                "在基督裡",
+                "神的兒女",
+                "自我價值",
+                "不需證明"
+              ],
+              "expected_direction": "「在基督裡」的身份是不變根基；不需靠成就證明自我價值；這化解表現焦慮",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "hope_against_lying_flat",
+              "desc": "福音盼望對躺平文化",
+              "keywords": [
+                "躺平",
+                "內捲",
+                "盼望",
+                "使命感",
+                "永恆視角"
+              ],
+              "expected_direction": "躺平源於看不見意義；福音的永恆視角與使命感可化解「幹嘛努力」的虛無",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "community_counseling_for_youth",
+              "desc": "教會 counseling 實踐（實踐面）",
+              "keywords": [
+                "青年事工",
+                "小組陪伴",
+                "心理健康",
+                "教會 counseling",
+                "導師"
+              ],
+              "expected_direction": "年輕人焦慮需實際牧養資源：青年事工、小組陪伴、心理健康知識、屬靈導師關係",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "信主的決定",
+      "questions": [
+        {
+          "id": 77,
+          "query": "有人說要等退休以後再信耶穌，有什麼不好？",
+          "keywords": [
+            "退休",
+            "恩典",
+            "選擇"
+          ],
+          "expected_direction": "沒有人保證有退休那天，今天是恩典",
+          "gold_paths": [
+            {
+              "path_tag": "no_guaranteed_tomorrow",
+              "desc": "無保證明天（原 gold 路線）",
+              "keywords": [
+                "退休",
+                "明天",
+                "恩典",
+                "不保證",
+                "雅各書 4"
+              ],
+              "expected_direction": "雅 4:14 明天如何尚且不知；沒人保證會活到退休；等到方便才信是最大冒險",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "today_is_grace",
+              "desc": "今天是恩典",
+              "keywords": [
+                "今天",
+                "恩典",
+                "哥林多後書 6:2",
+                "現在就是"
+              ],
+              "expected_direction": "林後 6:2「現在正是悅納的時候，現在正是拯救的日子」；今天能聽到福音是神給的特殊恩典",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "better_life_now_with_christ",
+              "desc": "現在就有更豐盛的生命",
+              "keywords": [
+                "豐盛生命",
+                "約翰 10:10",
+                "現在",
+                "當下受益"
+              ],
+              "expected_direction": "約 10:10 耶穌來叫人得生命且得的更豐盛；信主不是為等死後上天堂——現在生命就更豐盛",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 78,
+          "query": "怎樣才能信耶穌？",
+          "keywords": [
+            "罪人",
+            "相信",
+            "邀請"
+          ],
+          "expected_direction": "承認罪人→相信耶穌→邀請祂進入生命",
+          "gold_paths": [
+            {
+              "path_tag": "abc_of_faith",
+              "desc": "ABC 信主三步（原 gold 路線）",
+              "keywords": [
+                "承認罪人",
+                "相信耶穌",
+                "邀請",
+                "罪人禱告"
+              ],
+              "expected_direction": "信主三步：A 承認自己是罪人 / B 相信耶穌為我死而復活 / C 邀請耶穌進入生命作救主與主",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "repentance_and_faith",
+              "desc": "悔改加上信心",
+              "keywords": [
+                "悔改",
+                "信心",
+                "轉向神",
+                "罪懺悔"
+              ],
+              "expected_direction": "徒 2:38 悔改，各人奉耶穌基督的名受洗；悔改（轉向神）+ 信心（接受基督）是信主核心",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "ongoing_walk_with_christ",
+              "desc": "持續與基督同行",
+              "keywords": [
+                "持續",
+                "門徒生活",
+                "讀經",
+                "禱告",
+                "教會"
+              ],
+              "expected_direction": "信主不是一次事件而是開始與基督一生同行；含讀經、禱告、加入教會、跟隨祂的命令",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 79,
+          "query": "我相信基督之後為什麼要受浸？",
+          "keywords": [
+            "受浸",
+            "同死",
+            "復活"
+          ],
+          "expected_direction": "受浸是公開宣告，與基督同死同復活的象徵",
+          "gold_paths": [
+            {
+              "path_tag": "symbol_of_death_resurrection",
+              "desc": "同死同復活象徵（原 gold 路線）",
+              "keywords": [
+                "受浸",
+                "同死",
+                "復活",
+                "羅馬書 6",
+                "象徵"
+              ],
+              "expected_direction": "羅 6:3-4 受浸象徵與基督同死同埋同復活；舊人死去新人出水；是新生命的公開宣告",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "public_confession",
+              "desc": "公開宣告信仰",
+              "keywords": [
+                "公開宣告",
+                "見證",
+                "羅 10:9",
+                "口裡承認"
+              ],
+              "expected_direction": "受浸是公開宣告信仰（羅 10:9 口裡承認心裡相信）；非私下信即可；受浸表明屬於基督",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "great_commission_command",
+              "desc": "大使命命令",
+              "keywords": [
+                "大使命",
+                "馬太 28:19",
+                "奉父子聖靈的名",
+                "命令"
+              ],
+              "expected_direction": "太 28:19 耶穌親自命令門徒要受浸；這不是可選項而是順服基督的具體表達",
+              "representative_corpus_articles": null
+            }
+          ]
+        },
+        {
+          "id": 80,
+          "query": "耶穌真的還要再來嗎？",
+          "keywords": [
+            "再來",
+            "預言",
+            "盼望"
+          ],
+          "expected_direction": "聖經300+處提到再來，第一次預言應驗給第二次高可信度",
+          "gold_paths": [
+            {
+              "path_tag": "prophecy_reliability",
+              "desc": "預言可靠（原 gold 路線）",
+              "keywords": [
+                "300 預言",
+                "再來預言",
+                "第一次應驗",
+                "可靠"
+              ],
+              "expected_direction": "聖經 300+ 處提到基督再來；第一次降臨的預言已一一應驗；第二次再來的應許同樣可靠",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "first_validates_second",
+              "desc": "第一次驗證第二次",
+              "keywords": [
+                "驗證",
+                "第一次降臨",
+                "預言應驗",
+                "同樣信實"
+              ],
+              "expected_direction": "第一次道成肉身的預言已應驗是第二次再來的保證；同一位信實的神不會只成就一半應許",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "hope_in_waiting",
+              "desc": "等待中的盼望",
+              "keywords": [
+                "盼望",
+                "等待",
+                "忍耐",
+                "活出現在"
+              ],
+              "expected_direction": "等再來的期間是活出盼望的時刻；非被動空等而是積極活出天國樣式；這盼望支撐現今生活",
+              "representative_corpus_articles": null
+            },
+            {
+              "path_tag": "readiness_call",
+              "desc": "呼召警醒預備",
+              "keywords": [
+                "警醒",
+                "預備",
+                "十童女",
+                "太 25",
+                "不知日子"
+              ],
+              "expected_direction": "耶穌多次呼召警醒預備（太 25 十童女比喻）；不知日子故時常預備；這是末世倫理的核心",
+              "representative_corpus_articles": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
