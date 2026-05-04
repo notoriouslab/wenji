@@ -377,6 +377,39 @@ def create_app(
         parents = {a.id: a.parent for a in cfg.axes} if cfg else {}
         return {"axes": [{"id": r[0], "parent": parents.get(r[0]), "count": r[1]} for r in rows]}
 
+    @app.get("/api/stats")
+    def api_stats() -> JSONResponse:
+        """Read-only corpus + index stats (v0.3.3 observability)."""
+        from wenji.observability import compute_stats
+
+        conn = _get_conn()
+        try:
+            return JSONResponse(compute_stats(conn, state.get("axes_config")))
+        finally:
+            conn.close()
+
+    @app.get("/api/segment")
+    def api_segment(q: str = "") -> JSONResponse:
+        """Read-only query pipeline trace (v0.3.3 observability).
+
+        The rewriter is sourced from the lazy Searcher so that ``rewrite``
+        reflects the same configuration ``/api/search`` sees. If the embedder
+        model is absent, _get_searcher returns None and ``rewrite`` falls back
+        to null (graceful degradation, not an error).
+        """
+        from wenji.observability import compute_segment_trace
+
+        if not q.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"error": "query parameter 'q' is required"},
+            )
+        rewriter = None
+        searcher = _get_searcher()
+        if searcher is not None:
+            rewriter = getattr(searcher, "rewriter", None)
+        return JSONResponse(compute_segment_trace(q, rewriter=rewriter))
+
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
         s = _get_searcher()

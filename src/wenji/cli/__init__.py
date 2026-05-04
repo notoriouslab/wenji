@@ -19,8 +19,10 @@ from wenji.cli import ingest as _ingest
 from wenji.cli import inspect as _inspect
 from wenji.cli import rebuild as _rebuild
 from wenji.cli import search as _search
+from wenji.cli import segment as _segment
 from wenji.cli import serve as _serve
 from wenji.cli import set_chunk_strategy as _set_chunk_strategy
+from wenji.cli import stats as _stats
 
 app = typer.Typer(
     name="wenji",
@@ -52,6 +54,13 @@ app.command(
 )(_set_chunk_strategy.command)
 app.add_typer(_aggregate.app, name="aggregate")
 app.add_typer(_corpus.app, name="corpus")
+app.command(name="stats", help="Print corpus + index stats (mirrors GET /api/stats).")(
+    _stats.command
+)
+app.command(
+    name="segment",
+    help="Trace how a query is segmented (jieba tokens, FTS form, LLM rewrite).",
+)(_segment.command)
 
 
 __all__ = ["app"]

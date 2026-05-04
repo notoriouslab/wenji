@@ -104,3 +104,14 @@ class QueryRewriter:
         """Wipe all cached rewrites (useful before jitter-aware eval reruns)."""
         self.conn.execute("DELETE FROM query_rewrite_cache")
         self.conn.commit()
+
+    def peek_cache(self, raw: str) -> str | None:
+        """Return cached rewrite without calling the LLM.
+
+        Public read-only accessor used by observability (``/api/segment``) to
+        report whether a rewrite would be served from cache or freshly called.
+        Returns the cached string when a non-expired entry exists, else None.
+        """
+        if not raw.strip():
+            return None
+        return self._get_cached(raw)

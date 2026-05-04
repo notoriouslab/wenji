@@ -7,6 +7,40 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (v0.3.3)
+
+- **Observability endpoints** — read-only `GET /api/stats` and
+  `GET /api/segment?q=` for surfacing corpus state and query-pipeline
+  internals. Stats reports `articles`, `chunks`, `indices` (FTS5 +
+  vector counts and dim), `source_types` (flat dict), `axes` (flat dict
+  via axes.yaml; empty when unconfigured), `last_ingest_at` (ISO8601 or
+  null). Segment reports `tokens` (jieba.posseg view), `normalized_query`,
+  `fts_form` (Searcher's char-level MATCH expression), `dict_hits` (jieba
+  user_dict matches), and `rewrite` (v0.3.2 LLM trace, null when disabled).
+  No caching — fresh per request; measured ~26ms on a 900-article SQLite
+  with 12,866 chunks.
+- **`wenji stats` and `wenji segment <query>` CLI** — same data as the
+  HTTP endpoints, with human-readable formatters by default and `--json`
+  flag for pipe-friendly output that matches the endpoint schema. Useful
+  for dev / debug / CI sanity without bringing up the server.
+- **`wenji.observability` module** — `compute_stats(conn, axes_config)` and
+  `compute_segment_trace(query, rewriter=None)` are the public callables
+  used by both API and CLI. Stable, dependency-light entry point for
+  third-party integrations.
+- **`wenji.ingest.jieba_setup.jieba_cut_pos`** — public helper returning
+  `(text, pos)` tuples; canonical entry-point for any code path that
+  needs jieba's word-level view of a query (segment trace, future
+  alias/synonym expansion). NOTE: the v0.3.x Searcher does NOT call jieba
+  at query time — it uses char-level FTS expansion via `build_fts_query`.
+- **`wenji.ingest.jieba_setup.loaded_user_terms`** — frozenset of terms
+  loaded via `configure_jieba(custom_dicts=...)`. wenji maintains this
+  independently because `jieba.posseg.cut` clears
+  `jieba.dt.user_word_tag_tab` on first call, making it unreliable as a
+  ground-truth source for observability.
+- **`wenji.search.rewrite.QueryRewriter.peek_cache(raw)`** — public
+  accessor that returns a cached rewrite without making an LLM call. Used
+  by segment trace to label `rewrite.source` as `"cache"` vs `"llm"`.
+
 ### Added (v0.3.2)
 
 - **LLM query rewrite wiring** — `QueryRewriter` (v0.3.0) now wired into
