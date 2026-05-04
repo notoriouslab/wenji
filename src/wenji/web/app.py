@@ -16,6 +16,7 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 from __future__ import annotations
 
 import html
+import json
 import logging
 import os
 import re
@@ -127,6 +128,8 @@ def create_app(
     searcher: Searcher | None = None,
     llm_client: LLMClient | None = None,
     axes_config: AxesConfig | None = None,
+    entity_scorer: Any | None = None,
+    intent_classifier: Any | None = None,
 ) -> FastAPI:
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
@@ -141,6 +144,8 @@ def create_app(
         "searcher": searcher,
         "llm_client": llm_client if llm_client is not None else _llm_client_from_env(),
         "axes_config": axes_config if axes_config is not None else _axes_config_from_env(),
+        "entity_scorer": entity_scorer,
+        "intent_classifier": intent_classifier,
     }
 
     def _get_conn() -> sqlite3.Connection:
@@ -157,12 +162,26 @@ def create_app(
         v0.3.2: if WENJI_LLM_* env config is enabled (and not overridden by
         WENJI_REWRITE_OVERRIDE=disabled), instantiate a QueryRewriter and
         inject it into the Searcher.
+
+        v0.3.6: WENJI_ENTITY_SOURCES (comma-separated source list) and
+        WENJI_INTENT_SOURCES, when set, instantiate EntityScorer and
+        IntentClassifier and inject them. Source items follow
+        ``EntityScorer.from_sources`` syntax (``example:<name>`` or path).
+
+        v0.3.6 (OPEN-7 補): WENJI_ENTITY_ALIAS_MAP (JSON file path mapping
+        ``{alias: canonical_or_list}``) is forwarded to ``EntityScorer.from_sources``
+        as ``alias_map``. WENJI_INTENT_SOURCE_TYPES (JSON file path mapping
+        ``{intent: [source_type]}``) is forwarded to ``IntentClassifier.from_sources``
+        as ``intent_source_types``. These enable full deployment-specific
+        composition (e.g. logos consumer setup) over env-based loading.
         """
         if state["searcher"] is not None:
             return state["searcher"]
         try:
             from wenji.config import load_llm_config_from_env
             from wenji.ingest.embed import Embedder
+            from wenji.search.entity import EntityScorer
+            from wenji.search.intent import IntentClassifier
             from wenji.search.rewrite import QueryRewriter
 
             conn = _get_conn()
@@ -178,7 +197,7 @@ def create_app(
                     api_url=llm_cfg.base_url.rstrip("/") + "/chat/completions",
                     api_key=llm_cfg.api_key,
                     model=llm_cfg.model,
-                    timeout=1.5,  # rewriter uses fast fallback timeout, not shared LLM_TIMEOUT
+                    timeout=1.5,
                     ttl_days=llm_cfg.rewrite_cache_ttl_days,
                 )
             else:
@@ -187,7 +206,50 @@ def create_app(
                     override,
                     llm_cfg.enabled,
                 )
-            state["searcher"] = Searcher(conn, Embedder(), rewriter=rewriter)
+
+            entity_scorer = state.get("entity_scorer")
+            if entity_scorer is None:
+                entity_sources = os.environ.get("WENJI_ENTITY_SOURCES", "").strip()
+                if entity_sources:
+                    try:
+                        alias_map_path = os.environ.get("WENJI_ENTITY_ALIAS_MAP", "").strip()
+                        alias_map: dict | None = None
+                        if alias_map_path:
+                            alias_map = json.loads(
+                                Path(alias_map_path).read_text(encoding="utf-8")
+                            )
+                        entity_scorer = EntityScorer.from_sources(
+                            [s.strip() for s in entity_sources.split(",") if s.strip()],
+                            alias_map=alias_map,
+                        )
+                    except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as exc:
+                        logger.warning("WENJI_ENTITY_SOURCES failed (%s); skipping", exc)
+
+            intent_classifier = state.get("intent_classifier")
+            if intent_classifier is None:
+                intent_sources = os.environ.get("WENJI_INTENT_SOURCES", "").strip()
+                if intent_sources:
+                    try:
+                        ist_path = os.environ.get("WENJI_INTENT_SOURCE_TYPES", "").strip()
+                        intent_source_types: dict | None = None
+                        if ist_path:
+                            intent_source_types = json.loads(
+                                Path(ist_path).read_text(encoding="utf-8")
+                            )
+                        intent_classifier = IntentClassifier.from_sources(
+                            [s.strip() for s in intent_sources.split(",") if s.strip()],
+                            intent_source_types=intent_source_types,
+                        )
+                    except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as exc:
+                        logger.warning("WENJI_INTENT_SOURCES failed (%s); skipping", exc)
+
+            state["searcher"] = Searcher(
+                conn,
+                Embedder(),
+                rewriter=rewriter,
+                entity_scorer=entity_scorer,
+                intent_classifier=intent_classifier,
+            )
             return state["searcher"]
         except (ConfigError, WenjiError):
             return None
@@ -405,10 +467,21 @@ def create_app(
                 content={"error": "query parameter 'q' is required"},
             )
         rewriter = None
+        entity_scorer = None
+        intent_classifier = None
         searcher = _get_searcher()
         if searcher is not None:
             rewriter = getattr(searcher, "rewriter", None)
-        return JSONResponse(compute_segment_trace(q, rewriter=rewriter))
+            entity_scorer = getattr(searcher, "entity_scorer", None)
+            intent_classifier = getattr(searcher, "intent_classifier", None)
+        return JSONResponse(
+            compute_segment_trace(
+                q,
+                rewriter=rewriter,
+                entity_scorer=entity_scorer,
+                intent_classifier=intent_classifier,
+            )
+        )
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:

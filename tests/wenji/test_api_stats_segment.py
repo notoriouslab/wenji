@@ -81,6 +81,8 @@ def test_segment_endpoint_returns_full_schema(client: TestClient):
         "fts_form",
         "dict_hits",
         "rewrite",
+        "entities",
+        "intent",
     }
 
 

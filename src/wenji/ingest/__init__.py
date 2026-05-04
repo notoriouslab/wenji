@@ -10,11 +10,14 @@ Public API:
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 from markdown_it import MarkdownIt
 
@@ -125,10 +128,14 @@ def ingest_one(
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
     indexed_at: str | None = None,
     corpus_root: str | Path | None = None,
-) -> str:
+) -> str | None:
     """Ingest a single markdown file, idempotent on canonical ``path``.
 
-    Returns the resulting ``article_id``.
+    Returns the resulting ``article_id``, or ``None`` when the article is
+    skipped because its body is empty after :func:`normalize` (placeholder /
+    excluded files with frontmatter only). Skipping logs a warning rather than
+    raising, so directory traversal continues across well-formed but empty
+    entries in a real corpus.
 
     Args:
         md_path: Path to ``.md`` file.
@@ -158,7 +165,8 @@ def ingest_one(
     article = load_article(path, directory_map=directory_map)
     body_norm = normalize(article.body)
     if not body_norm:
-        raise IngestError(f"empty body after normalize: {path}")
+        logger.warning("ingest: skipping empty-body article: %s", path)
+        return None
 
     chash = content_hash(body_norm)
     article_id = _stable_article_id(path, chash)
@@ -382,17 +390,27 @@ def ingest_dir(
         raise IngestError(f"not a directory: {root}")
     pattern = "**/*.md" if recursive else "*.md"
     article_ids: list[str] = []
+    skipped = 0
     for md in sorted(root.glob(pattern)):
-        article_ids.append(
-            ingest_one(
-                md,
-                conn,
-                embedder,
-                directory_map=directory_map,
-                chunk_strategies=chunk_strategies,
-                corpus_root=root,
-            )
+        article_id = ingest_one(
+            md,
+            conn,
+            embedder,
+            directory_map=directory_map,
+            chunk_strategies=chunk_strategies,
+            corpus_root=root,
         )
+        if article_id is None:
+            skipped += 1
+        else:
+            article_ids.append(article_id)
+            # Per-article commit keeps each successful ingest durable across
+            # connection boundaries, enabling idempotent resume after
+            # interruption (ingest_one's path-based fast path requires the
+            # prior row to be committed before SELECT can see it).
+            conn.commit()
+    if skipped:
+        logger.info("ingest_dir: skipped %d empty-body article(s) under %s", skipped, root)
     conn.commit()
     return article_ids
 

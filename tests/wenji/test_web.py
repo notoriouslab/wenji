@@ -445,3 +445,93 @@ def test_factory_uses_env_var_for_db(monkeypatch, tmp_path):
     c = TestClient(app)
     r = c.get("/healthz")
     assert "from-env.db" in r.json()["db_path"]
+
+
+def test_searcher_forwards_alias_map_env_to_entity_scorer(
+    populated_db, tmp_path, monkeypatch
+):
+    """OPEN-7: WENJI_ENTITY_ALIAS_MAP loads JSON and forwards as alias_map kwarg
+    to EntityScorer.from_sources."""
+    import json
+    import sqlite3
+
+    file_db = tmp_path / "wenji.db"
+    backup_conn = sqlite3.connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+
+    alias_data = {"巽正": "周巽正", "周牧師": ["周神助", "周巽正"]}
+    alias_path = tmp_path / "aliases.json"
+    alias_path.write_text(json.dumps(alias_data, ensure_ascii=False), encoding="utf-8")
+
+    captured: dict = {}
+    from wenji.search import entity as entity_mod
+
+    real_from_sources = entity_mod.EntityScorer.from_sources
+
+    def spy_from_sources(sources, alias_map=None, alpha=entity_mod.DEFAULT_ALPHA):
+        captured["sources"] = list(sources)
+        captured["alias_map"] = alias_map
+        return real_from_sources(sources, alias_map=alias_map, alpha=alpha)
+
+    monkeypatch.setattr(entity_mod.EntityScorer, "from_sources", spy_from_sources)
+    monkeypatch.setenv("WENJI_ENTITY_SOURCES", "example:corpus-christian")
+    monkeypatch.setenv("WENJI_ENTITY_ALIAS_MAP", str(alias_path))
+
+    app = create_app(db_path=file_db, searcher=None)
+    c = TestClient(app)
+    c.get("/api/search?q=test")
+
+    assert captured.get("sources") == ["example:corpus-christian"]
+    assert captured.get("alias_map") == alias_data
+
+
+def test_searcher_forwards_intent_source_types_env_to_classifier(
+    populated_db, tmp_path, monkeypatch
+):
+    """OPEN-7: WENJI_INTENT_SOURCE_TYPES loads JSON and forwards as
+    intent_source_types kwarg to IntentClassifier.from_sources."""
+    import json
+    import sqlite3
+
+    file_db = tmp_path / "wenji.db"
+    backup_conn = sqlite3.connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+
+    ist_data = {"apologetics": ["apologetics"]}
+    ist_path = tmp_path / "intent_source_types.json"
+    ist_path.write_text(json.dumps(ist_data, ensure_ascii=False), encoding="utf-8")
+
+    captured: dict = {}
+    from wenji.search import intent as intent_mod
+
+    real_from_sources = intent_mod.IntentClassifier.from_sources
+
+    def spy_from_sources(
+        sources,
+        intent_source_types=None,
+        default_intent=intent_mod.DEFAULT_INTENT,
+        scripture_pattern=None,
+        generic_entities=None,
+    ):
+        captured["sources"] = list(sources)
+        captured["intent_source_types"] = intent_source_types
+        return real_from_sources(
+            sources,
+            intent_source_types=intent_source_types,
+            default_intent=default_intent,
+            scripture_pattern=scripture_pattern,
+            generic_entities=generic_entities,
+        )
+
+    monkeypatch.setattr(intent_mod.IntentClassifier, "from_sources", spy_from_sources)
+    monkeypatch.setenv("WENJI_INTENT_SOURCES", "example:corpus-christian")
+    monkeypatch.setenv("WENJI_INTENT_SOURCE_TYPES", str(ist_path))
+
+    app = create_app(db_path=file_db, searcher=None)
+    c = TestClient(app)
+    c.get("/api/search?q=test")
+
+    assert captured.get("sources") == ["example:corpus-christian"]
+    assert captured.get("intent_source_types") == ist_data

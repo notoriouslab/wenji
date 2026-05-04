@@ -85,6 +85,24 @@ To search from the command line instead of the web UI:
 wenji search "勞動契約" --db wenji.db --top-k 5
 ```
 
+### Quickstart with the `corpus-christian` example (v0.3.6+)
+
+For Chinese Christian-knowledge corpora, wenji ships a domain-specific
+example with neutral theological vocabulary and apologetics keywords:
+
+```bash
+wenji serve --db wenji.db --port 8000 \
+  --entity-source example:corpus-christian \
+  --intent-source example:corpus-christian
+```
+
+This wires `EntityScorer` and `IntentClassifier` into the search
+pipeline (`Searcher.search` → RRF merge with intent boost → entity
+scoring + filter). For other domains, omit the flags — the pipeline
+degrades to RRF + chunk signals without entity/intent layers. See
+`docs/extending.md` for composing multiple sources and writing custom
+`RankerHook` implementations.
+
 ### Configuration
 
 wenji uses plain YAML config (no Pydantic), loaded from `wenji.yaml` in the

@@ -24,6 +24,8 @@ from typing import TypedDict
 
 from wenji.ingest.jieba_setup import jieba_cut_pos
 from wenji.search.bm25 import build_fts_query
+from wenji.search.entity import EntityScorer
+from wenji.search.intent import IntentClassifier
 from wenji.search.rewrite import QueryRewriter
 
 
@@ -38,6 +40,18 @@ class RewriteInfo(TypedDict):
     latency_ms: int
 
 
+class EntityInfo(TypedDict):
+    name: str
+    type: str
+    role: str
+    aliases: list[str]
+
+
+class IntentInfo(TypedDict):
+    intent: str
+    boost_types: list[str] | None
+
+
 class SegmentTrace(TypedDict):
     query: str
     tokens: list[TokenInfo]
@@ -45,6 +59,8 @@ class SegmentTrace(TypedDict):
     fts_form: str
     dict_hits: list[str]
     rewrite: RewriteInfo | None
+    entities: list[EntityInfo] | None
+    intent: IntentInfo | None
 
 
 def _normalize(query: str) -> str:
@@ -96,17 +112,48 @@ def _rewrite(query: str, rewriter: QueryRewriter | None) -> RewriteInfo | None:
 
 
 def compute_segment_trace(
-    query: str, *, rewriter: QueryRewriter | None = None
+    query: str,
+    *,
+    rewriter: QueryRewriter | None = None,
+    entity_scorer: EntityScorer | None = None,
+    intent_classifier: IntentClassifier | None = None,
 ) -> SegmentTrace:
     """Return the segmentation trace for ``query``.
 
     Empty / whitespace-only queries are caller-validated; this function
     returns an empty-tokens trace rather than raising, to keep the public
     contract straightforward (HTTP 400 lives in the route handler).
+
+    v0.3.6: ``entities`` and ``intent`` fields surface EntityScorer /
+    IntentClassifier output when those dependencies are injected; remain
+    ``None`` when not provided (backward compatible with v0.3.3 schema).
     """
     raw_tokens = jieba_cut_pos(query)
     tokens: list[TokenInfo] = [{"text": t, "pos": p} for t, p in raw_tokens]
     normalized = _normalize(query)
+
+    entities: list[EntityInfo] | None = None
+    if entity_scorer is not None:
+        detected = entity_scorer.detect_query_entities(query)
+        entities = [
+            {
+                "name": e.name,
+                "type": e.type,
+                "role": e.role,
+                "aliases": list(e.aliases),
+            }
+            for e in detected
+        ]
+
+    intent: IntentInfo | None = None
+    if intent_classifier is not None:
+        name = intent_classifier.detect_intent(query)
+        boost = intent_classifier.get_boost_types(name)
+        intent = {
+            "intent": name,
+            "boost_types": sorted(boost) if boost else None,
+        }
+
     return {
         "query": query,
         "tokens": tokens,
@@ -114,4 +161,6 @@ def compute_segment_trace(
         "fts_form": build_fts_query(normalized),
         "dict_hits": _dict_hits(tokens),
         "rewrite": _rewrite(query, rewriter),
+        "entities": entities,
+        "intent": intent,
     }

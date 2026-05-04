@@ -147,6 +147,138 @@ def test_ingest_dir_processes_all_files(fresh_conn, corpus):
     assert n == 2
 
 
+def test_ingest_one_returns_none_for_empty_body(fresh_conn, tmp_path, caplog):
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    placeholder = sermons / "empty.md"
+    placeholder.write_text(
+        "---\ntitle: ''\nsource_type: unknown\ncategory: excluded\n---\n\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level("WARNING", logger="wenji.ingest"):
+        result = ingest_one(
+            placeholder,
+            fresh_conn,
+            DeterministicMockEmbedder(),
+            directory_map={"sermons": "sermon"},
+        )
+    assert result is None
+    assert any("empty-body" in rec.message for rec in caplog.records)
+    n = fresh_conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0]
+    assert n == 0
+
+
+def test_ingest_dir_commits_per_article_for_resume(tmp_path):
+    """Per-iteration commit: every successful ingest_one is durable on disk
+    immediately, so a separate read connection sees rows during the run and
+    an interrupted run can resume via ingest_one's path-based fast path.
+    """
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    for i in range(3):
+        (sermons / f"a{i}.md").write_text(
+            f"---\ntitle: T{i}\n---\n第 {i} 篇正文內容。",
+            encoding="utf-8",
+        )
+
+    db_path = tmp_path / "test.db"
+    conn = connect(str(db_path))
+    initialise_schema(conn)
+
+    sql_log: list[str] = []
+    conn.set_trace_callback(sql_log.append)
+
+    ids = ingest_dir(
+        tmp_path,
+        conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    assert len(ids) == 3
+    commit_count = sum(1 for s in sql_log if s.strip().upper() == "COMMIT")
+    assert commit_count >= 3, f"expected ≥3 commits for 3 articles, got {commit_count}"
+
+    conn.set_trace_callback(None)
+    conn.close()
+
+    read_conn = connect(str(db_path))
+    n = read_conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0]
+    read_conn.close()
+    assert n == 3
+
+
+def test_ingest_dir_resumes_idempotently_across_connections(tmp_path):
+    """Simulate interruption: ingest 2 files, close conn, then ingest the full
+    corpus (now 3 files) via a fresh conn. Embedder must NOT re-encode the 2
+    already-ingested files (path-based fast path)."""
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    for i in range(2):
+        (sermons / f"a{i}.md").write_text(
+            f"---\ntitle: T{i}\n---\n第 {i} 篇正文內容。",
+            encoding="utf-8",
+        )
+
+    class CountingEmbedder(DeterministicMockEmbedder):
+        def __init__(self):
+            self.encode_calls = 0
+
+        def encode_batch(self, texts):
+            self.encode_calls += 1
+            return super().encode_batch(texts)
+
+    db_path = tmp_path / "test.db"
+
+    conn1 = connect(str(db_path))
+    initialise_schema(conn1)
+    e1 = CountingEmbedder()
+    ingest_dir(tmp_path, conn1, e1, directory_map={"sermons": "sermon"})
+    conn1.close()
+    first_calls = e1.encode_calls
+    assert first_calls > 0
+
+    (sermons / "a2.md").write_text(
+        "---\ntitle: T2\n---\n第 2 篇正文內容。",
+        encoding="utf-8",
+    )
+
+    conn2 = connect(str(db_path))
+    e2 = CountingEmbedder()
+    ids = ingest_dir(tmp_path, conn2, e2, directory_map={"sermons": "sermon"})
+    n = conn2.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0]
+    conn2.close()
+    assert len(ids) == 3
+    assert n == 3
+    assert e2.encode_calls < first_calls, (
+        f"resume should re-encode only the new file; "
+        f"first_calls={first_calls}, second_calls={e2.encode_calls}"
+    )
+
+
+def test_ingest_dir_skips_empty_body_articles(fresh_conn, tmp_path, caplog):
+    sermons = tmp_path / "sermons"
+    sermons.mkdir()
+    (sermons / "good.md").write_text(
+        "---\ntitle: 有內容\n---\n正常段落內容。",
+        encoding="utf-8",
+    )
+    (sermons / "placeholder.md").write_text(
+        "---\ntitle: ''\ncategory: excluded\n---\n\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level("INFO", logger="wenji.ingest"):
+        ids = ingest_dir(
+            tmp_path,
+            fresh_conn,
+            DeterministicMockEmbedder(),
+            directory_map={"sermons": "sermon"},
+        )
+    assert len(ids) == 1
+    n = fresh_conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0]
+    assert n == 1
+    assert any("skipped 1" in rec.message for rec in caplog.records)
+
+
 def _snapshot(conn):
     fts_rows = conn.execute(
         "SELECT article_id, content FROM articles_fts ORDER BY article_id"

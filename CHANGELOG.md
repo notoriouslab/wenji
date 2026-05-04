@@ -7,6 +7,89 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added / Changed (v0.3.6)
+
+- **`wenji.search.rrf`** — 2-way boost-style RRF merge ports
+  ``logos/scripts/rag/ranking.py:rrf_merge`` (logos production v1.1
+  ranker, 75.8% baseline). `rrf_merge(main_merged, chunk_signals,
+  intent_boost_types, k=60)` combines hybrid (BM25 + vector) ranking
+  with chunk-level BM25 roll-up; intent boost layer adds `1/(k+1)` per
+  matching `source_type`. Falls back to main-only sort + 0.15 additive
+  boost when `chunk_signals` is empty. Includes `chunk_bm25_search`
+  helper that over-fetches chunks and aggregates per-article in Python
+  (SQLite FTS5 does not support `MIN(bm25())` as aggregate).
+- **`wenji.search.entity`** — `EntityScorer` class with
+  caller-injected `entity_dict` and `alias_map`; ports the dual-signal
+  scoring model `final = alpha * relevance + (1 - alpha) * entity_coverage`
+  (alpha=0.5 default, matches logos `entity_scorer.py:308`). Provides
+  `detect_query_entities`, `expand_query_with_aliases`, `score_and_rerank`
+  (with hard-filter for person/org subject misses), and the
+  `_check_entity_in_text` helper. Subject promotion rules favor
+  concept/person/org over location.
+- **`wenji.search.intent`** — `IntentClassifier` class with
+  caller-injected `intent_keywords` and `intent_source_types` maps.
+  Provides `detect_intent` (shallow keyword match → intent name),
+  `classify_intent` (structured → scripture/person/topic with alpha
+  and keyword_boost), and `get_boost_types` (intent → source_type set
+  for RRF intent boost layer).
+- **`wenji.search.ranker`** — `RankerHook` Protocol with
+  `boost(article, query, context) -> float`; built-in `ChunkHitBooster`
+  (uses `chunk_hits` already populated by Searcher). Custom hooks
+  satisfy the Protocol via duck typing.
+- **`Searcher` pipeline rewrite** — `Searcher.search()` now executes
+  the v0.3.6 11-step pipeline: rewrite → entity detect → intent detect
+  → alias expand → BM25+vector → chunk BM25 → RRF merge with intent
+  boost → entity scoring + filter → ranker hooks → reranker (existing
+  hook) → snippet hydration. The Searcher input/output schema is
+  preserved (BREAKING-free). `alpha` (linear hybrid combine weight) is
+  retained as a fallback BM25/vector internal fusion weight; primary
+  sort key is `_rankingScore` (post-RRF + entity + hooks).
+- **`Searcher.__init__` new optional parameters** — `entity_scorer`,
+  `intent_classifier`, `ranker_hooks` accept dependency-injected
+  components for the pipeline. Defaults to None for all three:
+  pipeline degrades to pure RRF + chunk_signals when none provided
+  (still a strict improvement over v0.3.5 linear hybrid).
+- **`examples/corpus-christian/` shipped in wheel** — first
+  domain-specific reference example, contains `entity_concepts.json`
+  (46 neutral theological concepts) and `intent_keywords.json` (65
+  apologetics keywords). Filtered to exclude political-ethics terms
+  (同性婚姻 / 墮胎 / 安樂死) per the corpus-examples-neutral spec.
+- **Multi-source loading API** — `EntityScorer.from_sources(...)` and
+  `IntentClassifier.from_sources(...)` accept a list of
+  `"example:<name>"` references and absolute/relative paths;
+  last-write-wins on key collisions. `EntityScorer.load_example` and
+  `IntentClassifier.load_example` provide low-level access. Network
+  URLs (`http://`, `https://`) are rejected.
+- **Web app + CLI integration** — `wenji serve` accepts
+  `--entity-source` / `--intent-source` flags (repeatable). Env vars
+  `WENJI_ENTITY_SOURCES` / `WENJI_INTENT_SOURCES`
+  (comma-separated) auto-load components into `Searcher`.
+- **`/api/segment` schema extension** — adds `entities` and `intent`
+  fields when `EntityScorer` / `IntentClassifier` are configured.
+  Both are `null` by default (backward compatible with v0.3.3 schema
+  apart from the additional optional keys).
+- **`QueryRewriter.peek_cache`** — already added in v0.3.3; v0.3.6
+  doesn't change it.
+- **80q baseline (vs logos R13 75.0%)** — v0.3.6 reaches **pass@3
+  partial+ = 77.5%** on 12,090-article SQLite corpus with
+  rewrite-off, **+2.5pp aligned** vs logos R13 (`tests/benchmark_v2_r13.json`,
+  2026-04-24). Secondary metrics: pass@1 51.2% / pass@5 88.8% /
+  pass@10 92.5%. Rewrite-on (Groq llama-3.3-70b-versatile) shows a
+  -10pp regression vs rewrite-off — `Searcher` defaults to
+  rewrite-off pending an audit of the rewrite prompt vs logos
+  production behaviour (see proposal OPEN-10).
+- **`Searcher.search()` response now hydrates `content_full`** —
+  added a final batch query against `articles_fts` that populates
+  `content_full=content_raw[:500]` and `content_snippet` for every
+  hit in `top_n`, regardless of which retrieval branch produced
+  the hit. Vector-only hits previously reached the response with
+  empty content fields (no BM25 match → no `content_raw`), which
+  silently broke the v0.3.1 eval metric (`metrics.py:103` reads
+  `content_full | content_raw | content`) and the UI snippet
+  surface. New regression test
+  `test_searcher_response_hydrates_content_full_for_all_hits`
+  forces the vector-only path with `alpha=0.0`.
+
 ### Added (v0.3.3)
 
 - **Observability endpoints** — read-only `GET /api/stats` and

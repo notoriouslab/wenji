@@ -72,6 +72,8 @@ def test_cli_segment_json_output_parses(db_path: Path):
         "fts_form",
         "dict_hits",
         "rewrite",
+        "entities",
+        "intent",
     }
 
 

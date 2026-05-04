@@ -36,6 +36,24 @@ def command(
         "--no-rewrite",
         help="Force LLM query rewrite off (overrides env-derived default).",
     ),
+    entity_source: list[str] = typer.Option(
+        None,
+        "--entity-source",
+        help=(
+            "Entity dictionary source for EntityScorer. Repeatable. "
+            "Format: 'example:<name>' or absolute/relative .json path. "
+            "Sets WENJI_ENTITY_SOURCES (last-write-wins on key collisions)."
+        ),
+    ),
+    intent_source: list[str] = typer.Option(
+        None,
+        "--intent-source",
+        help=(
+            "Intent keywords source for IntentClassifier. Repeatable. "
+            "Format: 'example:<name>' or absolute/relative .json path. "
+            "Sets WENJI_INTENT_SOURCES."
+        ),
+    ),
 ) -> None:
     import uvicorn
 
@@ -56,6 +74,11 @@ def command(
     elif no_rewrite:
         os.environ["WENJI_REWRITE_OVERRIDE"] = "disabled"
     # else: leave unset — web app uses env-derived LLMConfig.enabled
+
+    if entity_source:
+        os.environ["WENJI_ENTITY_SOURCES"] = ",".join(entity_source)
+    if intent_source:
+        os.environ["WENJI_INTENT_SOURCES"] = ",".join(intent_source)
 
     model_dir = Path(os.environ.get("WENJI_MODEL_DIR", DEFAULT_CACHE_DIR))
     rewrite_state = (

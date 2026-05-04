@@ -76,9 +76,14 @@ class Embedder:
         except Exception as exc:
             raise WenjiError(f"failed to load tokenizer {tokenizer_path}: {exc}") from exc
 
-        # Deterministic single-threaded CPU inference (byte-identical rebuild)
+        # Deterministic single-threaded CPU inference (byte-identical rebuild).
+        # WENJI_ONNX_THREADS overrides the default 1 thread for batch ingest
+        # speed-ups; multi-thread inference is not byte-identical (floating-
+        # point sum-order non-determinism) so set this only for one-shot
+        # batch jobs where exact reproducibility is not required.
+        n_threads = int(os.environ.get("WENJI_ONNX_THREADS", "1"))
         sess_options = ort.SessionOptions()
-        sess_options.intra_op_num_threads = 1
+        sess_options.intra_op_num_threads = n_threads
         sess_options.inter_op_num_threads = 1
         sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
         try:
