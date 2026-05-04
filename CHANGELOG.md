@@ -7,6 +7,25 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed (v0.3.6.1)
+
+- **`QueryRewriter` prompt aligned with logos production** — the
+  v0.3.6 prompt asked the LLM for a "vector-friendly single-line
+  query" with synonym expansion, which produced natural-language
+  sentence rewrites; on the 80q baseline this regressed -10pp vs
+  rewrite-off (67.5% vs 77.5% pass@3 partial+, OPEN-10). Replaced
+  with logos production prompt shape (1-3 keyword groups separated
+  by `|`, BM25-friendly, with few-shot examples). Post-fix
+  rewrite-on baseline: **pass@3 partial+ 73.8%**, -1.2pp aligned vs
+  logos R13 75.0%. New regression test
+  `test_default_prompt_template_targets_keyword_form_aligned_with_logos`
+  locks the prompt shape.
+- Note: rewrite-on 73.8% is still below wenji rewrite-off 77.5%
+  because wenji's vector recall is strong enough that LLM rewrite
+  injects noise. Logos production depends on rewrite-on (vector
+  weaker pre-port). Default remains rewrite-off; v0.3.7 logos
+  migration will revisit how rewrite is wired in production.
+
 ### Added / Changed (v0.3.6)
 
 - **`wenji.search.rrf`** — 2-way boost-style RRF merge ports
