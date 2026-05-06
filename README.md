@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://github.com/notoriouslab/wenji/actions/workflows/ci.yml/badge.svg)](https://github.com/notoriouslab/wenji/actions/workflows/ci.yml)
 
-> ⚠️ **Pre-1.0 — API may change between minor versions.** Production-tested at logos.notoriouslab.com but not yet on PyPI.
+> ⚠️ **Pre-1.0 — API may change between minor versions.** Not yet on PyPI; install from source.
 
 🇬🇧 [English](#english) · 🇹🇼 [繁體中文](#繁體中文)
 
