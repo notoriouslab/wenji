@@ -5,7 +5,9 @@
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/wenji.svg)](https://pypi.org/project/wenji/)
+[![CI](https://github.com/notoriouslab/wenji/actions/workflows/ci.yml/badge.svg)](https://github.com/notoriouslab/wenji/actions/workflows/ci.yml)
+
+> ⚠️ **Pre-1.0 — API may change between minor versions.** Production-tested at logos.notoriouslab.com but not yet on PyPI.
 
 🇬🇧 [English](#english) · 🇹🇼 [繁體中文](#繁體中文)
 
