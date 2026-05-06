@@ -82,9 +82,7 @@ def command(
 
     model_dir = Path(os.environ.get("WENJI_MODEL_DIR", DEFAULT_CACHE_DIR))
     rewrite_state = (
-        "forced ON"
-        if enable_rewrite
-        else ("forced OFF" if no_rewrite else "env-derived")
+        "forced ON" if enable_rewrite else ("forced OFF" if no_rewrite else "env-derived")
     )
     typer.echo(
         "\n".join(

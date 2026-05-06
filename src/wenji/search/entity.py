@@ -155,9 +155,7 @@ class EntityScorer:
                 out.append(alias_key)
         return out
 
-    def expand_query_with_aliases(
-        self, query: str, entities: list[QueryEntity]
-    ) -> str:
+    def expand_query_with_aliases(self, query: str, entities: list[QueryEntity]) -> str:
         """Append unique alias terms to query for richer BM25 matching."""
         extra: list[str] = []
         for ent in entities:
@@ -209,9 +207,7 @@ class EntityScorer:
                 )
             )
 
-        entity_coverage = (
-            weighted_signal_sum / total_weight if total_weight > 0 else 0.0
-        )
+        entity_coverage = weighted_signal_sum / total_weight if total_weight > 0 else 0.0
         co_bonus = _check_co_occurrence(entities, content)
         entity_coverage = min(1.0, entity_coverage + co_bonus)
 
@@ -264,9 +260,7 @@ class EntityScorer:
         ``_originalScore``. Articles failing hard-filter are dropped.
         """
         entities = (
-            query_entities
-            if query_entities is not None
-            else self.detect_query_entities(query)
+            query_entities if query_entities is not None else self.detect_query_entities(query)
         )
 
         if not entities:
@@ -305,9 +299,7 @@ class EntityScorer:
         except (ModuleNotFoundError, AttributeError) as exc:
             raise FileNotFoundError(f"unknown example: {name}") from exc
         if not ref.is_file():
-            raise FileNotFoundError(
-                f"example {name} has no entity_concepts.json"
-            )
+            raise FileNotFoundError(f"example {name} has no entity_concepts.json")
         return json.loads(ref.read_text(encoding="utf-8"))
 
     @classmethod
@@ -316,7 +308,7 @@ class EntityScorer:
         sources: list[str],
         alias_map: dict[str, str | list[str]] | None = None,
         alpha: float = DEFAULT_ALPHA,
-    ) -> "EntityScorer":
+    ) -> EntityScorer:
         """Compose entity_dict from multiple sources (last-write-wins).
 
         Each ``source`` SHALL be one of:
@@ -330,9 +322,7 @@ class EntityScorer:
         merged: dict[str, str] = {}
         for src in sources:
             if src.startswith(("http://", "https://")):
-                raise ValueError(
-                    f"network sources not supported in v0.3.6: {src}"
-                )
+                raise ValueError(f"network sources not supported in v0.3.6: {src}")
             if src.startswith("example:"):
                 merged.update(cls.load_example(src[len("example:") :]))
                 continue

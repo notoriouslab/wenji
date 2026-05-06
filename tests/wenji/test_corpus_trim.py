@@ -18,15 +18,9 @@ def _build_wenji_db(db_path: Path, articles: list[dict]) -> Path:
         "CREATE TABLE articles_meta ("
         "article_id TEXT PRIMARY KEY, title TEXT, source_type TEXT, content_hash TEXT)"
     )
-    conn.execute(
-        "CREATE TABLE articles_fts (article_id TEXT PRIMARY KEY, content TEXT)"
-    )
-    conn.execute(
-        "CREATE TABLE chunks_fts (article_id TEXT, chunk_idx INTEGER, content TEXT)"
-    )
-    conn.execute(
-        "CREATE TABLE doc_vectors (article_id TEXT PRIMARY KEY, vec BLOB)"
-    )
+    conn.execute("CREATE TABLE articles_fts (article_id TEXT PRIMARY KEY, content TEXT)")
+    conn.execute("CREATE TABLE chunks_fts (article_id TEXT, chunk_idx INTEGER, content TEXT)")
+    conn.execute("CREATE TABLE doc_vectors (article_id TEXT PRIMARY KEY, vec BLOB)")
     for a in articles:
         conn.execute(
             "INSERT INTO articles_meta VALUES (?, ?, ?, ?)",

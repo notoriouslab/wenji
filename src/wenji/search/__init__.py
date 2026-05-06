@@ -302,9 +302,7 @@ class Searcher:
                     m["pub_year"] = row[5]
 
         # Step 6: chunk-level BM25 → article roll-up
-        chunk_signals = chunk_bm25_search(
-            self.conn, retrieve_query, limit=self.candidate_pool
-        )
+        chunk_signals = chunk_bm25_search(self.conn, retrieve_query, limit=self.candidate_pool)
 
         # Seed the dict needed by rrf_merge (keyed by article_id with _rankingScore)
         main_merged: dict[str, dict[str, Any]] = {}
@@ -334,9 +332,7 @@ class Searcher:
                 self.ranker_hooks,
                 context={"intent": intent, "query_entities": query_entities},
             )
-            ranked.sort(
-                key=lambda r: -float(r.get("_rankingScore", 0.0)), reverse=False
-            )
+            ranked.sort(key=lambda r: -float(r.get("_rankingScore", 0.0)), reverse=False)
 
         # Optional cross-encoder reranker (existing hook, retained but unused
         # in v0.3.6 logos baseline — see proposal Non-Goals: blog verified

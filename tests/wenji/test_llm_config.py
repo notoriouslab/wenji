@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from wenji.config import LLMConfig, load_llm_config_from_env
@@ -103,5 +105,5 @@ def test_empty_string_treated_as_unset(monkeypatch):
 
 def test_dataclass_frozen():
     cfg = LLMConfig(base_url="u", api_key="k", model="m")
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         cfg.timeout = 5.0  # frozen dataclass; type: ignore

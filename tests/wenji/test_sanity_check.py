@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from wenji.eval.sanity_check import (
-    OBJECTIVE_THRESHOLD,
-    SUBJECTIVE_MAX_FLAGS,
     compute_objective_overlap,
     emit_objective_diagnostic,
     evaluate_subjective_gate,

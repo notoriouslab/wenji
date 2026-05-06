@@ -33,9 +33,7 @@ class ChunkHitBooster:
         self.weight = weight
         self.max_hits_capped = max_hits_capped
 
-    def boost(
-        self, article: dict[str, Any], query: str, context: dict[str, Any]
-    ) -> float:
+    def boost(self, article: dict[str, Any], query: str, context: dict[str, Any]) -> float:
         hits = int(article.get("chunk_hits", 0) or 0)
         return self.weight * min(hits, self.max_hits_capped)
 

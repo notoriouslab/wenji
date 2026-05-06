@@ -11,7 +11,6 @@ import json
 import re
 import sqlite3
 import sys
-from collections import Counter
 from pathlib import Path
 
 import typer

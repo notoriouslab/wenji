@@ -38,9 +38,7 @@ def _build_logos_db(
     if extra_meta_cols:
         base_meta_cols.extend(extra_meta_cols)
     conn.execute(f"CREATE TABLE articles_meta ({', '.join(base_meta_cols)})")
-    conn.execute(
-        "CREATE TABLE articles_fts (article_id TEXT PRIMARY KEY, content TEXT)"
-    )
+    conn.execute("CREATE TABLE articles_fts (article_id TEXT PRIMARY KEY, content TEXT)")
     for a in articles:
         meta_keys = [c.split()[0] for c in base_meta_cols]
         meta_vals = [a.get(k) for k in meta_keys]

@@ -50,8 +50,7 @@ def test_migrate_already_multi_path_passthrough(tmp_path):
     src = _write(
         tmp_path / "src.jsonl",
         [
-            '{"id": 1, "query": "Q", "gold_paths": '
-            '[{"path_tag": "p", "keywords": ["a"]}]}',
+            '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "p", "keywords": ["a"]}]}',
         ],
     )
     dst = tmp_path / "dst.jsonl"

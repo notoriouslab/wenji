@@ -15,7 +15,6 @@ read — the baseline measures retrieval-returned content).
 
 from __future__ import annotations
 
-import time
 from collections.abc import Sequence
 from difflib import SequenceMatcher
 from typing import Any
@@ -75,9 +74,7 @@ def score_gold_path(article_content: str, gold_path) -> str:
     return "partial"
 
 
-def rollup_chunks_to_articles(
-    hits: list[dict], *, top_k: int | None = None
-) -> list[dict]:
+def rollup_chunks_to_articles(hits: list[dict], *, top_k: int | None = None) -> list[dict]:
     """Aggregate chunk-level retrieval results into article-level entries.
 
     For each unique ``article_id``:
@@ -115,9 +112,7 @@ def rollup_chunks_to_articles(
             }
         else:
             entry["_chunk_count"] += 1
-            entry["article_content_union"] = (
-                entry["article_content_union"] + "\n" + content
-            )
+            entry["article_content_union"] = entry["article_content_union"] + "\n" + content
             if score > entry["score"]:
                 entry["score"] = score
                 entry["rank"] = rank
@@ -257,8 +252,7 @@ def aggregate(per_question: list[dict], *, top_k: int = DEFAULT_TOP_K) -> dict:
     pass_count = sum(1 for r in per_question if r.get("pass"))
     partial_pass_count = sum(1 for r in per_question if r.get("partial_only"))
     mean_passing_paths = (
-        sum(r.get("n_passing_paths", 0) for r in per_question if r.get("pass"))
-        / pass_count
+        sum(r.get("n_passing_paths", 0) for r in per_question if r.get("pass")) / pass_count
         if pass_count
         else 0.0
     )

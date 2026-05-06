@@ -447,9 +447,7 @@ def test_factory_uses_env_var_for_db(monkeypatch, tmp_path):
     assert "from-env.db" in r.json()["db_path"]
 
 
-def test_searcher_forwards_alias_map_env_to_entity_scorer(
-    populated_db, tmp_path, monkeypatch
-):
+def test_searcher_forwards_alias_map_env_to_entity_scorer(populated_db, tmp_path, monkeypatch):
     """OPEN-7: WENJI_ENTITY_ALIAS_MAP loads JSON and forwards as alias_map kwarg
     to EntityScorer.from_sources."""
     import json

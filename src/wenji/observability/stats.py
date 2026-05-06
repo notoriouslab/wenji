@@ -55,9 +55,7 @@ def _source_type_counts(conn: sqlite3.Connection) -> dict[str, int]:
     return {str(r[0]): int(r[1]) for r in rows}
 
 
-def _axes_counts(
-    conn: sqlite3.Connection, axes_config: AxesConfig | None
-) -> dict[str, int]:
+def _axes_counts(conn: sqlite3.Connection, axes_config: AxesConfig | None) -> dict[str, int]:
     """Count articles per axis, mapping axis_id → human label via axes.yaml.
 
     When ``axes_config`` is None (no ``WENJI_AXES_YAML`` configured), returns
@@ -67,8 +65,7 @@ def _axes_counts(
     if axes_config is None:
         return {}
     rows = conn.execute(
-        "SELECT axis_id, COUNT(*) FROM article_axes "
-        "WHERE axis_id != ? GROUP BY axis_id",
+        "SELECT axis_id, COUNT(*) FROM article_axes WHERE axis_id != ? GROUP BY axis_id",
         (UNCLASSIFIED,),
     ).fetchall()
     id_to_name = {a.id: a.name for a in axes_config.axes}
@@ -88,9 +85,7 @@ def _last_ingest_at(conn: sqlite3.Connection) -> str | None:
     return str(row[0])
 
 
-def compute_stats(
-    conn: sqlite3.Connection, axes_config: AxesConfig | None
-) -> StatsResult:
+def compute_stats(conn: sqlite3.Connection, axes_config: AxesConfig | None) -> StatsResult:
     """Compute corpus / index stats from a live wenji DB connection.
 
     Caller owns the connection lifecycle. Schema mismatch (missing tables)

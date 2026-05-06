@@ -22,10 +22,10 @@ import json
 import shutil
 import sqlite3
 import tempfile
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
 
 import yaml
 
@@ -70,9 +70,7 @@ def _validate_schema(conn: sqlite3.Connection) -> None:
         raise IngestError("logos.db: 'articles_meta' table not found")
     missing_meta = REQUIRED_META_COLS - meta_cols
     if missing_meta:
-        raise IngestError(
-            f"logos.db: 'articles_meta' missing required columns: {missing_meta}"
-        )
+        raise IngestError(f"logos.db: 'articles_meta' missing required columns: {missing_meta}")
     unknown_meta = meta_cols - RECOGNISED_META_COLS
     if unknown_meta:
         raise IngestError(
@@ -86,9 +84,7 @@ def _validate_schema(conn: sqlite3.Connection) -> None:
         raise IngestError("logos.db: 'articles_fts' table not found")
     missing_fts = REQUIRED_FTS_COLS - fts_cols
     if missing_fts:
-        raise IngestError(
-            f"logos.db: 'articles_fts' missing required columns: {missing_fts}"
-        )
+        raise IngestError(f"logos.db: 'articles_fts' missing required columns: {missing_fts}")
 
 
 def _parse_tags(raw: str | None) -> list[str]:

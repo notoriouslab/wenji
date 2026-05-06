@@ -187,9 +187,7 @@ def create_app(
             conn = _get_conn()
             llm_cfg = load_llm_config_from_env()
             override = os.environ.get("WENJI_REWRITE_OVERRIDE", "").lower()
-            rewrite_enabled = (
-                override == "enabled" or (override != "disabled" and llm_cfg.enabled)
-            )
+            rewrite_enabled = override == "enabled" or (override != "disabled" and llm_cfg.enabled)
             rewriter: QueryRewriter | None = None
             if rewrite_enabled and llm_cfg.enabled:
                 rewriter = QueryRewriter(
@@ -215,9 +213,7 @@ def create_app(
                         alias_map_path = os.environ.get("WENJI_ENTITY_ALIAS_MAP", "").strip()
                         alias_map: dict | None = None
                         if alias_map_path:
-                            alias_map = json.loads(
-                                Path(alias_map_path).read_text(encoding="utf-8")
-                            )
+                            alias_map = json.loads(Path(alias_map_path).read_text(encoding="utf-8"))
                         entity_scorer = EntityScorer.from_sources(
                             [s.strip() for s in entity_sources.split(",") if s.strip()],
                             alias_map=alias_map,

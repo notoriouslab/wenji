@@ -65,9 +65,7 @@ def test_apply_ranker_hooks_missing_score_treated_as_zero():
 
 
 def test_apply_ranker_hooks_preserves_metadata():
-    articles = [
-        {"article_id": "a1", "_rankingScore": 0.5, "title": "x", "chunk_hits": 2}
-    ]
+    articles = [{"article_id": "a1", "_rankingScore": 0.5, "title": "x", "chunk_hits": 2}]
     apply_ranker_hooks(articles, "q", [ChunkHitBooster()])
     assert articles[0]["title"] == "x"
     assert articles[0]["chunk_hits"] == 2

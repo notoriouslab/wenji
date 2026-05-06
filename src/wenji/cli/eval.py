@@ -124,15 +124,12 @@ def run_benchmark_command(
     import datetime
     import time
 
-    import httpx
-
     from wenji.eval import run_baseline as _run_baseline_internal
     from wenji.eval.loader_logos_v2 import load_logos_v2_snapshot
 
     cands, meta = load_logos_v2_snapshot(snapshot)
     typer.echo(
-        f"loaded {len(cands)} candidates from snapshot "
-        f"(commit={meta.logos_source_commit[:8]})",
+        f"loaded {len(cands)} candidates from snapshot (commit={meta.logos_source_commit[:8]})",
         err=True,
     )
 
@@ -237,9 +234,7 @@ def sanity_eyeball_command(
             err=True,
         )
         sys.exit(1)
-    typer.echo(
-        f"PASS: mean_overlap={obj.mean_overlap:.4f} ≥ {obj.threshold:.2f}", err=True
-    )
+    typer.echo(f"PASS: mean_overlap={obj.mean_overlap:.4f} ≥ {obj.threshold:.2f}", err=True)
 
     typer.echo(f"\n=== subjective gate ({n} questions) ===", err=True)
     samples = sample_eyeball_questions(wenji_data, logos_data, n=n, seed=seed)
@@ -263,13 +258,9 @@ def sanity_eyeball_command(
             err=True,
         )
         sys.exit(1)
-    typer.echo(
-        f"PASS: {len(flagged)} flagged ≤ threshold={subj.threshold}", err=True
-    )
+    typer.echo(f"PASS: {len(flagged)} flagged ≤ threshold={subj.threshold}", err=True)
 
-    write_promotion_marker(
-        out, objective=obj, subjective=subj, wenji_r0_path=str(wenji_r0)
-    )
+    write_promotion_marker(out, objective=obj, subjective=subj, wenji_r0_path=str(wenji_r0))
     typer.echo(f"wrote promotion marker → {out}", err=True)
 
 

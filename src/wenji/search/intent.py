@@ -62,9 +62,7 @@ class IntentClassifier:
                 return intent
         return self.default_intent
 
-    def classify_intent(
-        self, query: str, entities: list[Any] | None = None
-    ) -> dict[str, Any]:
+    def classify_intent(self, query: str, entities: list[Any] | None = None) -> dict[str, Any]:
         """Structured classification → ``{intent, alpha, keyword_boost}``.
 
         Recognises:
@@ -109,9 +107,7 @@ class IntentClassifier:
         except (ModuleNotFoundError, AttributeError) as exc:
             raise FileNotFoundError(f"unknown example: {name}") from exc
         if not ref.is_file():
-            raise FileNotFoundError(
-                f"example {name} has no intent_keywords.json"
-            )
+            raise FileNotFoundError(f"example {name} has no intent_keywords.json")
         return json.loads(ref.read_text(encoding="utf-8"))
 
     @classmethod
@@ -122,7 +118,7 @@ class IntentClassifier:
         default_intent: str = DEFAULT_INTENT,
         scripture_pattern: re.Pattern[str] | None = None,
         generic_entities: set[str] | None = None,
-    ) -> "IntentClassifier":
+    ) -> IntentClassifier:
         """Compose ``intent_keywords`` from multiple sources (last-write-wins).
 
         ``intent_source_types`` is corpus-deployment-specific and is NOT
@@ -132,9 +128,7 @@ class IntentClassifier:
         merged: dict[str, list[str]] = {}
         for src in sources:
             if src.startswith(("http://", "https://")):
-                raise ValueError(
-                    f"network sources not supported in v0.3.6: {src}"
-                )
+                raise ValueError(f"network sources not supported in v0.3.6: {src}")
             if src.startswith("example:"):
                 merged.update(cls.load_example(src[len("example:") :]))
                 continue

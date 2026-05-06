@@ -45,8 +45,7 @@ def _build_rewriter(conn, *, force_enable: bool, force_disable: bool):
     if force_enable and not cfg.enabled:
         return (
             None,
-            "--enable-rewrite specified but missing env vars: "
-            + ", ".join(cfg.missing_fields()),
+            "--enable-rewrite specified but missing env vars: " + ", ".join(cfg.missing_fields()),
         )
     if not (force_enable or cfg.enabled):
         return None, None

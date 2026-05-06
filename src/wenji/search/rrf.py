@@ -52,9 +52,7 @@ def rrf_merge(
         )
         main_rank = {aid: i + 1 for i, aid in enumerate(main_ranked)}
 
-        chunk_ranked = sorted(
-            chunk_signals.keys(), key=lambda x: chunk_signals[x], reverse=True
-        )
+        chunk_ranked = sorted(chunk_signals.keys(), key=lambda x: chunk_signals[x], reverse=True)
         chunk_rank = {aid: i + 1 for i, aid in enumerate(chunk_ranked)}
 
         all_ids = set(main_merged.keys()) | set(chunk_signals.keys())

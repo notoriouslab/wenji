@@ -8,10 +8,6 @@ Covers:
 
 from __future__ import annotations
 
-import sqlite3
-
-import pytest
-
 from wenji.search import Searcher
 from wenji.search.entity import EntityScorer
 from wenji.search.intent import IntentClassifier
@@ -102,9 +98,7 @@ def test_searcher_pipeline_calls_entity_scorer_when_injected(populated_db, mock_
         entity_dict={"非常罕見人名XYZ": "person"},
         alias_map={},
     )
-    searcher = Searcher(
-        populated_db, mock_embedder, alpha=0.25, entity_scorer=entity_scorer
-    )
+    searcher = Searcher(populated_db, mock_embedder, alpha=0.25, entity_scorer=entity_scorer)
     results = searcher.search("非常罕見人名XYZ的故事", limit=5)
     # Person subject with no article match → hard-filtered → empty
     assert results == []
@@ -128,9 +122,7 @@ def test_searcher_intent_boost_changes_ranking_or_passes(populated_db, mock_embe
     assert isinstance(results_without, list)
 
 
-def test_searcher_response_hydrates_content_full_for_all_hits(
-    populated_db, mock_embedder
-):
+def test_searcher_response_hydrates_content_full_for_all_hits(populated_db, mock_embedder):
     # Vector-only hits historically reached the response without content_raw,
     # leaving content_snippet/content_full empty and breaking the eval metric
     # (metrics.py reads content_full|content_raw|content for keyword scoring).

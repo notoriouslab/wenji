@@ -6,8 +6,6 @@ import pytest
 
 from wenji.core.errors import IngestError
 from wenji.eval.jsonl import (
-    Candidate,
-    GoldPath,
     load_candidates,
     wrap_legacy_candidate,
 )
@@ -46,7 +44,7 @@ def test_load_multiple_paths(tmp_path):
             '{"id": 7, "query": "Q", "gold_paths": ['
             '{"path_tag": "a", "keywords": ["x"], "article_hints": ["t1"]},'
             '{"path_tag": "b", "keywords": ["y"], "expected_direction": "support"}'
-            "], \"category\": \"theology\", \"source\": \"test\"}",
+            '], "category": "theology", "source": "test"}',
         ],
     )
     c = load_candidates(p)[0]

@@ -51,18 +51,14 @@ def test_cli_stats_missing_db_exits_nonzero(tmp_path: Path):
 
 
 def test_cli_segment_human_output(db_path: Path):
-    result = runner.invoke(
-        app, ["segment", "因信稱義", "--db", str(db_path)]
-    )
+    result = runner.invoke(app, ["segment", "因信稱義", "--db", str(db_path)])
     assert result.exit_code == 0
     for label in ("Query:", "Tokens", "FTS form", "Dict hits", "Rewrite"):
         assert label in result.stdout
 
 
 def test_cli_segment_json_output_parses(db_path: Path):
-    result = runner.invoke(
-        app, ["segment", "因信稱義", "--db", str(db_path), "--json"]
-    )
+    result = runner.invoke(app, ["segment", "因信稱義", "--db", str(db_path), "--json"])
     assert result.exit_code == 0
     body = json.loads(result.stdout)
     assert set(body.keys()) == {

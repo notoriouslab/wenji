@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
-
-import pytest
-
-from wenji.core.db import connect, initialise_schema
 from wenji.ingest.jieba_setup import jieba_cut_pos, reset_for_test
 from wenji.observability import compute_segment_trace
 from wenji.search.bm25 import build_fts_query
-from wenji.search.rewrite import QueryRewriter
 
 
 def test_segment_chinese_query_returns_tokens_and_fts_form():

@@ -154,13 +154,9 @@ def test_score_and_rerank_higher_alpha_weights_relevance_more(scorer):
         },
     ]
     # alpha=0.9 → relevance dominates
-    out_high_alpha, _ = scorer.score_and_rerank(
-        [dict(a) for a in articles], "因信稱義", alpha=0.9
-    )
+    out_high_alpha, _ = scorer.score_and_rerank([dict(a) for a in articles], "因信稱義", alpha=0.9)
     # alpha=0.1 → entity dominates
-    out_low_alpha, _ = scorer.score_and_rerank(
-        [dict(a) for a in articles], "因信稱義", alpha=0.1
-    )
+    out_low_alpha, _ = scorer.score_and_rerank([dict(a) for a in articles], "因信稱義", alpha=0.1)
     # under high alpha, low_rel_high_ent SHALL be lower-ranked than under low alpha
     high_alpha_rank = next(
         i for i, r in enumerate(out_high_alpha) if r["article_id"] == "low_rel_high_ent"

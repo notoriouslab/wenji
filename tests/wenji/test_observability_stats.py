@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from wenji.classify.axes_loader import (
     UNCLASSIFIED,
-    Axis,
     AxesConfig,
+    Axis,
     ValidationBounds,
 )
 from wenji.core.db import connect, initialise_schema
@@ -61,9 +61,7 @@ def test_compute_stats_axes_empty_when_config_none(populated_db):
 def test_compute_stats_axes_populated_with_config(populated_db):
     cfg = AxesConfig(
         version=1,
-        axes=(
-            Axis(id="theology", name="神學", order=1, rules=()),
-        ),
+        axes=(Axis(id="theology", name="神學", order=1, rules=()),),
         validation=ValidationBounds(),
     )
     stats = compute_stats(populated_db, axes_config=cfg)

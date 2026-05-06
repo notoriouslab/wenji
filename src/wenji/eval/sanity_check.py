@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import random
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -157,7 +157,9 @@ class SubjectiveGateResult:
     passed: bool
 
 
-def evaluate_subjective_gate(flagged_qids: list[int], sampled_qids: list[int]) -> SubjectiveGateResult:
+def evaluate_subjective_gate(
+    flagged_qids: list[int], sampled_qids: list[int]
+) -> SubjectiveGateResult:
     """Apply the > 1 flag → fail rule; return the gate verdict."""
     return SubjectiveGateResult(
         sampled_qids=list(sampled_qids),

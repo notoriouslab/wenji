@@ -129,8 +129,14 @@ def test_search_axis_filter_constrains_to_classical(populated_e2e_db):
 
 @pytest.mark.integration
 def test_eval_jsonl_passes_majority(populated_e2e_db):
-    """Run the bundled eval.jsonl in-process; expect ≥6/10 to auto-pass."""
-    from wenji.eval import aggregate, evaluate_question
+    """Run the bundled eval.jsonl in-process; expect ≥6/10 to reach partial+ on top-5.
+
+    'partial+' = at least one gold_path achieves 'partial' (≥1 keyword match)
+    or 'full' (all keywords) on at least one retrieved article. The example
+    corpus is intentionally small, so partial+ at top-5 is the lenient gate
+    matching the original ``min_hits=1`` intent (pre v0.3.6 schema).
+    """
+    from wenji.eval import evaluate_question
     from wenji.eval.jsonl import load_candidates
     from wenji.search import Searcher
 
@@ -154,12 +160,15 @@ def test_eval_jsonl_passes_majority(populated_e2e_db):
             ],
             "elapsed_ms": 0,
         }
-        # use min_hits=1 (lenient) since example corpus is intentionally small
-        per_question.append(evaluate_question(cand, response, min_hits=1))
+        per_question.append(evaluate_question(cand, response, top_k=5))
 
-    summary = aggregate(per_question)
-    fails = [(q["query"], q["max_keyword_hits"]) for q in per_question if not q["auto_pass"]]
-    assert summary["pass_count"] >= 6, f"only {summary['pass_count']}/10 passed; misses: {fails}"
+    pass_or_partial = sum(1 for q in per_question if q["pass"] or q["partial_only"])
+    fails = [
+        (q["query"], q.get("passing_paths", []))
+        for q in per_question
+        if not (q["pass"] or q["partial_only"])
+    ]
+    assert pass_or_partial >= 6, f"only {pass_or_partial}/10 reached partial+; misses: {fails}"
 
 
 @pytest.mark.integration

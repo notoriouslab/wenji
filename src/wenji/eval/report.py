@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-from typing import Any
 
 
 def _section_metadata(run: dict, corpus_size: int | None) -> str:
@@ -98,9 +97,7 @@ def _section_per_question(run: dict, top_n_hits: int = 3) -> str:
     ]
     for q in run.get("questions", []):
         hits = (q.get("article_results") or q.get("hits") or [])[:top_n_hits]
-        hits_str = "; ".join(
-            f"#{h.get('rank')}:{(h.get('title') or '')[:30]}" for h in hits
-        )
+        hits_str = "; ".join(f"#{h.get('rank')}:{(h.get('title') or '')[:30]}" for h in hits)
         passing = ",".join(q.get("passing_paths", []) or [])
         passed = "✅" if q.get("pass") else "❌"
         lines.append(

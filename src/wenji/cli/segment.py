@@ -22,9 +22,7 @@ def command(
     enable_rewrite: bool = typer.Option(
         False, "--enable-rewrite", help="Force LLM query rewrite on."
     ),
-    no_rewrite: bool = typer.Option(
-        False, "--no-rewrite", help="Force LLM query rewrite off."
-    ),
+    no_rewrite: bool = typer.Option(False, "--no-rewrite", help="Force LLM query rewrite off."),
 ) -> None:
     """Print jieba tokens, FTS form, dict hits, and (optional) LLM rewrite for a query."""
     if enable_rewrite and no_rewrite:

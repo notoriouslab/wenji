@@ -112,9 +112,7 @@ def test_from_sources_rejects_unknown_example():
 
 def test_from_sources_loads_file_path(tmp_path: Path):
     p = tmp_path / "intent.json"
-    p.write_text(
-        json.dumps({"apologetics": ["護教"], "general": []}), encoding="utf-8"
-    )
+    p.write_text(json.dumps({"apologetics": ["護教"], "general": []}), encoding="utf-8")
     c = IntentClassifier.from_sources(
         [str(p)],
         intent_source_types={"apologetics": ["bol"]},

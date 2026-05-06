@@ -63,9 +63,7 @@ def _parse_gold_path(raw: dict, *, qid: int, idx: int) -> GoldPath:
         raise IngestError(f"question {qid}: gold_paths[{idx}] missing 'keywords'")
     keywords_raw = raw["keywords"]
     if not isinstance(keywords_raw, list) or not keywords_raw:
-        raise IngestError(
-            f"question {qid}: gold_paths[{idx}].keywords must be a non-empty list"
-        )
+        raise IngestError(f"question {qid}: gold_paths[{idx}].keywords must be a non-empty list")
 
     # logos v2 has `representative_corpus_articles` — extract titles as
     # article_hints when present. Field may be a list of dicts {title,path,...}
@@ -125,8 +123,7 @@ def load_logos_v2_snapshot(
     )
     if not metadata.logos_source_commit:
         raise IngestError(
-            "snapshot missing required field 'logos_source_commit' "
-            "(provenance metadata)"
+            "snapshot missing required field 'logos_source_commit' (provenance metadata)"
         )
 
     categories = data.get("categories")
@@ -137,25 +134,17 @@ def load_logos_v2_snapshot(
     seen_ids: set[int] = set()
     for cat_idx, cat in enumerate(categories):
         if not isinstance(cat, dict):
-            raise IngestError(
-                f"categories[{cat_idx}] must be an object, got {type(cat).__name__}"
-            )
+            raise IngestError(f"categories[{cat_idx}] must be an object, got {type(cat).__name__}")
         cat_name = str(cat.get("name", f"cat_{cat_idx}"))
         questions = cat.get("questions") or []
         if not isinstance(questions, list):
-            raise IngestError(
-                f"categories[{cat_idx}].questions must be a list"
-            )
+            raise IngestError(f"categories[{cat_idx}].questions must be a list")
         for q in questions:
             if not isinstance(q, dict):
-                raise IngestError(
-                    f"category {cat_name!r}: question must be an object"
-                )
+                raise IngestError(f"category {cat_name!r}: question must be an object")
             qid_raw = q.get("id")
             if qid_raw is None:
-                raise IngestError(
-                    f"category {cat_name!r}: question missing 'id'"
-                )
+                raise IngestError(f"category {cat_name!r}: question missing 'id'")
             try:
                 qid = int(qid_raw)
             except (TypeError, ValueError) as exc:
@@ -172,19 +161,14 @@ def load_logos_v2_snapshot(
 
             gp_raw = q.get("gold_paths") or []
             if not isinstance(gp_raw, list) or not gp_raw:
-                raise IngestError(
-                    f"question {qid}: 'gold_paths' must be a non-empty list"
-                )
+                raise IngestError(f"question {qid}: 'gold_paths' must be a non-empty list")
             gold_paths = tuple(
-                _parse_gold_path(gp, qid=qid, idx=idx)
-                for idx, gp in enumerate(gp_raw)
+                _parse_gold_path(gp, qid=qid, idx=idx) for idx, gp in enumerate(gp_raw)
             )
             # path_tag uniqueness within question
             tags = [gp.path_tag for gp in gold_paths]
             if len(set(tags)) != len(tags):
-                raise IngestError(
-                    f"question {qid}: gold_paths path_tag must be unique, got {tags}"
-                )
+                raise IngestError(f"question {qid}: gold_paths path_tag must be unique, got {tags}")
 
             candidates.append(
                 Candidate(

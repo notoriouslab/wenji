@@ -17,8 +17,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-logger = logging.getLogger(__name__)
-
 from markdown_it import MarkdownIt
 
 from wenji.core.chunk import chunk as chunk_text
@@ -27,6 +25,8 @@ from wenji.core.hash import content_hash
 from wenji.core.normalize import normalize
 from wenji.ingest.frontmatter import load_article
 from wenji.ingest.jieba_setup import tokenize_for_fts
+
+logger = logging.getLogger(__name__)
 
 # Module-level Markdown parser used for AST operations (H1 fallback, snippet
 # strip). ``html=False`` sanitises raw HTML; ``linkify=False`` avoids

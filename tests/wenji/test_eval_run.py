@@ -194,7 +194,13 @@ def test_run_baseline_per_question_has_multi_path_metrics():
         )
     ]
     fake_client = _FakeClient(
-        [{"results": [{"article_id": "x", "title": "T", "rank": 1, "score": 0.9, "content_full": "a"}]}]
+        [
+            {
+                "results": [
+                    {"article_id": "x", "title": "T", "rank": 1, "score": 0.9, "content_full": "a"}
+                ]
+            }
+        ]
     )
     out = run_baseline(
         candidates_path="ignored",

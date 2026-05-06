@@ -97,9 +97,7 @@ def test_report_with_sanity_marker():
 
 
 def test_report_with_overlap_histogram():
-    overlaps = [
-        {"qid": i, "overlap_rate": 0.05 + i * 0.05} for i in range(20)
-    ]
+    overlaps = [{"qid": i, "overlap_rate": 0.05 + i * 0.05} for i in range(20)]
     md = render_baseline_report(_sample_run(), per_question_overlaps=overlaps)
     assert "[0.0, 0.1)" in md
     assert "█" in md  # has bars

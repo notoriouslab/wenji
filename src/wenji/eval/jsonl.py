@@ -69,14 +69,10 @@ def _parse_gold_path(raw: Any, *, lineno: int, idx: int) -> GoldPath:
             f"line {lineno}: gold_paths[{idx}] must be an object, got {type(raw).__name__}"
         )
     if "keywords" not in raw:
-        raise IngestError(
-            f"line {lineno}: gold_paths[{idx}] missing required field 'keywords'"
-        )
+        raise IngestError(f"line {lineno}: gold_paths[{idx}] missing required field 'keywords'")
     keywords = _coerce_string_list(raw["keywords"], f"gold_paths[{idx}].keywords", lineno)
     if not keywords:
-        raise IngestError(
-            f"line {lineno}: gold_paths[{idx}].keywords must be non-empty"
-        )
+        raise IngestError(f"line {lineno}: gold_paths[{idx}].keywords must be non-empty")
     article_hints = _coerce_string_list(
         raw.get("article_hints"), f"gold_paths[{idx}].article_hints", lineno
     )
@@ -160,9 +156,7 @@ def load_candidates(path: str | Path) -> list[Candidate]:
             if "gold_paths" not in obj:
                 if "expected_keywords" in obj:
                     raise IngestError(f"line {lineno}: {_LEGACY_HINT}")
-                raise IngestError(
-                    f"line {lineno}: missing required field 'gold_paths'"
-                )
+                raise IngestError(f"line {lineno}: missing required field 'gold_paths'")
 
             gold_paths_raw = obj["gold_paths"]
             if not isinstance(gold_paths_raw, list):
@@ -170,9 +164,7 @@ def load_candidates(path: str | Path) -> list[Candidate]:
                     f"line {lineno}: 'gold_paths' must be a list, got {type(gold_paths_raw).__name__}"
                 )
             if not gold_paths_raw:
-                raise IngestError(
-                    f"line {lineno}: 'gold_paths' must have at least one entry"
-                )
+                raise IngestError(f"line {lineno}: 'gold_paths' must have at least one entry")
             gold_paths = tuple(
                 _parse_gold_path(raw_path, lineno=lineno, idx=idx)
                 for idx, raw_path in enumerate(gold_paths_raw)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,13 @@ from typer.testing import CliRunner
 from wenji.cli import app
 
 runner = CliRunner()
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(s: str) -> str:
+    """Strip ANSI escape codes so substring asserts survive typer/rich color output."""
+    return _ANSI_RE.sub("", s)
 
 
 def test_main_help_lists_all_subcommands():
@@ -49,9 +57,7 @@ def test_eval_clear_cache_without_db_exits_2(tmp_path):
         '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}\n',
         encoding="utf-8",
     )
-    result = runner.invoke(
-        app, ["eval", "run", "--candidates", str(candidates), "--clear-cache"]
-    )
+    result = runner.invoke(app, ["eval", "run", "--candidates", str(candidates), "--clear-cache"])
     assert result.exit_code == 2
     assert "--clear-cache requires --db" in result.stderr
 
@@ -102,5 +108,6 @@ def test_serve_enable_rewrite_without_env_exits_nonzero(monkeypatch):
 def test_search_accepts_no_rewrite_flag():
     result = runner.invoke(app, ["search", "--help"])
     assert result.exit_code == 0
-    assert "--no-rewrite" in result.stdout
-    assert "--enable-rewrite" in result.stdout
+    stripped = _strip_ansi(result.stdout)
+    assert "--no-rewrite" in stripped
+    assert "--enable-rewrite" in stripped

@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import httpx
-import pytest
 from typer.testing import CliRunner
 
 from wenji.cli import app
@@ -75,7 +73,9 @@ def test_run_benchmark_produces_v2_schema_output(tmp_path):
             ],
         )
     # exit code 0/1 acceptable; we mainly check the schema below
-    assert out.exists(), f"run output not written; stdout={result.stdout!r} stderr={result.stderr!r}"
+    assert out.exists(), (
+        f"run output not written; stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["schema_version"] == "v2"
     assert data["pipeline_mode"] == "rag_full"
