@@ -16,6 +16,7 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 from __future__ import annotations
 
 import hmac
+import html
 import json
 import logging
 import os
@@ -31,7 +32,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_429_TOO_MANY_REQUESTS
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
@@ -50,43 +51,6 @@ STATIC_DIR = WEB_DIR / "static"
 
 _MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
-
-
-def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
-    """Resolve and validate *path_str* is under *db_dir*."""
-    p = Path(path_str).resolve()
-    db_dir = db_dir.resolve()
-    try:
-        p.relative_to(db_dir)
-        return p
-    except ValueError:
-        logger.warning("ignoring untrusted path %s (must be under %s)", p, db_dir)
-        return None
-
-
-def _safe_link(url: str) -> bool:
-    """Allow only http/https/mailto links."""
-    return url.startswith(("http://", "https://", "mailto:"))
-
-
-def _markdown_renderer():
-    global _MD_RENDERER
-    if _MD_RENDERER is None:
-        from markdown_it import MarkdownIt
-
-        _MD_RENDERER = MarkdownIt(
-            "default",
-            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
-        )
-    return _MD_RENDERER
-
-
-_ALLOWED_LLM_BASE_URL_PREFIXES = (
-    "https://",
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://100.",
-)
 
 
 def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
@@ -209,7 +173,7 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
-    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
+    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "")
     cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
     if "*" in cors_origins:
         logger.warning("WENJI_CORS_ORIGINS contains '*'; ignoring for security")
@@ -654,7 +618,7 @@ def create_app(
         try:
             body = await request.json()
         except ValueError:
-            raise HTTPException(status_code=400, detail="invalid JSON body")
+            raise HTTPException(status_code=400, detail="invalid JSON body") from None
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         tag = body.get("tag")
@@ -679,7 +643,7 @@ def create_app(
         try:
             body = await request.json()
         except ValueError:
-            raise HTTPException(status_code=400, detail="invalid JSON body")
+            raise HTTPException(status_code=400, detail="invalid JSON body") from None
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         q = body.get("q")
@@ -707,7 +671,7 @@ def create_app(
         try:
             body = await request.json()
         except ValueError:
-            raise HTTPException(status_code=400, detail="invalid JSON body")
+            raise HTTPException(status_code=400, detail="invalid JSON body") from None
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         concept = body.get("concept")

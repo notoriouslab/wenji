@@ -9,9 +9,8 @@ vLLM, self-hosted llama.cpp, etc.). Failures are normalised to
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import re
+from dataclasses import dataclass, field
 
 import httpx
 
