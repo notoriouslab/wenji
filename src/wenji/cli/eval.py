@@ -16,6 +16,20 @@ from pathlib import Path
 
 import typer
 
+
+def _check_in_cwd(p: Path, flag: str) -> Path:
+    """Resolve *p* — warn if outside CWD."""
+    p = p.resolve()
+    cwd = Path.cwd().resolve()
+    try:
+        p.relative_to(cwd)
+    except ValueError:
+        typer.echo(
+            f"warning: {flag} path {p} is outside current working directory ({cwd})",
+            err=True,
+        )
+    return p
+
 app = typer.Typer(
     name="eval",
     help="Multi-path eval and baseline tooling.",
@@ -40,12 +54,14 @@ def run_command(
     """Run a multi-path eval against a running ``wenji serve``."""
     from wenji.eval import run_baseline
 
+    candidates = _check_in_cwd(candidates, "--candidates")
     api_url = f"http://localhost:{port}/api/search"
     typer.echo(f"running multi-path eval against {api_url}", err=True)
     if clear_cache:
         if db is None:
             typer.echo("--clear-cache requires --db <path>", err=True)
             sys.exit(2)
+        db = _check_in_cwd(db, "--db")
         typer.echo(f"clearing query_rewrite_cache in {db}", err=True)
 
     result = run_baseline(
@@ -60,6 +76,13 @@ def run_command(
     typer.echo(json.dumps(summary, ensure_ascii=False, indent=2))
 
     if output is not None:
+        output = _check_in_cwd(output, "--output")
+        cwd = Path.cwd().resolve()
+        try:
+            output.relative_to(cwd)
+        except ValueError:
+            typer.echo(f"error: --output path must be under current working directory ({cwd})", err=True)
+            sys.exit(2)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
             json.dumps(result, ensure_ascii=False, indent=2),
@@ -115,6 +138,9 @@ def run_benchmark_command(
     if enable_rewrite and no_rewrite:
         typer.echo("--enable-rewrite and --no-rewrite are mutually exclusive", err=True)
         sys.exit(2)
+    snapshot = _check_in_cwd(snapshot, "--snapshot")
+    db = _check_in_cwd(db, "--db")
+    out = _check_in_cwd(out, "--out")
     rewrite_enabled = enable_rewrite or (
         not no_rewrite
         and __import__("wenji.config", fromlist=["load_llm_config_from_env"])

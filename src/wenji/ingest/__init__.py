@@ -431,8 +431,11 @@ def rebuild_from_disk(
     """
     from wenji.core.db import initialise_schema
 
-    for tbl in ("articles_meta", "articles_fts", "chunks_fts", "doc_vectors", "article_axes"):
-        conn.execute(f"DELETE FROM {tbl}")
+    conn.execute("DELETE FROM articles_meta")
+    conn.execute("DELETE FROM articles_fts")
+    conn.execute("DELETE FROM chunks_fts")
+    conn.execute("DELETE FROM doc_vectors")
+    conn.execute("DELETE FROM article_axes")
     conn.execute(
         "UPDATE wenji_meta SET value = '0' WHERE key IN ('n_articles', 'n_chunks', 'n_doc_vectors')"
     )

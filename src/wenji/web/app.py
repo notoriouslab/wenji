@@ -15,7 +15,7 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 
 from __future__ import annotations
 
-import html
+import hmac
 import json
 import logging
 import os
@@ -26,9 +26,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_429_TOO_MANY_REQUESTS
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
@@ -49,26 +52,86 @@ _MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
 
 
+def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
+    """Resolve and validate *path_str* is under *db_dir*."""
+    p = Path(path_str).resolve()
+    db_dir = db_dir.resolve()
+    try:
+        p.relative_to(db_dir)
+        return p
+    except ValueError:
+        logger.warning("ignoring untrusted path %s (must be under %s)", p, db_dir)
+        return None
+
+
+def _safe_link(url: str) -> bool:
+    """Allow only http/https/mailto links."""
+    return url.startswith(("http://", "https://", "mailto:"))
+
+
 def _markdown_renderer():
     global _MD_RENDERER
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
 
-        # linkify=False keeps the dep tree minimal (linkify-it-py not required)
-        _MD_RENDERER = MarkdownIt("default", {"html": False, "breaks": False, "linkify": False})
+        _MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
+        )
     return _MD_RENDERER
 
 
-def _highlight_in_html(html_text: str, query: str) -> str:
-    """Wrap query terms in ``<mark>`` while staying outside HTML tags.
+_ALLOWED_LLM_BASE_URL_PREFIXES = (
+    "https://",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://100.",
+)
 
-    Splits the string on tag boundaries; only text nodes get the substitution.
-    Avoids the bug where naive replacement would corrupt attributes inside
-    tags like ``<a href="勞動基準法.html">``.
-    """
+
+def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
+    """Resolve and validate *path_str* is under *db_dir*."""
+    p = Path(path_str).resolve()
+    db_dir = db_dir.resolve()
+    try:
+        p.relative_to(db_dir)
+        return p
+    except ValueError:
+        logger.warning("ignoring untrusted path %s (must be under %s)", p, db_dir)
+        return None
+
+
+def _safe_link(url: str) -> bool:
+    """Allow only http/https/mailto links."""
+    return url.startswith(("http://", "https://", "mailto:"))
+
+
+def _markdown_renderer():
+    global _MD_RENDERER
+    if _MD_RENDERER is None:
+        from markdown_it import MarkdownIt
+
+        _MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
+        )
+    return _MD_RENDERER
+
+
+_ALLOWED_LLM_BASE_URL_PREFIXES = (
+    "https://",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://100.",
+)
+
+
+def _highlight_in_html(html_text: str, query: str) -> str:
+    """Wrap query terms in ``<mark>`` while staying outside HTML tags."""
     if not query:
         return html_text
-    terms = [t.strip() for t in query.split() if t.strip()]
+    query = query[:5000]
+    terms = [t.strip() for t in query.split() if t.strip()][:32]
     if not terms:
         return html_text
     parts = _TAG_SPLIT_RE.split(html_text)
@@ -100,13 +163,25 @@ def _plain_preview(text: str, n: int = 36) -> str:
 
 
 def _llm_client_from_env() -> LLMClient | None:
-    """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset."""
+    """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset.
+
+    *WENJI_LLM_BASE_URL* must start with one of ``_ALLOWED_LLM_BASE_URL_PREFIXES``
+    (HTTPS, localhost, 127.0.0.1, or RFC 1918).  Anything else is treated as
+    unset to prevent SSRF via env injection.
+    """
     base_url = os.environ.get("WENJI_LLM_BASE_URL")
     model = os.environ.get("WENJI_LLM_MODEL")
     api_key = os.environ.get("WENJI_LLM_API_KEY")
     if not (base_url and model and api_key):
         return None
-    timeout = float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0"))
+    base_url = base_url.strip()
+    if not base_url.startswith(_ALLOWED_LLM_BASE_URL_PREFIXES):
+        logger.warning(
+            "WENJI_LLM_BASE_URL (%s) not in allowed prefixes; treating as unset",
+            base_url[:30],
+        )
+        return None
+    timeout = min(float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0")), 30.0)
     return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
 
 
@@ -134,6 +209,37 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
+    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
+    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+    if "*" in cors_origins:
+        logger.warning("WENJI_CORS_ORIGINS contains '*'; ignoring for security")
+        cors_origins = [o for o in cors_origins if o != "*"]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-API-Key"],
+    )
+
+    api_key = os.environ.get("WENJI_API_KEY", "").strip()
+
+    class APIKeyMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            if api_key:
+                if request.url.path in ("/healthz",):
+                    return await call_next(request)
+                received = request.headers.get("X-API-Key", "") or ""
+                if not hmac.compare_digest(received, api_key):
+                    return JSONResponse(
+                        status_code=HTTP_401_UNAUTHORIZED,
+                        content={"error": "missing or invalid X-API-Key"},
+                    )
+            return await call_next(request)
+
+    app.add_middleware(APIKeyMiddleware)
+
+    # Rate-limit is NOT YET IMPLEMENTED.  Deploy behind a reverse-proxy
+    # (Cloudflare, nginx) for per-IP throttling.
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -190,14 +296,21 @@ def create_app(
             rewrite_enabled = override == "enabled" or (override != "disabled" and llm_cfg.enabled)
             rewriter: QueryRewriter | None = None
             if rewrite_enabled and llm_cfg.enabled:
-                rewriter = QueryRewriter(
-                    conn,
-                    api_url=llm_cfg.base_url.rstrip("/") + "/chat/completions",
-                    api_key=llm_cfg.api_key,
-                    model=llm_cfg.model,
-                    timeout=1.5,
-                    ttl_days=llm_cfg.rewrite_cache_ttl_days,
-                )
+                base_url = (llm_cfg.base_url or "").strip()
+                if base_url.startswith(_ALLOWED_LLM_BASE_URL_PREFIXES):
+                    rewriter = QueryRewriter(
+                        conn,
+                        api_url=base_url.rstrip("/") + "/chat/completions",
+                        api_key=llm_cfg.api_key,
+                        model=llm_cfg.model,
+                        timeout=1.5,
+                        ttl_days=llm_cfg.rewrite_cache_ttl_days,
+                    )
+                else:
+                    logger.warning(
+                        "WENJI_LLM_BASE_URL (%s) not in allowed prefixes; rewrite disabled",
+                        (llm_cfg.base_url or "")[:30],
+                    )
             else:
                 logger.debug(
                     "query rewrite disabled (override=%r, llm_cfg.enabled=%s)",
@@ -213,7 +326,9 @@ def create_app(
                         alias_map_path = os.environ.get("WENJI_ENTITY_ALIAS_MAP", "").strip()
                         alias_map: dict | None = None
                         if alias_map_path:
-                            alias_map = json.loads(Path(alias_map_path).read_text(encoding="utf-8"))
+                            trusted = _check_trusted_path(alias_map_path, state["db_path"].parent)
+                            if trusted is not None:
+                                alias_map = json.loads(trusted.read_text(encoding="utf-8"))
                         entity_scorer = EntityScorer.from_sources(
                             [s.strip() for s in entity_sources.split(",") if s.strip()],
                             alias_map=alias_map,
@@ -229,9 +344,11 @@ def create_app(
                         ist_path = os.environ.get("WENJI_INTENT_SOURCE_TYPES", "").strip()
                         intent_source_types: dict | None = None
                         if ist_path:
-                            intent_source_types = json.loads(
-                                Path(ist_path).read_text(encoding="utf-8")
-                            )
+                            trusted = _check_trusted_path(ist_path, state["db_path"].parent)
+                            if trusted is not None:
+                                intent_source_types = json.loads(
+                                    trusted.read_text(encoding="utf-8")
+                                )
                         intent_classifier = IntentClassifier.from_sources(
                             [s.strip() for s in intent_sources.split(",") if s.strip()],
                             intent_source_types=intent_source_types,
@@ -303,7 +420,6 @@ def create_app(
     def healthz() -> dict[str, Any]:
         return {
             "status": "ok",
-            "db_path": str(state["db_path"]),
             "searcher_ready": state["searcher"] is not None,
         }
 
@@ -481,6 +597,7 @@ def create_app(
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
+        limit = max(0, min(limit, 200))
         s = _get_searcher()
         if s is None:
             return JSONResponse(
@@ -536,8 +653,8 @@ def create_app(
     async def api_aggregate_topic(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         tag = body.get("tag")
@@ -546,6 +663,7 @@ def create_app(
         k_raw = body.get("k", 5)
         if not isinstance(k_raw, int) or k_raw <= 0:
             raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        k_raw = min(k_raw, 50)
         filter_obj = _build_filter(body.get("filter"))
         agg = _get_aggregator()
         try:
@@ -560,8 +678,8 @@ def create_app(
     async def api_ask(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         q = body.get("q")
@@ -570,6 +688,7 @@ def create_app(
         k_raw = body.get("k", 5)
         if not isinstance(k_raw, int) or k_raw <= 0:
             raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        k_raw = min(k_raw, 50)
         axis = body.get("axis")
         if axis is not None and not isinstance(axis, str):
             raise HTTPException(status_code=400, detail="'axis' must be a string or null")
@@ -587,8 +706,8 @@ def create_app(
     async def api_aggregate_concept(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         concept = body.get("concept")
@@ -600,6 +719,8 @@ def create_app(
             raise HTTPException(status_code=400, detail="'top_sources' must be a positive integer")
         if not isinstance(per_source, int) or per_source <= 0:
             raise HTTPException(status_code=400, detail="'per_source' must be a positive integer")
+        top_sources = min(top_sources, 20)
+        per_source = min(per_source, 10)
         filter_obj = _build_filter(body.get("filter"))
         agg = _get_aggregator()
         try:
