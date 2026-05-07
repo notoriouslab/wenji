@@ -30,6 +30,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
@@ -51,20 +53,20 @@ _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
 
 
 def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
-    """Resolve and validate *path_str* is under *db_dir* or CWD.
-
-    Returns the resolved ``Path`` when trusted, ``None`` otherwise (logged).
-    """
+    """Resolve and validate *path_str* is under *db_dir*."""
     p = Path(path_str).resolve()
-    allowed = [Path.cwd().resolve(), db_dir.resolve()]
-    for base in allowed:
-        try:
-            p.relative_to(base)
-            return p
-        except ValueError:
-            continue
-    logger.warning("ignoring untrusted path %s (env var must be under project dir)", p)
-    return None
+    db_dir = db_dir.resolve()
+    try:
+        p.relative_to(db_dir)
+        return p
+    except ValueError:
+        logger.warning("ignoring untrusted path %s (must be under %s)", p, db_dir)
+        return None
+
+
+def _safe_link(url: str) -> bool:
+    """Allow only http/https/mailto links."""
+    return url.startswith(("http://", "https://", "mailto:"))
 
 
 def _markdown_renderer():
@@ -72,34 +74,60 @@ def _markdown_renderer():
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
 
-        _MD_RENDERER = MarkdownIt("default", {"html": False, "breaks": False, "linkify": False})
+        _MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
+        )
     return _MD_RENDERER
 
 
-_UNSAFE_HREF_RE = re.compile(
-    r'href\s*=\s*"(?:javascript|vbscript|data):[^"]*"',
-    re.IGNORECASE,
-)
-_UNSAFE_HREF_SINGLE_RE = re.compile(
-    r"href\s*=\s*'(?:javascript|vbscript|data):[^']*'",
-    re.IGNORECASE,
+_ALLOWED_LLM_BASE_URL_PREFIXES = (
+    "https://",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://100.",
 )
 
 
-def _sanitize_html(html_text: str) -> str:
-    """Strip javascript:/vbscript:/data: URLs from rendered HTML."""
-    html_text = _UNSAFE_HREF_RE.sub('href="#"', html_text)
-    html_text = _UNSAFE_HREF_SINGLE_RE.sub('href="#"', html_text)
-    return html_text
+def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
+    """Resolve and validate *path_str* is under *db_dir*."""
+    p = Path(path_str).resolve()
+    db_dir = db_dir.resolve()
+    try:
+        p.relative_to(db_dir)
+        return p
+    except ValueError:
+        logger.warning("ignoring untrusted path %s (must be under %s)", p, db_dir)
+        return None
+
+
+def _safe_link(url: str) -> bool:
+    """Allow only http/https/mailto links."""
+    return url.startswith(("http://", "https://", "mailto:"))
+
+
+def _markdown_renderer():
+    global _MD_RENDERER
+    if _MD_RENDERER is None:
+        from markdown_it import MarkdownIt
+
+        _MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
+        )
+    return _MD_RENDERER
+
+
+_ALLOWED_LLM_BASE_URL_PREFIXES = (
+    "https://",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://100.",
+)
 
 
 def _highlight_in_html(html_text: str, query: str) -> str:
-    """Wrap query terms in ``<mark>`` while staying outside HTML tags.
-
-    Splits the string on tag boundaries; only text nodes get the substitution.
-    Avoids the bug where naive replacement would corrupt attributes inside
-    tags like ``<a href="勞動基準法.html">``.
-    """
+    """Wrap query terms in ``<mark>`` while staying outside HTML tags."""
     if not query:
         return html_text
     query = query[:5000]
@@ -123,7 +151,7 @@ def _highlight_in_html(html_text: str, query: str) -> str:
 def _render_chunk(text: str, query: str) -> str:
     """Render markdown ``text`` to HTML and highlight ``query`` terms inside text nodes."""
     rendered = _markdown_renderer().render(text)
-    return _highlight_in_html(_sanitize_html(rendered), query)
+    return _highlight_in_html(rendered, query)
 
 
 def _plain_preview(text: str, n: int = 36) -> str:
@@ -134,15 +162,33 @@ def _plain_preview(text: str, n: int = 36) -> str:
     return s[:n]
 
 
+_ALLOWED_LLM_BASE_URL_PREFIXES = (
+    "https://",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://100.",
+)
+
+
 def _llm_client_from_env() -> LLMClient | None:
-    """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset."""
+    """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset.
+
+    *WENJI_LLM_BASE_URL* must start with one of ``_ALLOWED_LLM_BASE_URL_PREFIXES``
+    (HTTPS, localhost, 127.0.0.1, or RFC 1918).  Anything else is treated as
+    unset to prevent SSRF via env injection.
+    """
     base_url = os.environ.get("WENJI_LLM_BASE_URL")
     model = os.environ.get("WENJI_LLM_MODEL")
     api_key = os.environ.get("WENJI_LLM_API_KEY")
     if not (base_url and model and api_key):
         return None
-    if not base_url.startswith(("https://", "http://localhost", "http://127.0.0.1", "http://100.")):
-        logger.warning("WENJI_LLM_BASE_URL is not HTTPS; SSRF risk if env is writable by attacker")
+    base_url = base_url.strip()
+    if not base_url.startswith(_ALLOWED_LLM_BASE_URL_PREFIXES):
+        logger.warning(
+            "WENJI_LLM_BASE_URL (%s) not in allowed prefixes; treating as unset",
+            base_url[:30],
+        )
+        return None
     timeout = min(float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0")), 30.0)
     return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
 
@@ -171,12 +217,32 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
+    cors_origins = os.environ.get(
+        "WENJI_CORS_ORIGINS", "https://logos.jacobmei.com,http://localhost:8000"
+    ).split(",")
+    cors_origins = [o.strip() for o in cors_origins if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["https://logos.jacobmei.com", "http://localhost:8000"],
+        allow_origins=cors_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-API-Key"],
     )
+
+    api_key = os.environ.get("WENJI_API_KEY", "").strip()
+
+    class APIKeyMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            if api_key:
+                if request.url.path in ("/healthz", "/docs", "/openapi.json"):
+                    return await call_next(request)
+                if request.headers.get("X-API-Key") != api_key:
+                    return JSONResponse(
+                        status_code=HTTP_401_UNAUTHORIZED,
+                        content={"error": "missing or invalid X-API-Key"},
+                    )
+            return await call_next(request)
+
+    app.add_middleware(APIKeyMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -233,14 +299,21 @@ def create_app(
             rewrite_enabled = override == "enabled" or (override != "disabled" and llm_cfg.enabled)
             rewriter: QueryRewriter | None = None
             if rewrite_enabled and llm_cfg.enabled:
-                rewriter = QueryRewriter(
-                    conn,
-                    api_url=llm_cfg.base_url.rstrip("/") + "/chat/completions",
-                    api_key=llm_cfg.api_key,
-                    model=llm_cfg.model,
-                    timeout=1.5,
-                    ttl_days=llm_cfg.rewrite_cache_ttl_days,
-                )
+                base_url = (llm_cfg.base_url or "").strip()
+                if base_url.startswith(_ALLOWED_LLM_BASE_URL_PREFIXES):
+                    rewriter = QueryRewriter(
+                        conn,
+                        api_url=base_url.rstrip("/") + "/chat/completions",
+                        api_key=llm_cfg.api_key,
+                        model=llm_cfg.model,
+                        timeout=1.5,
+                        ttl_days=llm_cfg.rewrite_cache_ttl_days,
+                    )
+                else:
+                    logger.warning(
+                        "WENJI_LLM_BASE_URL (%s) not in allowed prefixes; rewrite disabled",
+                        (llm_cfg.base_url or "")[:30],
+                    )
             else:
                 logger.debug(
                     "query rewrite disabled (override=%r, llm_cfg.enabled=%s)",
@@ -344,7 +417,7 @@ def create_app(
     def _render_narrative(narrative: str | None) -> str | None:
         if not narrative:
             return None
-        return _sanitize_html(_markdown_renderer().render(narrative))
+        return _markdown_renderer().render(narrative)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
