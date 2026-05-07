@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -54,9 +55,19 @@ def _markdown_renderer():
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
 
-        # linkify=False keeps the dep tree minimal (linkify-it-py not required)
         _MD_RENDERER = MarkdownIt("default", {"html": False, "breaks": False, "linkify": False})
     return _MD_RENDERER
+
+
+_JS_URL_RE = re.compile(r'href="javascript:\s*[^"]*"', re.IGNORECASE)
+_DATA_URL_RE = re.compile(r'href="data:\s*[^"]*"', re.IGNORECASE)
+
+
+def _sanitize_html(html_text: str) -> str:
+    """Strip javascript: and data: URLs from rendered HTML."""
+    html_text = _JS_URL_RE.sub('href="#"', html_text)
+    html_text = _DATA_URL_RE.sub('href="#"', html_text)
+    return html_text
 
 
 def _highlight_in_html(html_text: str, query: str) -> str:
@@ -68,7 +79,8 @@ def _highlight_in_html(html_text: str, query: str) -> str:
     """
     if not query:
         return html_text
-    terms = [t.strip() for t in query.split() if t.strip()]
+    query = query[:5000]
+    terms = [t.strip() for t in query.split() if t.strip()][:32]
     if not terms:
         return html_text
     parts = _TAG_SPLIT_RE.split(html_text)
@@ -88,7 +100,7 @@ def _highlight_in_html(html_text: str, query: str) -> str:
 def _render_chunk(text: str, query: str) -> str:
     """Render markdown ``text`` to HTML and highlight ``query`` terms inside text nodes."""
     rendered = _markdown_renderer().render(text)
-    return _highlight_in_html(rendered, query)
+    return _highlight_in_html(_sanitize_html(rendered), query)
 
 
 def _plain_preview(text: str, n: int = 36) -> str:
@@ -106,7 +118,7 @@ def _llm_client_from_env() -> LLMClient | None:
     api_key = os.environ.get("WENJI_LLM_API_KEY")
     if not (base_url and model and api_key):
         return None
-    timeout = float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0"))
+    timeout = min(float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0")), 30.0)
     return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
 
 
@@ -134,6 +146,12 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["https://logos.jacobmei.com", "http://localhost:8000"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -297,13 +315,12 @@ def create_app(
     def _render_narrative(narrative: str | None) -> str | None:
         if not narrative:
             return None
-        return _markdown_renderer().render(narrative)
+        return _sanitize_html(_markdown_renderer().render(narrative))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
         return {
             "status": "ok",
-            "db_path": str(state["db_path"]),
             "searcher_ready": state["searcher"] is not None,
         }
 
@@ -481,6 +498,7 @@ def create_app(
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
+        limit = min(limit, 200)
         s = _get_searcher()
         if s is None:
             return JSONResponse(
@@ -536,8 +554,8 @@ def create_app(
     async def api_aggregate_topic(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         tag = body.get("tag")
@@ -546,6 +564,7 @@ def create_app(
         k_raw = body.get("k", 5)
         if not isinstance(k_raw, int) or k_raw <= 0:
             raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        k_raw = min(k_raw, 50)
         filter_obj = _build_filter(body.get("filter"))
         agg = _get_aggregator()
         try:
@@ -560,8 +579,8 @@ def create_app(
     async def api_ask(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         q = body.get("q")
@@ -570,6 +589,7 @@ def create_app(
         k_raw = body.get("k", 5)
         if not isinstance(k_raw, int) or k_raw <= 0:
             raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        k_raw = min(k_raw, 50)
         axis = body.get("axis")
         if axis is not None and not isinstance(axis, str):
             raise HTTPException(status_code=400, detail="'axis' must be a string or null")
@@ -587,8 +607,8 @@ def create_app(
     async def api_aggregate_concept(request: Request) -> JSONResponse:
         try:
             body = await request.json()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid JSON body")
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="body must be a JSON object")
         concept = body.get("concept")
@@ -600,6 +620,8 @@ def create_app(
             raise HTTPException(status_code=400, detail="'top_sources' must be a positive integer")
         if not isinstance(per_source, int) or per_source <= 0:
             raise HTTPException(status_code=400, detail="'per_source' must be a positive integer")
+        top_sources = min(top_sources, 20)
+        per_source = min(per_source, 10)
         filter_obj = _build_filter(body.get("filter"))
         agg = _get_aggregator()
         try:

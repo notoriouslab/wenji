@@ -1,0 +1,33 @@
+diff a/src/wenji/aggregate/__init__.py b/src/wenji/aggregate/__init__.py	(rejected hunks)
+@@ -25,6 +25,7 @@ from typing import Any
+ from wenji.aggregate.cache import cache_get, cache_key, cache_put
+ from wenji.aggregate.llm import LLMClient, LLMClientError
+ from wenji.aggregate.prompts import CONCEPT_PROMPT, TOPIC_PROMPT
++from wenji.core.safety import sanitize_prompt_input
+ from wenji.search.bm25 import build_fts_query
+ 
+ logger = logging.getLogger(__name__)
+@@ -285,7 +286,10 @@ class Aggregator:
+         sources_block = "\n\n".join(
+             f"來源 {i + 1}: {s.title}\n摘要: {s.snippet}" for i, s in enumerate(summary.top_sources)
+         )
+-        prompt = TOPIC_PROMPT.format(tag=summary.tag, sources=sources_block)
++        prompt = TOPIC_PROMPT.format(
++            tag=sanitize_prompt_input(summary.tag),
++            sources=sanitize_prompt_input(sources_block),
++        )
+         try:
+             return self.llm_client.chat([{"role": "user", "content": prompt}])
+         except LLMClientError as exc:
+@@ -391,7 +395,10 @@ class Aggregator:
+             f"來源 {i + 1}: {v.source_ref.title}\n" + "\n".join(f"- {ex}" for ex in v.excerpts)
+             for i, v in enumerate(result.per_source_views)
+         )
+-        prompt = CONCEPT_PROMPT.format(concept=result.concept, per_source_views=per_source_block)
++        prompt = CONCEPT_PROMPT.format(
++            concept=sanitize_prompt_input(result.concept),
++            per_source_views=sanitize_prompt_input(per_source_block),
++        )
+         try:
+             text = self.llm_client.chat([{"role": "user", "content": prompt}])
+         except LLMClientError as exc:

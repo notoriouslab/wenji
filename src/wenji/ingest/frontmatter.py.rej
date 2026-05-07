@@ -1,0 +1,19 @@
+diff a/src/wenji/ingest/frontmatter.py b/src/wenji/ingest/frontmatter.py	(rejected hunks)
+@@ -13,6 +13,7 @@ from pathlib import Path
+ from typing import Any
+ 
+ import frontmatter
++import yaml
+ 
+ from wenji.core.errors import IngestError
+ 
+@@ -37,7 +38,8 @@ def parse_markdown(path: str | Path) -> tuple[dict[str, Any], str]:
+     if not p.exists():
+         raise IngestError(f"markdown file not found: {p}")
+     try:
+-        post = frontmatter.load(str(p))
++        raw = p.read_text(encoding="utf-8")
++        post = frontmatter.loads(raw, loader=yaml.SafeLoader)
+     except Exception as exc:  # python-frontmatter raises generic YAMLError etc.
+         raise IngestError(f"failed to parse frontmatter for {p}: {exc}") from exc
+     return dict(post.metadata), post.content
