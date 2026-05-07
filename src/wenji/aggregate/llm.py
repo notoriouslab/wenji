@@ -31,9 +31,6 @@ class LLMClient:
     def __post_init__(self) -> None:
         self.timeout = min(self.timeout, 30.0)
 
-    def __post_init__(self) -> None:
-        self.timeout = min(self.timeout, 30.0)
-
     def chat(self, messages: list[dict]) -> str:
         url = self.base_url.rstrip("/") + "/chat/completions"
         body = {

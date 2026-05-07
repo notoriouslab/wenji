@@ -63,6 +63,12 @@ def run_command(
 
     if output is not None:
         output = output.resolve()
+        cwd = Path.cwd().resolve()
+        try:
+            output.relative_to(cwd)
+        except ValueError:
+            typer.echo(f"error: --output path must be under current working directory ({cwd})", err=True)
+            sys.exit(2)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
             json.dumps(result, ensure_ascii=False, indent=2),

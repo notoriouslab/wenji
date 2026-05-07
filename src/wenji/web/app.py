@@ -50,6 +50,23 @@ _MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
 
 
+def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
+    """Resolve and validate *path_str* is under *db_dir* or CWD.
+
+    Returns the resolved ``Path`` when trusted, ``None`` otherwise (logged).
+    """
+    p = Path(path_str).resolve()
+    allowed = [Path.cwd().resolve(), db_dir.resolve()]
+    for base in allowed:
+        try:
+            p.relative_to(base)
+            return p
+        except ValueError:
+            continue
+    logger.warning("ignoring untrusted path %s (env var must be under project dir)", p)
+    return None
+
+
 def _markdown_renderer():
     global _MD_RENDERER
     if _MD_RENDERER is None:
@@ -59,14 +76,20 @@ def _markdown_renderer():
     return _MD_RENDERER
 
 
-_JS_URL_RE = re.compile(r'href="javascript:\s*[^"]*"', re.IGNORECASE)
-_DATA_URL_RE = re.compile(r'href="data:\s*[^"]*"', re.IGNORECASE)
+_UNSAFE_HREF_RE = re.compile(
+    r'href\s*=\s*"(?:javascript|vbscript|data):[^"]*"',
+    re.IGNORECASE,
+)
+_UNSAFE_HREF_SINGLE_RE = re.compile(
+    r"href\s*=\s*'(?:javascript|vbscript|data):[^']*'",
+    re.IGNORECASE,
+)
 
 
 def _sanitize_html(html_text: str) -> str:
-    """Strip javascript: and data: URLs from rendered HTML."""
-    html_text = _JS_URL_RE.sub('href="#"', html_text)
-    html_text = _DATA_URL_RE.sub('href="#"', html_text)
+    """Strip javascript:/vbscript:/data: URLs from rendered HTML."""
+    html_text = _UNSAFE_HREF_RE.sub('href="#"', html_text)
+    html_text = _UNSAFE_HREF_SINGLE_RE.sub('href="#"', html_text)
     return html_text
 
 
@@ -118,6 +141,8 @@ def _llm_client_from_env() -> LLMClient | None:
     api_key = os.environ.get("WENJI_LLM_API_KEY")
     if not (base_url and model and api_key):
         return None
+    if not base_url.startswith(("https://", "http://localhost", "http://127.0.0.1", "http://100.")):
+        logger.warning("WENJI_LLM_BASE_URL is not HTTPS; SSRF risk if env is writable by attacker")
     timeout = min(float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0")), 30.0)
     return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
 
@@ -231,7 +256,9 @@ def create_app(
                         alias_map_path = os.environ.get("WENJI_ENTITY_ALIAS_MAP", "").strip()
                         alias_map: dict | None = None
                         if alias_map_path:
-                            alias_map = json.loads(Path(alias_map_path).read_text(encoding="utf-8"))
+                            trusted = _check_trusted_path(alias_map_path, state["db_path"].parent)
+                            if trusted is not None:
+                                alias_map = json.loads(trusted.read_text(encoding="utf-8"))
                         entity_scorer = EntityScorer.from_sources(
                             [s.strip() for s in entity_sources.split(",") if s.strip()],
                             alias_map=alias_map,
@@ -247,9 +274,11 @@ def create_app(
                         ist_path = os.environ.get("WENJI_INTENT_SOURCE_TYPES", "").strip()
                         intent_source_types: dict | None = None
                         if ist_path:
-                            intent_source_types = json.loads(
-                                Path(ist_path).read_text(encoding="utf-8")
-                            )
+                            trusted = _check_trusted_path(ist_path, state["db_path"].parent)
+                            if trusted is not None:
+                                intent_source_types = json.loads(
+                                    trusted.read_text(encoding="utf-8")
+                                )
                         intent_classifier = IntentClassifier.from_sources(
                             [s.strip() for s in intent_sources.split(",") if s.strip()],
                             intent_source_types=intent_source_types,
@@ -498,7 +527,7 @@ def create_app(
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
-        limit = min(limit, 200)
+        limit = max(0, min(limit, 200))
         s = _get_searcher()
         if s is None:
             return JSONResponse(
