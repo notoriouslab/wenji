@@ -15,7 +15,7 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 
 from __future__ import annotations
 
-import html
+import hmac
 import json
 import logging
 import os
@@ -31,7 +31,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.status import HTTP_401_UNAUTHORIZED
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_429_TOO_MANY_REQUESTS
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
@@ -162,14 +162,6 @@ def _plain_preview(text: str, n: int = 36) -> str:
     return s[:n]
 
 
-_ALLOWED_LLM_BASE_URL_PREFIXES = (
-    "https://",
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://100.",
-)
-
-
 def _llm_client_from_env() -> LLMClient | None:
     """Build an LLMClient from WENJI_LLM_* env vars, or return None when unset.
 
@@ -217,10 +209,11 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
-    cors_origins = os.environ.get(
-        "WENJI_CORS_ORIGINS", "https://logos.jacobmei.com,http://localhost:8000"
-    ).split(",")
-    cors_origins = [o.strip() for o in cors_origins if o.strip()]
+    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
+    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+    if "*" in cors_origins:
+        logger.warning("WENJI_CORS_ORIGINS contains '*'; ignoring for security")
+        cors_origins = [o for o in cors_origins if o != "*"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -233,9 +226,10 @@ def create_app(
     class APIKeyMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
             if api_key:
-                if request.url.path in ("/healthz", "/docs", "/openapi.json"):
+                if request.url.path in ("/healthz",):
                     return await call_next(request)
-                if request.headers.get("X-API-Key") != api_key:
+                received = request.headers.get("X-API-Key", "") or ""
+                if not hmac.compare_digest(received, api_key):
                     return JSONResponse(
                         status_code=HTTP_401_UNAUTHORIZED,
                         content={"error": "missing or invalid X-API-Key"},
@@ -243,6 +237,9 @@ def create_app(
             return await call_next(request)
 
     app.add_middleware(APIKeyMiddleware)
+
+    # Rate-limit is NOT YET IMPLEMENTED.  Deploy behind a reverse-proxy
+    # (Cloudflare, nginx) for per-IP throttling.
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 

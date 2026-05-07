@@ -18,7 +18,7 @@ import typer
 
 
 def _check_in_cwd(p: Path, flag: str) -> Path:
-    """Resolve *p* — warn if outside CWD for output flags but still allow it."""
+    """Resolve *p* — warn if outside CWD."""
     p = p.resolve()
     cwd = Path.cwd().resolve()
     try:
