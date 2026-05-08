@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="tag-detail-container" style="max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 1fr 300px; gap: 3rem;">
+  
+  <main class="tag-main">
+    <nav class="breadcrumb" aria-label="Breadcrumb" style="margin-bottom: 2rem; font-size: 0.85rem; color: var(--color-text-muted);">
+      <ol style="list-style: none; padding: 0; display: flex; gap: 0.5rem;">
+        <li><a href="/" style="color: var(--color-primary); text-decoration: none;">首頁</a></li>
+        <li style="color: #ccc;">/</li>
+        <li><a href="/tags" style="color: var(--color-primary); text-decoration: none;">標籤總覽</a></li>
+        <li style="color: #ccc;">/</li>
+        <li style="color: var(--color-text);">#{{ tag.name }}</li>
+      </ol>
+    </nav>
+
+    <header style="margin-bottom: 3rem;">
+      <h1 style="font-family: 'Outfit'; font-weight: 700; font-size: 3rem; margin-bottom: 0.5rem;">#{{ tag.name }}</h1>
+      <p style="color: var(--color-text-muted); font-size: 1.1rem;">共有 {{ tag.article_count }} 篇相關文章</p>
+    </header>
+
+    <div class="articles-list" style="display: flex; flex-direction: column; gap: 1.5rem;">
+      {% for art in tag.articles %}
+      <article class="result-card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; position: relative;">
+        <h3 style="margin-bottom: 0.75rem;">
+          <a href="/article/{{ art.article_id }}" style="color: var(--color-text); text-decoration: none; font-weight: 700; font-size: 1.25rem;">{{ art.title or '(無標題)' }}</a>
+        </h3>
+        <div class="art-meta" style="font-size: 0.85rem; color: var(--color-text-muted); display: flex; gap: 1rem;">
+          <span>{{ art.pub_date or '未知日期' }}</span>
+          <span style="padding: 2px 8px; background: var(--color-bg-alt); border-radius: 4px; font-weight: 600;">{{ art.source_type }}</span>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </main>
+
+  <aside class="tag-sidebar">
+    <div class="sidebar-box" style="padding: 1.5rem; background: var(--color-bg-alt); border-radius: 12px; border: 1px solid var(--color-border); margin-bottom: 2rem;">
+      <h4 style="font-size: 0.75rem; font-weight: 800; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">來源分布</h4>
+      <div class="stype-dist" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        {% for stype, count in tag.source_type_distribution.items() %}
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+          <span style="font-weight: 600;">{{ stype }}</span>
+          <span style="color: var(--color-text-muted);">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if related_tags %}
+    <div class="sidebar-box" style="padding: 1.5rem; background: var(--color-bg-alt); border-radius: 12px; border: 1px solid var(--color-border);">
+      <h4 style="font-size: 0.75rem; font-weight: 800; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">相關標籤</h4>
+      <div class="related-tags-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        {% for rtag, score in related_tags %}
+        <a href="/tag/{{ rtag|urlencode }}" class="tag-pill" style="font-size: 0.85rem; padding: 0.4rem 0.8rem; background: #fff; border: 1px solid var(--color-border); border-radius: 20px; text-decoration: none; color: var(--color-text);">#{{ rtag }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+
+</div>
+{% endblock %}

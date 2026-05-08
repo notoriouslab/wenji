@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Logos Knowledge Engine{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=2.5">
+  <meta name="description" content="{% block description %}Logos - 靈糧堂知識搜尋引擎。提供深入、精準的屬靈資源檢索與彙整。{% endblock %}">
+  <meta name="robots" content="index, follow">
+  {% block extra_meta %}{% endblock %}
+</head>
+<body>
+  <div class="backdrop" onclick="closeAllPanels()"></div>
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="/" class="brand">LOGOS</a>
+      <nav class="nav-links">
+        <a class="nav-item" href="/tags">標籤總覽</a>
+        <a class="nav-item" onclick="openPanel('ask-panel')">自由問答</a>
+        <a class="nav-item" onclick="openPanel('chat-panel')">文章彙整</a>
+      </nav>
+    </div>
+    
+    {% block search_mini %}
+    {% if query or tag or source_type or year %}
+    <form action="/" method="get" class="search-form" id="search-form-mini">
+      <input type="search" name="q" value="{{ query|e }}" placeholder="搜尋知識..." required>
+      <button type="submit">搜尋</button>
+    </form>
+    {% endif %}
+    {% endblock %}
+
+    <div class="topbar-right">
+      <div class="font-controls" style="position: static; margin-right: 1rem;">
+        <button class="font-btn" data-size="0.85" title="小">小</button>
+        <button class="font-btn active" data-size="1.0" title="中">中</button>
+        <button class="font-btn" data-size="1.2" title="大">大</button>
+      </div>
+      <span class="bookmark-count-wrapper" onclick="var p=document.querySelector('.bookmark-list-panel'); p.open=!p.open;" style="margin-left: 0;">
+        ♥ <span class="bookmark-count-badge">0</span>
+      </span>
+    </div>
+  </header>
+
+  <div id="main-content">
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- Side Panels -->
+  <div class="side-panel" id="ask-panel">
+    <div class="side-panel-header">
+      <span class="side-panel-title">AI 自由問答</span>
+      <button class="side-panel-close" onclick="closeAllPanels()">&times;</button>
+    </div>
+    <div class="side-panel-body">
+      <p class="hint" style="margin-bottom: 1.5rem;">直接輸入問題，由 AI 從語料中檢索並總結回答。</p>
+      <form id="ask-form" class="chat-input-area">
+        <textarea id="ask-q" placeholder="例如：靈命成長的關鍵是什麼？" required></textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+          <select id="ask-axis" class="chat-select">
+            <option value="">所有維度</option>
+          </select>
+          <button type="submit" class="chat-submit" style="background: var(--color-secondary);">提問</button>
+        </div>
+      </form>
+      <div id="ask-result" class="chat-result-area markdown-body"></div>
+    </div>
+  </div>
+
+  <div class="side-panel" id="chat-panel">
+    <div class="side-panel-header">
+      <span class="side-panel-title">文章彙整報告</span>
+      <button class="side-panel-close" onclick="closeAllPanels()">&times;</button>
+    </div>
+    <div class="side-panel-body">
+      <nav class="chat-tabs">
+        <button class="chat-tab active" data-mode="topic">主題彙總</button>
+        <button class="chat-tab" data-mode="concept">概念對比</button>
+      </nav>
+      <form id="aggregate-form" class="chat-input-area">
+        <div class="chat-input-group">
+          <label id="chat-input-label">分析主題</label>
+          <input type="text" id="chat-query" placeholder="輸入關鍵字..." required>
+        </div>
+        <button type="submit" class="chat-submit" style="width: 100%; margin-top: 1.5rem;">生成彙整報告</button>
+      </form>
+      <div id="aggregate-result" class="chat-result-area markdown-body"></div>
+    </div>
+  </div>
+
+  <script>
+    function openPanel(id) {
+      closeAllPanels();
+      document.getElementById(id).classList.add('open');
+      document.querySelector('.backdrop').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeAllPanels() {
+      document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
+      document.querySelector('.backdrop').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    (function () {
+      var s = localStorage.getItem('wenji_font_size') || '1.0';
+      document.documentElement.style.setProperty('--font-scale', s);
+      document.querySelectorAll('.font-btn').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.size === s);
+      });
+      document.querySelectorAll('.font-btn').forEach(function (b) {
+        b.onclick = function () {
+          var v = b.dataset.size;
+          document.documentElement.style.setProperty('--font-scale', v);
+          localStorage.setItem('wenji_font_size', v);
+          document.querySelectorAll('.font-btn').forEach(function (x) { x.classList.toggle('active', x.dataset.size === v); });
+        };
+      });
+    })();
+  </script>
+  <script src="/static/aggregate.js" defer></script>
+  <script src="/static/ask.js" defer></script>
+  {% include "_bookmark_script.html" %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

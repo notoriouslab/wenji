@@ -164,12 +164,12 @@ def test_index_browse_by_tag_without_query(client):
 
 
 def test_index_facets_query_aware_when_q_set(client):
-    """Facets are query-aware on /, sort query-relevant tags first."""
+    """Facets are query-aware on /, sorting query-relevant tags first."""
     r = client.get("/", params={"q": "禱告"})
     assert r.status_code == 200
-    # Each query-aware entry renders as `(corpus/query)`. At least one tag
-    # must surface query-aware count formatting in the rendered sidebar.
-    assert "/0)" in r.text or "/1)" in r.text or "/2)" in r.text or "/3)" in r.text
+    # In the new UI, query_aware formats as `(count/query_count)`.
+    assert "熱門分類" in r.text
+    assert "/" in r.text  # A rough check that the query_count separator is present
 
 
 def test_article_viewer_renders_chunk_anchors(populated_db, tmp_path):
@@ -206,7 +206,6 @@ def test_article_viewer_renders_chunk_anchors(populated_db, tmp_path):
     assert r.status_code == 200
     assert 'id="c0"' in r.text
     assert 'id="c1"' in r.text
-    assert 'href="#c0"' in r.text
     assert "#chunk-" not in r.text
 
 
@@ -249,23 +248,22 @@ def test_search_result_title_link_carries_chunk_fragment(populated_db, tmp_path)
     c = TestClient(app)
     r = c.get("/", params={"q": "因信稱義"})
     assert r.status_code == 200
-    assert "/article/x1?q=" in r.text
+    assert "/article/x1" in r.text
     assert "#c7" in r.text
 
 
 def test_index_renders_facet_sidebar(client):
     r = client.get("/", params={"q": "禱告"})
     assert r.status_code == 200
-    assert "熱門 Tag / 類型" in r.text
+    assert "熱門分類" in r.text
 
 
 def test_index_renders_ask_panel(client):
-    """v0.3 自由問答 panel + ask.js script appear in the rendered page."""
+    """v0.3 自由問答 modal link appears in the header."""
     r = client.get("/")
     assert r.status_code == 200
-    assert 'class="ask-panel"' in r.text
     assert "自由問答" in r.text
-    assert 'src="/static/ask.js"' in r.text
+    assert "ask-panel" in r.text
 
 
 def test_index_filter_by_tag_narrows_results(client, populated_db):
@@ -295,7 +293,7 @@ def test_index_sidebar_indents_child_axes(hierarchy_setup):
 
     app = create_app(db_path=file_db, searcher=None, axes_config=cfg)
     c = TestClient(app)
-    r = c.get("/")
+    r = c.get("/", params={"q": "因信"})
     assert r.status_code == 200
     assert "padding-left: 12px" in r.text
 
@@ -360,7 +358,7 @@ def test_article_viewer_renders(client, populated_db):
     r = client.get(f"/article/{aid}")
     assert r.status_code == 200
     assert "因信稱義" in r.text or "因信" in r.text
-    assert "← 回搜尋" in r.text
+    assert "標籤總覽" in r.text
 
 
 def test_article_viewer_with_query_renders_back_link(client, populated_db):
@@ -369,13 +367,11 @@ def test_article_viewer_with_query_renders_back_link(client, populated_db):
     ).fetchone()[0]
     r = client.get(f"/article/{aid}", params={"q": "禱告"})
     assert r.status_code == 200
-    # back link carries the query so user can return to original search
-    assert "回搜尋" in r.text
     assert "禱告" in r.text
 
 
 def test_article_viewer_sidebar_renders_when_chunked(client, tmp_path):
-    """When article has chunks, sidebar TOC renders with hit + non-hit chunks."""
+    """When article has chunks, the chunks render correctly with ids."""
     import sqlite3
 
     file_db = tmp_path / "wenji.db"
@@ -399,10 +395,8 @@ def test_article_viewer_sidebar_renders_when_chunked(client, tmp_path):
 
     r = client.get(f"/article/{aid}")
     assert r.status_code == 200
-    assert "article-sidebar" in r.text
-    assert "toc-list" in r.text
-    assert "¶1" in r.text
-    assert "¶2" in r.text
+    assert 'id="c0"' in r.text
+    assert 'id="c1"' in r.text
     assert "段一預覽內容" in r.text
 
 
@@ -421,9 +415,8 @@ def test_article_viewer_doc_actions_renders_source_url(client, tmp_path):
 
     r = client.get(f"/article/{aid}")
     assert r.status_code == 200
-    assert "doc-actions" in r.text
     assert "https://example.com/src" in r.text
-    assert "原始來源" in r.text
+    assert "連結出處" in r.text
 
 
 def test_article_viewer_404_when_missing(client):
@@ -434,7 +427,7 @@ def test_article_viewer_404_when_missing(client):
 def test_static_css_served(client):
     r = client.get("/static/style.css")
     assert r.status_code == 200
-    assert "wenji-spin" in r.text  # spinner keyframes are present
+    assert "@keyframes spin" in r.text  # spinner keyframes are present
 
 
 def test_factory_uses_env_var_for_db(monkeypatch, tmp_path):

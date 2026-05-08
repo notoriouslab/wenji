@@ -359,7 +359,10 @@ class Searcher:
                 r["content_full"] = cr[:500]
                 r["content_snippet"] = make_snippet(cr, [effective_query])
                 if "tags" not in r:
-                    r["tags"] = json.loads(tr) if tr else []
+                    try:
+                        r["tags"] = json.loads(tr) if tr and tr.strip() else []
+                    except (json.JSONDecodeError, ValueError):
+                        r["tags"] = []
 
         return top_n
 
