@@ -12,6 +12,7 @@ Modular pieces are exported for advanced users / tests:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any, Protocol
 
@@ -54,37 +55,20 @@ _BLOCK_BOUNDARY_TOKENS = frozenset(
 
 
 def _strip_markdown_for_snippet(text: str) -> str:
-    """Convert Markdown text to plain text via the markdown-it AST.
-
-    Replaces an earlier regex approach that mangled URLs with underscores
-    (``Foo_bar`` → ``Foobar``) and code spans containing punctuation. The AST
-    walker accumulates ``text`` and ``code_inline`` content, treating soft /
-    hard breaks and block-level closes as whitespace. Avoids introducing
-    BeautifulSoup as a dependency by walking tokens directly instead of
-    rendering to HTML.
-    """
+    """Strip markdown markers for clean search snippets."""
     if not text:
-        return text
-
-    parts: list[str] = []
-
-    def walk(tokens: list[Token]) -> None:
-        for tok in tokens:
-            if tok.type == "inline" and tok.children:
-                walk(tok.children)
-            elif tok.type in ("text", "code_inline"):
-                parts.append(tok.content)
-            elif tok.type in ("softbreak", "hardbreak"):
-                parts.append(" ")
-            elif tok.type in ("code_block", "fence"):
-                # Block-level code keeps its raw content but as plain text.
-                parts.append(tok.content)
-                parts.append(" ")
-            elif tok.type in _BLOCK_BOUNDARY_TOKENS:
-                parts.append(" ")
-
-    walk(_MD_SNIPPET.parse(text))
-    return " ".join("".join(parts).split())
+        return ""
+    # Remove images ![]()
+    s = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+    # Remove links [text](url) -> text
+    s = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", s)
+    # Remove headings
+    s = re.sub(r"^#+\s+", "", s, flags=re.MULTILINE)
+    # Remove bold/italic
+    s = s.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+    # Remove code blocks
+    s = s.replace("```", "").replace("`", "")
+    return " ".join(s.split())
 
 
 def _hydrate_chunk_hits(
@@ -286,7 +270,7 @@ class Searcher:
             placeholders = ",".join("?" for _ in ids)
             meta_rows = self.conn.execute(
                 f"""
-                SELECT article_id, title, source_type, category, pub_date, pub_year
+                SELECT article_id, title, source_type, category, pub_date, pub_year, tags
                 FROM articles_meta WHERE article_id IN ({placeholders})
                 """,
                 ids,
@@ -300,6 +284,7 @@ class Searcher:
                     m["category"] = row[3]
                     m["pub_date"] = row[4]
                     m["pub_year"] = row[5]
+                    m["tags"] = json.loads(row[6]) if row[6] else []
 
         # Step 6: chunk-level BM25 → article roll-up
         chunk_signals = chunk_bm25_search(self.conn, retrieve_query, limit=self.candidate_pool)
@@ -364,15 +349,17 @@ class Searcher:
             ids = [m["article_id"] for m in top_n]
             placeholders = ",".join("?" for _ in ids)
             rows = self.conn.execute(
-                f"SELECT article_id, content_raw FROM articles_fts "
+                f"SELECT article_id, content_raw, tags_raw FROM articles_fts "
                 f"WHERE article_id IN ({placeholders})",
                 ids,
             ).fetchall()
-            content_map: dict[str, str] = {row[0]: row[1] or "" for row in rows}
+            content_map = {row[0]: (row[1] or "", row[2]) for row in rows}
             for r in top_n:
-                cr = content_map.get(r["article_id"], "")
+                cr, tr = content_map.get(r["article_id"], ("", None))
                 r["content_full"] = cr[:500]
                 r["content_snippet"] = make_snippet(cr, [effective_query])
+                if "tags" not in r:
+                    r["tags"] = json.loads(tr) if tr else []
 
         return top_n
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hmac
 import html
+import html
 import json
 import logging
 import os
@@ -886,6 +887,7 @@ def create_app(
         finally:
             conn.close()
 
+        import html
         import json as _json
 
         try:

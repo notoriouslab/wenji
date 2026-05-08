@@ -1,142 +1,140 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ article.title or '(無標題)' }} — wenji</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body class="article-page">
-  <header class="topbar">
-    <a href="/" class="brand">wenji</a>
-    {% if article.query %}
-    <a href="/?q={{ article.query|urlencode }}" class="back-link">← 回搜尋「{{ article.query }}」</a>
-    {% else %}
-    <a href="/" class="back-link">← 回搜尋</a>
-    {% endif %}
-  </header>
+{% extends "base.html" %}
 
-  <div class="article-layout{% if article.chunks %} has-sidebar{% endif %}">
+{% block title %}
+{{ article.title or '(無標題)' }} — LOGOS
+{% endblock %}
 
-    {% if article.chunks %}
-    <aside class="article-sidebar" id="articleSidebar">
-      <h3>段落 <span class="sidebar-meta">
-        {% if article.matched_indexes %}
-        命中 <strong>{{ article.matched_indexes|length }}</strong> / {{ article.chunks|length }}
-        {% else %}
-        共 {{ article.chunks|length }} 段
+{% block description %}{{ article.description or article.title }}{% endblock %}
+
+{% block extra_meta %}
+  <link rel="canonical" href="https://logos.jacobmei.com/article/{{ article.article_id }}">
+  <!-- OpenGraph / AEO -->
+  <meta property="og:site_name" content="LOGOS">
+  <meta property="og:title" content="{{ article.title|e }}">
+  <meta property="og:description" content="{{ (article.description or article.title)|e }}">
+  <meta property="og:url" content="https://logos.jacobmei.com/article/{{ article.article_id }}">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://logos.jacobmei.com/static/og-image.png">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ article.title|e }}">
+  <meta name="twitter:description" content="{{ (article.description or article.title)|e }}">
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ article.title|e }}",
+    "description": "{{ (article.description or article.title)|e }}",
+    "author": {
+      "@type": "Person",
+      "name": "{{ article.author or 'LOGOS' }}"
+    },
+    "datePublished": "{{ article.pub_date or '' }}",
+    "url": "https://logos.jacobmei.com/article/{{ article.article_id }}",
+    "publisher": {
+      "@type": "Organization",
+      "name": "LOGOS",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://logos.jacobmei.com/static/logo.png"
+      }
+    }
+  }
+  </script>
+{% endblock %}
+
+{% block search_mini %}
+<form action="/" method="get" class="search-form" id="search-form-mini">
+  <input type="search" name="q" value="{{ article.query|e }}" placeholder="搜尋知識..." required>
+  <button type="submit">搜尋</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="article-viewer-container" style="max-width: 900px; margin: 0 auto; padding: 2rem;">
+  <nav class="breadcrumb" aria-label="Breadcrumb" style="margin-bottom: 2rem; font-size: 0.85rem; color: var(--color-text-muted);">
+    <ol style="list-style: none; padding: 0; display: flex; gap: 0.5rem;">
+      <li><a href="/" style="color: var(--color-primary); text-decoration: none;">首頁</a></li>
+      <li style="color: #ccc;">/</li>
+      <li><a href="/?source_type={{ article.source_type|urlencode }}" style="color: var(--color-primary); text-decoration: none;">{{ article.source_type }}</a></li>
+      <li style="color: #ccc;">/</li>
+      <li style="color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ article.title }}</li>
+    </ol>
+  </nav>
+
+  <article class="article-full" style="background: #fff; padding: 3rem; border-radius: 16px; border: 1px solid var(--color-border); box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
+    <header class="article-header" style="margin-bottom: 3rem; border-bottom: 1px solid var(--color-bg-alt); padding-bottom: 2rem;">
+      <h1 style="font-family: 'Outfit'; font-weight: 700; font-size: 2.75rem; line-height: 1.2; margin-bottom: 1.5rem; color: var(--color-text);">
+        {{ article.title or '(無標題)' }}
+      </h1>
+      
+      <div class="article-meta-list" style="display: flex; flex-wrap: wrap; gap: 2rem; font-size: 0.9rem; color: var(--color-text-muted); align-items: flex-end;">
+        <div class="meta-item">
+          <span style="display: block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.25rem;">發布日期</span>
+          <span style="color: var(--color-text); font-weight: 600;">{{ article.pub_date or '未知日期' }}</span>
+        </div>
+        <div class="meta-item">
+          <span style="display: block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.25rem;">來源類型</span>
+          <span style="color: var(--color-primary); font-weight: 600;">{{ article.source_type }}</span>
+        </div>
+        {% if article.author and article.author.lower() != 'unknown' %}
+        <div class="meta-item">
+          <span style="display: block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.25rem;">作者</span>
+          <span style="color: var(--color-text); font-weight: 600;">{{ article.author }}</span>
+        </div>
         {% endif %}
-      </span></h3>
-      <ol class="toc-list">
-        {% for c in article.chunks %}
-        <li class="toc-item{% if c.chunk_index in article.matched_indexes %} hit{% endif %}"
-            data-chunk-index="{{ c.chunk_index }}">
-          <a href="#c{{ c.chunk_index }}" class="toc-link">
-            <span class="toc-anchor">¶{{ c.chunk_index + 1 }}</span>
-            <span class="toc-preview">{{ c.preview or (c.chunk_text or '')[:36] }}{% if (c.chunk_text or '')|length > 36 %}…{% endif %}</span>
+
+        <div class="meta-item-actions" style="display: flex; gap: 0.75rem; margin-bottom: -2px;">
+          <button class="bookmark-toggle btn-bookmark" data-article-id="{{ article.article_id }}" data-title="{{ article.title|e }}" data-date="{{ article.pub_date|e }}" onclick="var t=this.dataset; wenjiBookmarks.toggle(t.articleId, t.title, t.date); return false;" style="background: var(--color-bg-alt); border: 1px solid var(--color-border); padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>♡</span> 收藏
+          </button>
+          {% if article.source_url %}
+          <a href="{{ article.source_url }}" target="_blank" class="btn-link" style="display: inline-flex; align-items: center; background: #fff; border: 1px solid var(--color-border); padding: 0.4rem 0.8rem; border-radius: 6px; color: var(--color-text); text-decoration: none; font-weight: 600; font-size: 0.8rem;">
+            <span style="margin-right: 0.4rem;">🔗</span> 連結出處
           </a>
-        </li>
-        {% endfor %}
-      </ol>
-    </aside>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    {% if article.tag_list %}
+    <div class="article-tags" style="margin-bottom: 2rem;">
+      {% for t in article.tag_list %}
+        <a class="tag-pill" href="/tag/{{ t|urlencode }}" style="display: inline-block; padding: 0.25rem 0.75rem; background: #fff; border: 1px solid var(--color-primary); color: var(--color-primary); border-radius: 20px; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.5rem;">#{{ t }}</a>
+      {% endfor %}
+    </div>
     {% endif %}
 
-    <article class="article-view">
-      <h1>{{ article.title or '(無標題)' }}</h1>
-      <div class="article-meta">
-        {% if article.source_type %}<span>{{ article.source_type }}</span>{% endif %}
-        {% if article.category %} · <span>{{ article.category }}</span>{% endif %}
-        {% if article.author %} · <span>{{ article.author }}</span>{% endif %}
-        {% if article.pub_date %} · <span>{{ article.pub_date }}</span>{% endif %}
-      </div>
-      {% if article.tag_list %}
-      <div class="article-tags">
-        Tags：
-        {% for t in article.tag_list %}
-          <a class="article-tag" href="/?tag={{ t|urlencode }}">{{ t }}</a>{% if not loop.last %} {% endif %}
+    <div class="article-content markdown-body" style="font-size: 1.15rem; line-height: 1.8; color: #333;">
+      {% if article.chunks %}
+        {% for c in article.chunks %}
+        <div id="c{{ c.chunk_index }}" class="article-chunk" style="margin-bottom: 2rem;">
+          {{ c.chunk_text_html|safe }}
+        </div>
         {% endfor %}
-      </div>
+      {% else %}
+        {{ article.content_html|safe }}
       {% endif %}
+    </div>
 
-      {% if article.source_url %}
-      <div class="doc-actions">
-        <a class="btn-action" href="{{ article.source_url }}" target="_blank" rel="noopener">
-          ↗ 原始來源
+    <footer class="article-footer" style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--color-bg-alt); display: flex; flex-direction: column; gap: 2rem;">
+      <div style="display: flex; justify-content: flex-end; align-items: center;">
+        <div class="aeo-links" style="font-size: 0.8rem; color: var(--color-text-muted);">
+          AI Agent? <a href="/article/{{ article.article_id }}.md" style="color: var(--color-primary);">Read Raw Markdown</a>
+        </div>
+      </div>
+
+      {% if article.source_url and ('.pdf' in article.source_url.lower() or 'drive.google.com' in article.source_url.lower()) %}
+      <div class="download-section" style="padding: 1.5rem; background: var(--color-bg-alt); border-radius: 12px; border: 1px dashed var(--color-border);">
+        <p style="margin: 0 0 1rem 0; font-size: 0.9rem; font-weight: 600;">此文章提供完整檔案下載：</p>
+        <a href="{{ article.source_url }}" target="_blank" style="color: var(--color-primary); font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📥</span> 下載原始文件
         </a>
       </div>
       {% endif %}
-
-      {% if article.chunks %}
-      <div class="article-body chunked">
-        {% for c in article.chunks %}
-        <section class="chunk{% if c.chunk_index in article.matched_indexes %} matched{% endif %}"
-                 id="c{{ c.chunk_index }}"
-                 data-chunk-index="{{ c.chunk_index }}">
-          <a class="chunk-anchor" href="#c{{ c.chunk_index }}">¶{{ c.chunk_index + 1 }}</a>
-          <div class="chunk-text">{% if c.chunk_text_html %}{{ c.chunk_text_html|safe }}{% else %}{{ c.chunk_text }}{% endif %}</div>
-        </section>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="article-body">{{ article.content }}</div>
-      {% endif %}
-    </article>
-
-  </div>
-
-  <script>
-    (function () {
-      var sidebar = document.getElementById('articleSidebar');
-      if (!sidebar) return;
-
-      // Smooth scroll on sidebar click + update active highlight
-      var tocItems = sidebar.querySelectorAll('.toc-item');
-      tocItems.forEach(function (item) {
-        var link = item.querySelector('a');
-        link.addEventListener('click', function (e) {
-          e.preventDefault();
-          var idx = item.getAttribute('data-chunk-index');
-          var target = document.getElementById('c' + idx);
-          if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            history.replaceState(null, '', '#c' + idx);
-          }
-        });
-      });
-
-      // Scroll-spy: highlight the toc-item whose chunk is currently in view
-      var sections = document.querySelectorAll('section.chunk');
-      if (sections.length === 0 || !('IntersectionObserver' in window)) return;
-
-      function setActive(idx) {
-        tocItems.forEach(function (it) {
-          it.classList.toggle('active', it.getAttribute('data-chunk-index') === idx);
-        });
-      }
-
-      var observer = new IntersectionObserver(function (entries) {
-        // Pick the entry closest to the top of the viewport
-        var visible = entries.filter(function (e) { return e.isIntersecting; });
-        if (visible.length === 0) return;
-        visible.sort(function (a, b) {
-          return Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top);
-        });
-        var top = visible[0].target;
-        setActive(top.getAttribute('data-chunk-index'));
-      }, { rootMargin: '-20% 0px -60% 0px', threshold: [0, 0.2, 0.5, 1] });
-      sections.forEach(function (s) { observer.observe(s); });
-
-      {% if article.matched_indexes %}
-      // Auto-scroll to first matched chunk on load
-      var firstId = "c{{ article.matched_indexes[0] }}";
-      var el = document.getElementById(firstId);
-      if (el) {
-        setTimeout(function () {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-      }
-      {% endif %}
-    })();
-  </script>
-</body>
-</html>
+    </footer>
+  </article>
+</div>
+{% endblock %}
