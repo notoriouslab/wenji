@@ -38,6 +38,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   autoescape does not protect script bodies).
 - **`.env.example` template** at repo root with all `WENJI_*` env vars
   documented and `# DO NOT COMMIT` warning.
+- **D10 baseline JSON validator** for `wenji eval sanity-eyeball
+  --baseline-output`: pre-parse 10 MB file size cap, regular-file path
+  check, top-level schema (`questions[].id` + optional
+  `article_results|hits` arrays), and 64 KB per-string cap anywhere in
+  the structure. Plus `[\x00-\x08\x0b-\x1f\x7f]` control-character
+  strip on every value before stdout print (CR + DEL + ANSI ESC
+  removed; TAB + LF preserved) to defeat log-injection / CRLF-injection
+  via crafted baseline files.
 
 ### Changed / BREAKING (v0.3.7 — in progress)
 
@@ -45,22 +53,42 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`wenji.ingest.loader_logos_db`) served exactly one private user and is
   no longer shipped. Maintainers needing to import from a logos schema
   SQLite must keep a private copy of the loader outside the public repo.
-- **CORS default still `https://logos.jacobmei.com`** — the strict CORS
-  validator (reject `*` / `null` / wildcard subdomain / non-https,
-  default empty) is task 2.4 and lands in a follow-up commit. The
-  maintainer's logos production already explicitly sets
-  `WENJI_CORS_ORIGINS=https://logos.jacobmei.com`, so the upcoming
-  default change will not affect it.
+- **BREAKING — CORS default is now empty (deny all)**. Strict validator
+  rejects `*`, `null`, comma-separated entries containing `*`, and any
+  non-`https://` origin unless the undocumented dev override
+  `WENJI_ALLOW_HTTP_CORS=1` is set. Production deployments MUST
+  explicitly set `WENJI_CORS_ORIGINS=https://your-frontend.example.com`
+  (the maintainer's logos production already does this, so it is
+  unaffected).
+- **BREAKING — `wenji eval sanity-eyeball` flag renamed**: `--logos-r13`
+  → `--baseline-output`. The legacy flag is registered as a hidden
+  option that hard-fails (exit 2) with an error message naming the new
+  flag. Console output strings ("logos top-5:") and dataclass fields
+  (`PerQuestionOverlap.logos_count`, `SubjectiveSample.logos_top5`)
+  renamed to `baseline_*`.
+- **BREAKING — `wenji.eval.loader_logos_v2` module renamed** to
+  `wenji.eval.loader_benchmark_v2`. Import path
+  `from wenji.eval.loader_logos_v2 import …` raises `ModuleNotFoundError`.
+  The dataclass field `SnapshotMetadata.logos_source_commit` and the
+  benchmark snapshot JSON key with the same name are renamed to
+  `source_commit` with no backward compat (loader hard-errors when the
+  legacy key is the only one present); pre-existing private
+  `wenji_r0_*.json` outputs require in-place migration via
+  `jq '.metadata.source_commit = .metadata.logos_source_commit |
+  del(.metadata.logos_source_commit)'`.
 
 ### Documentation (v0.3.7 — in progress)
 
 - **README.md rewritten** following readme_framework 10-layer structure
   (繁體中文 first, English fallback, hero centred). All `logos`
   references removed; quickstart fixed
-  (`wenji ingest dir examples/articles/`, `wenji download-model`); test
-  count updated to 582 unit + 7 integration = 589; production checklist,
-  LLM failure fallback, schema migration, platform support matrix, HF
-  mirror, `.env` workflow, branding env vars all documented.
+  (`git clone … && pip install -e .`, `wenji ingest dir
+  examples/articles/`, `wenji download-model`); test count updated to
+  634 unit + 7 integration = 641; `axes.yaml` example aligned with
+  `examples/axes.yaml` ground truth (includes the optional
+  `description:` field); production checklist, LLM failure fallback,
+  schema migration, platform support matrix, HF mirror, `.env`
+  workflow, branding env vars all documented.
 - **`.gitignore`** adds `.env.*` and `.envrc`; whitelists `.env.example`.
 - **OpenSpec change `decouple-logos-and-fix-readme`** added under
   `openspec/changes/` documenting the full 5-phase plan, retreat

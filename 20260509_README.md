@@ -154,11 +154,13 @@ query rewrite → entity detect → intent detect → alias expand
 #### 分類引擎
 
 ```yaml
+# axes.yaml — 摘錄自 examples/axes.yaml
 axes:
   - id: sermon
     name: 講道
     short: 講道
     order: 1
+    description: 講道 / 信仰主題長文
     rules:
       - source_type: sermon
         primary: true
@@ -316,7 +318,7 @@ rm wenji.db && wenji ingest dir <markdown-dir> --db wenji.db
 ```bash
 pip install -e ".[dev]"
 ruff check src/wenji tests/wenji   # linter
-pytest                              # unit（582 tests）
+pytest                              # unit（634 tests）
 pytest -m integration              # 真實 ONNX（需下載 ~600 MB）
 ```
 
@@ -340,7 +342,7 @@ pytest -m integration              # 真實 ONNX（需下載 ~600 MB）
 | **Indexing cost** | **Zero LLM calls.** Deterministic, byte-identical rebuild from disk. |
 | **LLM use** | Optional, query-time only, cached, with a structured fallback that works without any LLM. |
 | **Deploy size** | One Python process, one SQLite file. No external services. |
-| **Tested on** | Python 3.10 / 3.11 / 3.12 — 589 tests (582 unit + 7 integration). |
+| **Tested on** | Python 3.10 / 3.11 / 3.12 — 641 tests (634 unit + 7 integration). |
 
 ### Why wenji?
 
@@ -354,11 +356,14 @@ wenji is built on the opposite premise — **LLM-essential, not LLM-default**:
 
 The result: LLM cost scales with `unique queries × cache miss rate`, not with corpus size.
 
-### Quickstart (3 commands)
+### Quickstart (4 commands)
+
+> ⚠️ Not yet on PyPI — install from source. The `examples/` corpus ships only with the source checkout.
 
 ```bash
-pip install wenji
-wenji ingest examples/articles/ --db wenji.db
+git clone https://github.com/notoriouslab/wenji && cd wenji
+pip install -e .
+wenji ingest dir examples/articles/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
 
@@ -420,12 +425,13 @@ Per-invocation override: `wenji serve --enable-rewrite` / `--no-rewrite`. The `/
 ### Configuration
 
 ```yaml
-# axes.yaml
+# axes.yaml — excerpt from examples/axes.yaml
 axes:
   - id: sermon
     name: 講道
     short: 講道
     order: 1
+    description: 講道 / 信仰主題長文
     rules:
       - source_type: sermon
         primary: true

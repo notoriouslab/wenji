@@ -32,7 +32,7 @@ WENJI=/tmp/wenji_install_test/bin/wenji
 PYTHON=/tmp/wenji_install_test/bin/python
 DB=/tmp/wenji_logos.db
 SNAPSHOT=tests/benchmark_80_v2_snapshot.json
-LOGOS_R13=tests/benchmark_v2_r13.json
+BASELINE_OUTPUT=tests/benchmark_v2_r13.json
 OUT=tests/wenji_r1_run.json
 REPORT=docs/wenji_r1_baseline.md
 SERVE_PORT=8765
@@ -89,8 +89,8 @@ from wenji.eval.sanity_check import compute_objective_overlap
 from wenji.eval.report import render_baseline_report, write_baseline_report
 
 wenji_r1 = json.loads(Path("$OUT").read_text(encoding="utf-8"))
-logos_r13 = json.loads(Path("$LOGOS_R13").read_text(encoding="utf-8"))
-obj = compute_objective_overlap(wenji_r1, logos_r13)
+baseline = json.loads(Path("$BASELINE_OUTPUT").read_text(encoding="utf-8"))
+obj = compute_objective_overlap(wenji_r1, baseline)
 overlaps = [{"qid": pq.qid, "overlap_rate": pq.overlap_rate} for pq in obj.per_question]
 
 # Inject trim_manifest into r1 metadata for transparency in the report.
