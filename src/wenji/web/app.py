@@ -42,7 +42,7 @@ from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_confi
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, WenjiError
 from wenji.search import Searcher
-from wenji.web.branding import load_branding_from_env
+from wenji.web.branding import load_branding_from_env, load_cors_origins_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -198,17 +198,17 @@ def create_app(
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
 
-    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
-    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
-    if "*" in cors_origins:
-        logger.warning("WENJI_CORS_ORIGINS contains '*'; ignoring for security")
-        cors_origins = [o for o in cors_origins if o != "*"]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-API-Key"],
-    )
+    # CORS validator: empty list = CORSMiddleware not installed (deny all).
+    # Strict validation (reject `*` / `null` / wildcard subdomain / non-https)
+    # raises RuntimeError at startup. See web/branding.py for full rules.
+    cors_origins = load_cors_origins_from_env()
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Content-Type", "X-API-Key"],
+        )
 
     api_key = os.environ.get("WENJI_API_KEY", "").strip()
 

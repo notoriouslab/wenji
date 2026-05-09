@@ -1,16 +1,24 @@
-"""Branding environment loader for SEO meta + brand text.
+"""Branding + CORS environment loaders for the web app.
 
-Reads three optional env vars at startup. All unset = no SEO meta is
-rendered and templates fall back to a neutral "wenji" brand (safest
-zero-config default for fork-friendly open-source distribution).
+All env vars are optional and validated at startup; misconfiguration
+fails fast so a serving process is never reached with a bad value.
 
+Branding (SEO meta + brand text):
   - WENJI_SITE_URL     : enables canonical / og:* / JSON-LD output
   - WENJI_SITE_NAME    : brand text in title / og:site_name / publisher
   - WENJI_OG_IMAGE_URL : og:image content
+  All unset = no SEO meta rendered, templates fall back to neutral "wenji".
 
-This is the v0.3.7 minimal validator. Full host whitelist (IDN, IPv6,
-percent-encoding, length DoS, port restriction, RFC1918 / loopback /
-link-local rejection) lives in task 2.1 and lands in a follow-up commit.
+CORS:
+  - WENJI_CORS_ORIGINS  : comma-separated list of allowed origins
+  - WENJI_ALLOW_HTTP_CORS=1 : dev override allowing http:// origins
+  Unset / empty = empty list = CORSMiddleware not installed (deny all
+  cross-origin, safest default for forks).
+
+This is the v0.3.7 minimal validator. The full host whitelist (IDN,
+IPv6, percent-encoding, length DoS, port restriction, RFC1918 /
+loopback / link-local rejection) lives in task 2.1 and lands in a
+follow-up commit.
 """
 
 from __future__ import annotations
@@ -79,3 +87,56 @@ def load_branding_from_env() -> Branding:
         site_name=_load_site_name("WENJI_SITE_NAME"),
         og_image_url=_load_https_url("WENJI_OG_IMAGE_URL"),
     )
+
+
+def load_cors_origins_from_env() -> list[str]:
+    """Parse and validate ``WENJI_CORS_ORIGINS`` into a list of allowed origins.
+
+    Unset / empty / whitespace-only → empty list (CORSMiddleware should not
+    be installed; deny all cross-origin requests).
+
+    Each origin element MUST:
+    - Not be the literal ``*`` (browser-equivalent of "any origin")
+    - Not contain any ``*`` character anywhere (no wildcard subdomains)
+    - Not be the literal ``null`` (sandboxed iframe / file:// origin)
+    - Be ``https://`` scheme by default; ``http://`` is permitted only when
+      ``WENJI_ALLOW_HTTP_CORS=1`` is also set (dev override, undocumented).
+
+    Empty elements (``,,``) are silently stripped.
+
+    Any violation raises ``RuntimeError`` so the server fails to start.
+    """
+    raw = os.environ.get("WENJI_CORS_ORIGINS", "")
+    if not raw or not raw.strip():
+        return []
+
+    allow_http = os.environ.get("WENJI_ALLOW_HTTP_CORS", "").strip() == "1"
+
+    origins: list[str] = []
+    for piece in raw.split(","):
+        origin = piece.strip()
+        if not origin:
+            continue  # silently strip empty elements
+        if origin == "*" or "*" in origin:
+            raise RuntimeError(
+                f"WENJI_CORS_ORIGINS rejects wildcard origin {origin!r}; "
+                "set explicit https://host origins instead"
+            )
+        if origin == "null":
+            raise RuntimeError(
+                "WENJI_CORS_ORIGINS rejects 'null' origin; sandboxed / file:// "
+                "callers cannot be safely allowed by default"
+            )
+        if origin.startswith("https://"):
+            origins.append(origin)
+            continue
+        if origin.startswith("http://") and allow_http:
+            origins.append(origin)
+            continue
+        raise RuntimeError(
+            f"WENJI_CORS_ORIGINS rejects {origin!r}: only https:// origins "
+            "accepted by default; for local dev set WENJI_ALLOW_HTTP_CORS=1 "
+            "to permit http:// origins"
+        )
+
+    return origins

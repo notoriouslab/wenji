@@ -621,3 +621,28 @@ def test_site_name_with_html_metacharacter_fails_create_app(populated_db, tmp_pa
     monkeypatch.setenv("WENJI_SITE_NAME", "</script><script>alert(1)//")
     with pytest.raises(RuntimeError):
         create_app(db_path=file_db, searcher=None)
+
+
+def test_invalid_cors_wildcard_fails_create_app(populated_db, tmp_path, monkeypatch):
+    """Adversarial: WENJI_CORS_ORIGINS=* must hard-fail at app creation."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "*")
+    with pytest.raises(RuntimeError, match="wildcard"):
+        create_app(db_path=file_db, searcher=None)
+
+
+def test_unset_cors_does_not_install_middleware(populated_db, tmp_path, monkeypatch):
+    """Default CORS = empty = CORSMiddleware not installed (deny all)."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    monkeypatch.delenv("WENJI_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    app = create_app(db_path=file_db, searcher=None)
+    # Inspect middleware stack: starlette stores middlewares in user_middleware
+    middleware_classes = [m.cls.__name__ for m in app.user_middleware]
+    assert "CORSMiddleware" not in middleware_classes
