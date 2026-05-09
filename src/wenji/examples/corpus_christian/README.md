@@ -8,8 +8,8 @@
 
 | 檔案 | 用途 | 來源 |
 |---|---|---|
-| `entity_concepts.json` | 46 個中性教義 / 神學 / 教會運動概念詞，給 `EntityScorer` 做 subject 識別（concept vs person vs location disambiguation） | 對齊 logos production v1.1 內部詞庫；過濾政治倫理議題後公開 |
-| `intent_keywords.json` | 護教意圖（apologetics）keyword 清單，給 `IntentClassifier.detect_intent` 用 | 對齊 logos production v1.1 |
+| `entity_concepts.json` | 46 個中性教義 / 神學 / 教會運動概念詞，給 `EntityScorer` 做 subject 識別（concept vs person vs location disambiguation） | 來自上游 production 內部詞庫；過濾政治倫理議題後公開 |
+| `intent_keywords.json` | 護教意圖（apologetics）keyword 清單，給 `IntentClassifier.detect_intent` 用 | 來自上游 production 內部詞庫 |
 
 兩個 JSON 都是百科 / 神學辭典級的中性詞彙，**不反映**任何特定教派 /
 神學派別的立場。
@@ -65,22 +65,22 @@ results = searcher.search("任何查詢", limit=10)
 3. 用途是 disambiguation（避免主詞被 location / person 搶走），
    **不是**重要性排序
 
-我們**剔除**了 logos 私有 `entity_concepts.json` 中三個政治倫理議題詞
+我們**剔除**了上游私有 `entity_concepts.json` 中三個政治倫理議題詞
 （同性婚姻 / 墮胎 / 安樂死），避免 example 透露 corpus 處理現代倫理議題
-的 curation taste。其他 logos 私有資料（`aliases.json` 人名別名對映、
-`INTENT_SOURCE_TYPES` source_type 對映）**不在本 example**，留 logos
+的 curation taste。其他上游私有資料（`aliases.json` 人名別名對映、
+`INTENT_SOURCE_TYPES` source_type 對映）**不在本 example**，留 deployer
 端 runtime 注入。
 
-## 來源詞庫的 logos 使用方式
+## 上游詞庫的使用方式
 
-這些詞在 logos production v1.1 用於：
+這些詞在上游 production 用於：
 
 - **`EntityScorer.detect_query_entities`**：從 query 中辨識 concept
   entity，用 longest-match-first lookup
 - **subject 提升**：query 同時有 concept 和 location（例：「耶路撒冷的
   救贖意義」）時，concept 優先升為 subject
 - **`expand_query_with_aliases`**：concept entities 多半沒 alias，所以
-  此檔案中各詞 aliases 為空（人名 alias 在 logos `aliases.json`，不公開）
+  此檔案中各詞 aliases 為空（人名 alias 在上游私有 `aliases.json`，不公開）
 
 ## 修改本檔的時機
 
