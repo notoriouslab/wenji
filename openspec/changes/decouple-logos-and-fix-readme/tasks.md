@@ -132,7 +132,7 @@ Production reality (verified via ssh oracle): nohup uvicorn :8001 with inline co
 - [x] 7.2 Grep `CONTRIBUTING.md` for `from-logos-db`, `loader_logos`, `--logos-r13` mentions and remove or update
 - [x] 7.3 Grep `docs/`, `scripts/`, `Makefile`, `.github/workflows/`, `pyproject.toml` for `your-deployment.example.com` or `logos_` identifiers and remove
 - [x] 7.4 Create `.env.example` template file with placeholder values for all WENJI_* vars (no real keys); confirm `.gitignore` excludes `.env` and `.env.*` and `.envrc` (1.5 already handles this)
-- [ ] 7.5 Delete `20260509_README.md` after 8.x gates pass — **deferred** (gated on 8.5–8.8 maintainer smoke pass)
+- [x] 7.5 Delete `20260509_README.md` after 8.x gates pass
 
 ## 8. Verification gates (G3 final)
 
