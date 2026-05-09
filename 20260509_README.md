@@ -120,6 +120,8 @@ wenji serve --db wenji.db \
 #### 場景 5：Eval A/B 基準測試
 
 > 前置：先在另一 terminal 跑 `wenji serve --db wenji.db`（eval runner 透過 `/api/search` 打 80q 基準）；snapshot `tests/benchmark_80_v2_snapshot.json` 已內建 repo 內。
+>
+> Smoke 建議：改動 retrieval pipeline 後，先用 snapshot 前 10 題跑 mini-baseline（手動 `jq '.categories[].questions |= .[:3]' snapshot.json > smoke.json` 之類）確認沒大幅退步，再跑全 80q。
 
 ```bash
 wenji eval run-benchmark --no-rewrite     --db wenji.db --out r0_off.json
