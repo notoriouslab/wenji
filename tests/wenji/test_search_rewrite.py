@@ -118,16 +118,16 @@ def test_ttl_expiry_invalidates_cache(conn, monkeypatch):
     assert out == "X"  # API called again
 
 
-def test_default_prompt_template_targets_keyword_form_aligned_with_logos():
+def test_default_prompt_template_targets_keyword_form_aligned_with_upstream():
     # v0.3.6.1: rewrite-on regressed -10pp vs rewrite-off because the v0.3.6
     # prompt asked for a "vector-friendly single-line query" which produced
-    # natural-language sentence expansions; logos production prompt asks for
-    # keyword groups separated by `|` (BM25-friendly), and that form matches
-    # how the eval metric scores hits. Lock the prompt shape so future edits
-    # don't silently regress.
+    # natural-language sentence expansions; the upstream production prompt
+    # asks for keyword groups separated by `|` (BM25-friendly), and that form
+    # matches how the eval metric scores hits. Lock the prompt shape so future
+    # edits don't silently regress.
     template = rewrite_mod.REWRITE_PROMPT_TEMPLATE
     assert "{query}" in template, "template must include {query} placeholder"
-    assert "|" in template, "prompt must instruct keyword-group form (logos parity)"
+    assert "|" in template, "prompt must instruct keyword-group form (upstream parity)"
     assert "範例" in template, "prompt must include few-shot example section"
     assert "1-3" in template, "prompt must specify 1-3 keyword groups"
     # Negative: must not push the LLM toward sentence expansion.

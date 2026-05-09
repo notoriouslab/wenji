@@ -64,8 +64,9 @@ def _parse_gold_path(raw: dict, *, qid: int, idx: int) -> GoldPath:
     if not isinstance(keywords_raw, list) or not keywords_raw:
         raise IngestError(f"question {qid}: gold_paths[{idx}].keywords must be a non-empty list")
 
-    # logos v2 has `representative_corpus_articles` — extract titles as
-    # article_hints when present. Field may be a list of dicts {title,path,...}
+    # The upstream v2 schema has `representative_corpus_articles` — extract
+    # titles as article_hints when present. Field may be a list of dicts
+    # {title,path,...}
     # or a list of strings, or null.
     rca = raw.get("representative_corpus_articles")
     article_hints: list[str] = []

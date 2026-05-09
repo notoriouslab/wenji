@@ -286,7 +286,8 @@ def create_app(
         as ``alias_map``. WENJI_INTENT_SOURCE_TYPES (JSON file path mapping
         ``{intent: [source_type]}``) is forwarded to ``IntentClassifier.from_sources``
         as ``intent_source_types``. These enable full deployment-specific
-        composition (e.g. logos consumer setup) over env-based loading.
+        composition (e.g. private downstream consumer setup) over env-based
+        loading.
         """
         if state["searcher"] is not None:
             return state["searcher"]

@@ -1,12 +1,12 @@
 """Query intent classification with dependency-injected keyword maps.
 
-Ports ``logos/scripts/rag/query.py``: ``detect_intent`` (keyword-based,
+Ports an upstream RAG query module: ``detect_intent`` (keyword-based,
 shallow intent → boost type set) and ``classify_intent`` (scripture /
 person / topic detection with per-intent alpha and keyword_boost).
 
 The wenji port keeps the algorithm corpus-agnostic — keyword lists,
 intent→source_type mappings, and scripture patterns are caller-injected
-or constructor-defaulted (no logos curation bundled).
+or constructor-defaulted (no upstream curation bundled).
 """
 
 from __future__ import annotations

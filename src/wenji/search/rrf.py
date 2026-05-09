@@ -1,7 +1,7 @@
 """Reciprocal Rank Fusion + chunk-level BM25 retrieval for wenji v0.3.6.
 
-Ports ``logos/scripts/rag/ranking.py:rrf_merge`` (logos production v1.1
-ranker, 75.8% baseline). Two-way boost-style RRF: ``main_merged`` is the
+Ports an upstream RAG ``rrf_merge`` (production v1.1 ranker, 75.8%
+baseline). Two-way boost-style RRF: ``main_merged`` is the
 hybrid (BM25 + vector cosine) result keyed by article_id with a
 ``_rankingScore`` field; ``chunk_signals`` is a per-article best-chunk
 BM25 dict. An optional intent-boost layer adds a constant per-article
@@ -32,11 +32,11 @@ def rrf_merge(
             contain ``_rankingScore`` (the upstream hybrid score).
         chunk_signals: dict mapping article_id to chunk-level BM25 best score.
             Empty dict triggers a fallback (main-only sort + 0.15 intent
-            additive boost) per logos behaviour.
+            additive boost) per the upstream behaviour.
         intent_boost_types: set of source_type strings whose articles receive
             an additional ``1/(k+1)`` (when chunks present) or ``0.15``
-            (chunks absent) per logos behaviour. None or empty = no boost.
-        k: RRF constant (default 60, logos default).
+            (chunks absent) per the upstream behaviour. None or empty = no boost.
+        k: RRF constant (default 60, the upstream default).
         limit: if provided, truncate the returned list to this length;
             otherwise return all merged articles.
 

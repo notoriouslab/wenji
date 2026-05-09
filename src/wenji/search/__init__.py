@@ -19,7 +19,6 @@ from typing import Any, Protocol
 
 import numpy as np
 from markdown_it import MarkdownIt
-from markdown_it.token import Token
 
 from wenji.core.errors import SearchError
 from wenji.search.bm25 import bm25_search, build_fts_query
@@ -321,7 +320,7 @@ class Searcher:
             ranked.sort(key=lambda r: -float(r.get("_rankingScore", 0.0)), reverse=False)
 
         # Optional cross-encoder reranker (existing hook, retained but unused
-        # in v0.3.6 logos baseline — see proposal Non-Goals: blog verified
+        # in v0.3.6 baseline — see proposal Non-Goals: blog verified
         # ARM CPU latency unacceptable).
         if self.reranker is not None and self.reranker.enabled:
             ranked = self.reranker.score(effective_query, ranked)
@@ -344,7 +343,7 @@ class Searcher:
         # content_raw, so without this step downstream consumers (eval
         # metric, UI snippet) see empty content for those entries. One
         # batch query keeps cost O(top_n). content_full is truncated to 500
-        # characters to match the logos R13 baseline shape that metrics.py
+        # characters to match the upstream R13 baseline shape that metrics.py
         # was ported against.
         if top_n:
             ids = [m["article_id"] for m in top_n]

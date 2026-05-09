@@ -58,8 +58,9 @@ def score_gold_path(article_content: str, gold_path) -> str:
     - ``partial``: at least one but not all keywords matched
     - ``none``: zero keywords matched
 
-    Matching is case-insensitive substring (identical to logos benchmark v2
-    metric definition). ``article_content`` is expected to be the union of
+    Matching is case-insensitive substring (identical to the upstream
+    benchmark v2 metric definition). ``article_content`` is expected to be the
+    union of
     retrieved chunks belonging to the article (see
     :func:`rollup_chunks_to_articles`), not the full article body from DB.
     """

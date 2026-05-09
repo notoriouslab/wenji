@@ -50,7 +50,7 @@ def test_detect_id_kind_hash():
 
 def test_detect_id_kind_article_id():
     assert detect_id_kind("a1") == "article_id"
-    assert detect_id_kind("logos-abc-123") == "article_id"
+    assert detect_id_kind("sample-abc-123") == "article_id"
 
 
 def test_detect_id_kind_64_chars_non_hex_is_article_id():
