@@ -7,6 +7,72 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (v0.3.7 — in progress, decouple-logos-and-fix-readme)
+
+- **`wenji.web.branding` module** — env-driven SEO meta + brand text loader.
+  Three optional env vars validated at startup; unset = no SEO meta rendered
+  (safest default for fork-friendly distribution):
+  - `WENJI_SITE_URL` — enables canonical / og:* / JSON-LD output; HTTPS only;
+    trailing slash stripped on load. Full host whitelist (IDN, IPv6,
+    percent-encoding, length DoS, port restriction, RFC1918 / loopback /
+    link-local rejection) is the next milestone (task 2.1) and is **NOT**
+    yet implemented in this minimal validator — do not deploy on a host
+    where attacker can inject env vars without isolation.
+  - `WENJI_SITE_NAME` — brand text (max 256 chars, rejects HTML
+    metacharacters `< > " ' \r \n` at startup to prevent stored XSS via env
+    injection).
+  - `WENJI_OG_IMAGE_URL` — og:image content; same HTTPS validation.
+- **Branding-aware routes**:
+  - `/robots.txt` — unset `WENJI_SITE_URL` → conservative deny
+    (`User-agent: *\nDisallow: /\n`); set → permissive policy with
+    `Sitemap: <site_url>/sitemap.xml`.
+  - `/sitemap.xml` — unset → 404; set → minimal urlset with site_url base.
+  - `/llms.txt` — unset → 404; set → uses site_name (or "wenji") +
+    site_url.
+- **Templates rebrandable**: all hardcoded `logos.jacobmei.com` / `LOGOS` /
+  `Logos Knowledge Engine` strings in `base.html`, `index.html`,
+  `article.html` replaced with `site_name` / `site_url` template variables
+  that fall back to neutral "wenji" when unset. JSON-LD blocks now use
+  `{{ ... | tojson }}` so any user-controlled branding values are unicode
+  escaped (`<` → `<`) inside `<script>` context (Jinja2 HTML
+  autoescape does not protect script bodies).
+- **`.env.example` template** at repo root with all `WENJI_*` env vars
+  documented and `# DO NOT COMMIT` warning.
+
+### Changed / BREAKING (v0.3.7 — in progress)
+
+- **BREAKING — `wenji ingest from-logos-db` removed**. The adapter
+  (`wenji.ingest.loader_logos_db`) served exactly one private user and is
+  no longer shipped. Maintainers needing to import from a logos schema
+  SQLite must keep a private copy of the loader outside the public repo.
+- **CORS default still `https://logos.jacobmei.com`** — the strict CORS
+  validator (reject `*` / `null` / wildcard subdomain / non-https,
+  default empty) is task 2.4 and lands in a follow-up commit. The
+  maintainer's logos production already explicitly sets
+  `WENJI_CORS_ORIGINS=https://logos.jacobmei.com`, so the upcoming
+  default change will not affect it.
+
+### Documentation (v0.3.7 — in progress)
+
+- **README.md rewritten** following readme_framework 10-layer structure
+  (繁體中文 first, English fallback, hero centred). All `logos`
+  references removed; quickstart fixed
+  (`wenji ingest dir examples/articles/`, `wenji download-model`); test
+  count updated to 582 unit + 7 integration = 589; production checklist,
+  LLM failure fallback, schema migration, platform support matrix, HF
+  mirror, `.env` workflow, branding env vars all documented.
+- **`.gitignore`** adds `.env.*` and `.envrc`; whitelists `.env.example`.
+- **OpenSpec change `decouple-logos-and-fix-readme`** added under
+  `openspec/changes/` documenting the full 5-phase plan, retreat
+  protocol, and dual-round G1 review history.
+
+### Fixed (v0.3.7 — in progress)
+
+- **`src/wenji/search/__init__.py` missing `import re`** — the
+  `_strip_markdown_for_snippet` helper was raising `NameError` at runtime
+  whenever called, masking three further test failures behind the import
+  error. Added the missing import.
+
 ### Fixed (v0.3.6.1)
 
 - **`QueryRewriter` prompt aligned with logos production** — the
