@@ -39,16 +39,15 @@ Maps the original 17 README review findings + 11 G1 security findings to task ID
 | **G1 紅隊 M-4 (og privacy warning)** | 6.17 |
 | **G1 邊界 T1 (loader_logos_v2 path)** | 5.0, 5.1, 5.2 |
 | **G1 邊界 H-4 (snapshot_source_path)** | 5.3 |
-| **G1 邊界 H-5 (pre-flight verify)** | 1.3, 1.4 |
+| **G1 邊界 H-5 (pre-flight verify)** | 1.1 (manual backup), 1.5 (gitignore) — production deploy steps removed after 2026-05-09 实機調查 |
 | **G1 邊界 H-6 (commit boundaries)** | end-of-phase commit tasks |
 
-## 1. Pre-flight (Migration Plan steps 1.1–1.5)
+## 1. Pre-flight (simplified after 2026-05-09 production reality check)
 
-- [ ] 1.1 Backup `src/wenji/ingest/loader_logos_db.py` to maintainer's private repo (D4: B1 deletion strategy precondition)
-- [ ] 1.2 Pause maintainer logos production auto-deploy hook to prevent automatic pull mid-apply
-- [ ] 1.3 Pre-deploy `.env` to maintainer logos production with full new variable set (`WENJI_CORS_ORIGINS=https://logos.jacobmei.com`, `WENJI_SITE_URL=https://logos.jacobmei.com`, `WENJI_SITE_NAME=Logos`, `WENJI_OG_IMAGE_URL=https://logos.jacobmei.com/static/og-image.png`); do NOT restart service yet
-- [ ] 1.4 SSH-verify on logos production: `.env` written, mode 0600, all four variables present with correct values; abort apply if any missing
-- [ ] 1.5 Verify `.gitignore` in wenji repo contains `.env`, `.env.*`, `.envrc`; add if missing
+Production reality (verified via ssh oracle): nohup uvicorn :8001 with inline command-line env vars (no `.env` file), no auto-deploy hook (no cron/webhook/Actions), `WENJI_CORS_ORIGINS=https://logos.jacobmei.com` already explicitly set. Therefore the original 1.2-1.4 production deploy preparation steps are not applicable.
+
+- [x] 1.1 Backup `src/wenji/ingest/loader_logos_db.py` to maintainer's private repo (D4: B1 deletion strategy precondition) — completed 2026-05-09
+- [x] 1.5 Verify `.gitignore` in wenji repo contains `.env`, `.env.*`, `.envrc`, and whitelists `.env.example`; add if missing — completed 2026-05-09 (commit 4f23cfc)
 
 ## 2. Phase 1 — env-driven branding config (D1: env-driven branding config, D2: SEO meta omission when unset, D3: robots and sitemap defaults, D8: URL host whitelist + IDN normalisation, D9: Context-aware output escape for branding values)
 
@@ -145,5 +144,4 @@ Maps the original 17 README review findings + 11 G1 security findings to task ID
 - [ ] 8.6 Smoke-test `wenji serve --db wenji.db` with NO env vars set: confirm `/`, `/tags`, `/article/<id>` render without canonical/og/JSON-LD; confirm `/robots.txt` returns `User-agent: *\nDisallow: /\n`; confirm `/sitemap.xml` and `/llms.txt` return 404
 - [ ] 8.7 Smoke-test with `WENJI_SITE_URL=https://wenji.example.com` set: confirm meta tags appear with correct URL; confirm `/sitemap.xml` returns 200 with that URL; confirm canonical URL has no trailing-slash double slash
 - [ ] 8.8 Adversarial smoke: try starting server with each of `WENJI_SITE_URL=https://attacker.com@evil.com`, `https://169.254.169.254`, `https://[::1]/`, `https://[fe80::1]/`, `https://x.com:8080`, `WENJI_SITE_URL=https://x.com/\nDisallow:`, `WENJI_SITE_URL=https://%6c%6fgos.jacobmei.com/`, `WENJI_SITE_URL=https://x.com/%0d%0aDisallow:`, `WENJI_SITE_URL=https://$(python -c 'print("a"*254)').com/`, `WENJI_SITE_NAME='</script>'`, `WENJI_OG_IMAGE_URL=https://attacker.com@trusted.com/x.png`, `WENJI_OG_IMAGE_URL=https://[::1]/x.png`, `WENJI_CORS_ORIGINS=*`, `WENJI_CORS_ORIGINS=null`, `WENJI_CORS_ORIGINS=https://*.example.com` — each MUST hard-fail at startup with a clear error mentioning the rejection reason
-- [ ] 8.9 Verify maintainer's logos production deploy plan: pull merged commit, restart service per Migration Plan step 4, curl `/`, `/article/<id>`, `/robots.txt`, `/sitemap.xml`, `/api/search` — confirm CORS still allows `https://logos.jacobmei.com` and SEO meta still renders correctly with hardcoded-replacement env values from `.env`
-- [ ] 8.10 Re-enable maintainer's logos production auto-deploy hook (un-pause from 1.2)
+- [ ] 8.9 Production handover (maintainer-driven, not blocking apply): document in CHANGELOG and commit message that next manual deploy needs to add `WENJI_SITE_URL=https://logos.jacobmei.com WENJI_SITE_NAME=Logos WENJI_OG_IMAGE_URL=https://logos.jacobmei.com/static/og-image.png` to the inline env vars in the deploy bash command. Provide a short verification curl checklist (canonical / og / robots.txt / sitemap.xml / CORS preflight) for the maintainer to run after their next deploy, but do not gate this change on it.

@@ -251,38 +251,49 @@ wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app
 
 ## Migration Plan
 
-**部署順序（鎖死，避免主公 logos production 服務窗口期失效）：**
+**Production 實況（已實機驗證 2026-05-09）：**
+- Oracle VPS，`/home/ubuntu/logos`，nohup uvicorn :8001
+- 沒有 systemd 自啟（`rag-server.service` 存在但 disabled）、沒有 cron / webhook / GitHub Actions auto-deploy
+- Deploy 觸發：主公手動跑一段 bash command（`git pull origin main && sudo fuser -k 8001/tcp && nohup ... uvicorn ...`）
+- Env 配置方式：**inline command line**（不是 `.env` 檔）——env vars 直接寫在 nohup 前
+- 既有 env：`WENJI_CORS_ORIGINS=https://logos.jacobmei.com` 已顯式設
+
+意味著：
+- **無 auto-deploy hook 需要暫停** — 主公自己決定何時 pull + restart
+- **無 `.env` 檔需要預先部署** — env 走 inline command line
+- **CORS 預設改 empty 對 production 無影響** — 已顯式設 `WENJI_CORS_ORIGINS`
+- **新 SEO env vars（`WENJI_SITE_URL` 等）** — 等 Phase 1 commit 後，主公下次手動 deploy 時把新 env 加進 nohup 那段 bash command
+
+**部署順序（簡化）：**
 
 1. **Pre-flight：**
-   1.1 主公 backup `loader_logos_db.py` 到私人 repo（B1 刪除前置）
-   1.2 主公 logos production 暫停 auto-deploy hook（防 wenji main merge 後自動拉新 code 但 .env 未生效）
-   1.3 主公 logos production 部署 `.env` 含完整新變數：
-       ```
-       WENJI_CORS_ORIGINS=https://logos.jacobmei.com
-       WENJI_SITE_URL=https://logos.jacobmei.com
-       WENJI_SITE_NAME=Logos
-       WENJI_OG_IMAGE_URL=https://logos.jacobmei.com/static/og-image.png
-       ```
-   1.4 主公 logos production 不重啟服務 — 此時 .env 已就位但 service 仍跑舊 code，舊 hardcoded 值繼續服務客戶
-   1.5 ssh 確認 `.env` 已寫入且權限 0600
+   1.1 主公 backup `loader_logos_db.py` 到私人 repo（B1 刪除前置）— ✅ 主公已完成 2026-05-09
+   1.2 wenji repo `.gitignore` 加 `.env.*`、`.envrc`、`!.env.example` — ✅ 已完成（task 1.5）
 
-2. **Apply：** 套用本 change（28 task，按 D11 phase commit boundary）
+2. **Apply：** 套用本 change（按 D11 phase commit boundary）
 
-3. **Post-apply 驗證（在主公 logos production 服務外的 test 機器）：**
+3. **Post-apply 驗證（在 dev 機器跑）：**
    3.1 跑完整 `pytest` — 全綠
    3.2 跑 80q baseline — 退步 ≤ 1.5pp
    3.3 smoke-test `wenji serve` 三組 env 組合（無 env / SITE_URL only / 完整 env）→ 模板輸出符合 spec
+   3.4 Adversarial smoke：14 種惡意 env 輸入 hard-fail at startup
 
-4. **主公 logos production 切換：**
-   4.1 git pull 拉新 code
-   4.2 重啟 service（systemd / supervisor）
-   4.3 curl 驗證：搜尋頁 canonical/og 仍正確、CORS 仍允許 logos.jacobmei.com、`/robots.txt` 含 sitemap line、`/sitemap.xml` 仍 200
-   4.4 重啟 auto-deploy hook（解除 1.2 暫停）
+4. **主公 logos production 切換（主公自行決定時機，本 change 不阻擋）：**
+   4.1 主公更新自己慣用的 deploy bash command，加上新 SEO env vars：
+       ```bash
+       ... WENJI_CORS_ORIGINS=https://logos.jacobmei.com \
+           WENJI_SITE_URL=https://logos.jacobmei.com \
+           WENJI_SITE_NAME=Logos \
+           WENJI_OG_IMAGE_URL=https://logos.jacobmei.com/static/og-image.png \
+           uvicorn wenji.web.app:app --host 0.0.0.0 --port 8001
+       ```
+   4.2 主公手動跑 deploy command（git pull + fuser -k + nohup uvicorn）
+   4.3 curl 驗證：搜尋頁 canonical/og/JSON-LD 仍正確、CORS 仍允許 logos.jacobmei.com、`/robots.txt` 含 sitemap line、`/sitemap.xml` 仍 200
 
 **Rollback：**
 - Phase 內失敗 → `git revert` 該 phase commit（D11 列出每 phase commit 訊息）
 - 80q baseline 退步 > 1.5pp（jitter 容忍範圍外）→ 觸發 D11 retreat protocol（依 phase 4 → 3 → 2 順序 revert）
-- 主公 logos production step 4.3 驗證失敗 → 立即 `git revert` 全部 phase commits、重啟 service 回到舊 code（.env 留著無害）
+- 主公 step 4.3 驗證失敗 → 主公手動跑舊版 deploy command（git checkout 上一個 working commit + 重啟 nohup）
 
 ## Open Questions
 
