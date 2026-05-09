@@ -79,13 +79,40 @@ each MUST exit non-zero at startup with a clear rejection message.
 DB=/tmp/wenji-smoke.db
 wenji ingest dir examples/articles/ --db "$DB"
 
-# Each of these should hard-fail before serving:
-WENJI_SITE_URL='https://attacker.com@evil.com' wenji serve --db "$DB" --port 9999
-WENJI_SITE_URL='https://169.254.169.254'        wenji serve --db "$DB" --port 9999
-WENJI_SITE_URL='https://[::1]/'                  wenji serve --db "$DB" --port 9999
-WENJI_SITE_NAME='</script>'                      wenji serve --db "$DB" --port 9999
-WENJI_CORS_ORIGINS='*'                           wenji serve --db "$DB" --port 9999
-WENJI_CORS_ORIGINS='null'                        wenji serve --db "$DB" --port 9999
+# Each of these MUST hard-fail before serving (D8 host whitelist):
+WENJI_SITE_URL='https://attacker.com@evil.com'           wenji serve --db "$DB" --port 9999  # userinfo
+WENJI_SITE_URL='https://169.254.169.254/'                 wenji serve --db "$DB" --port 9999  # cloud-metadata IP
+WENJI_SITE_URL='https://127.0.0.1/'                       wenji serve --db "$DB" --port 9999  # IPv4 loopback
+WENJI_SITE_URL='https://10.0.0.1/'                        wenji serve --db "$DB" --port 9999  # RFC1918 private
+WENJI_SITE_URL='https://[::1]/'                           wenji serve --db "$DB" --port 9999  # IPv6 loopback
+WENJI_SITE_URL='https://[fe80::1]/'                       wenji serve --db "$DB" --port 9999  # IPv6 link-local
+WENJI_SITE_URL='https://x.com:8080/'                      wenji serve --db "$DB" --port 9999  # non-default port
+WENJI_SITE_URL='https://%6c%6fgos.example.com/'           wenji serve --db "$DB" --port 9999  # percent-encoded host
+WENJI_SITE_URL='https://x.com/%0d%0aDisallow:'            wenji serve --db "$DB" --port 9999  # percent-encoded CRLF
+$'WENJI_SITE_URL=https://x.com/\nDisallow:'               wenji serve --db "$DB" --port 9999  # raw control char
+WENJI_SITE_URL='https://logos.jacobmei.cοm/'              wenji serve --db "$DB" --port 9999  # non-ASCII host (Greek-ο)
+WENJI_SITE_NAME='</script>'                                wenji serve --db "$DB" --port 9999  # HTML metachar
+WENJI_OG_IMAGE_URL='https://attacker.com@trusted.com/x.png' wenji serve --db "$DB" --port 9999  # og userinfo
+WENJI_CORS_ORIGINS='*'                                     wenji serve --db "$DB" --port 9999  # wildcard
+WENJI_CORS_ORIGINS='null'                                  wenji serve --db "$DB" --port 9999  # null
+WENJI_CORS_ORIGINS='https://*.example.com'                 wenji serve --db "$DB" --port 9999  # wildcard subdomain
+
+# Override probes that MUST succeed:
+WENJI_SITE_URL='https://10.0.0.1/' WENJI_ALLOW_PRIVATE_HOST=1   wenji serve --db "$DB" --port 9999  # internal deploy
+WENJI_SITE_URL='https://x.fly.dev:8080/' WENJI_ALLOW_NONSTANDARD_PORT=1 wenji serve --db "$DB" --port 9999  # PaaS port
+```
+
+For a faster sanity check without the full `wenji serve` boot, run the
+loader directly:
+
+```bash
+uv run python -c '
+import os
+os.environ["WENJI_SITE_URL"] = "https://attacker.com@evil.com"
+from wenji.web.branding import load_branding_from_env
+load_branding_from_env()
+'
+# Expected: RuntimeError: WENJI_SITE_URL contains userinfo (...)
 ```
 
 ## 4. Rollback if any of the above fails

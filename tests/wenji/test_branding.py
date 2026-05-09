@@ -1,9 +1,8 @@
-"""Tests for branding env loader (v0.3.7 minimal validator).
+"""Tests for branding env loader (v0.3.7).
 
-Covers WENJI_SITE_URL / WENJI_SITE_NAME / WENJI_OG_IMAGE_URL handling.
-Full host whitelist (IDN / IPv6 / percent-encoding / length DoS / port)
-is task 2.1 in decouple-logos-and-fix-readme; this file covers the
-minimal HTTPS-scheme + name char-class validator only.
+Covers WENJI_SITE_URL / WENJI_SITE_NAME / WENJI_OG_IMAGE_URL / WENJI_CORS_ORIGINS
+handling, including the spec D8 host whitelist (userinfo / private IP / IPv6 /
+non-ASCII host / percent-encoding / control chars / hostname length / port).
 """
 
 from __future__ import annotations
@@ -201,3 +200,209 @@ def test_cors_rejects_ftp_scheme(monkeypatch):
     from wenji.web.branding import load_cors_origins_from_env
     with pytest.raises(RuntimeError, match="https://"):
         load_cors_origins_from_env()
+
+
+# ---- D8 URL host whitelist (task 2.1 follow-up) ----
+
+
+def _clear_overrides(monkeypatch):
+    for key in (
+        "WENJI_SITE_URL",
+        "WENJI_SITE_NAME",
+        "WENJI_OG_IMAGE_URL",
+        "WENJI_CORS_ORIGINS",
+        "WENJI_ALLOW_HTTP_CORS",
+        "WENJI_ALLOW_PRIVATE_HOST",
+        "WENJI_ALLOW_NONSTANDARD_PORT",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_d8_userinfo_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://attacker.com@logos.jacobmei.com/")
+    with pytest.raises(RuntimeError, match="userinfo"):
+        load_branding_from_env()
+
+
+def test_d8_ipv4_private_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://10.0.0.1/")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_ipv4_link_local_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://169.254.169.254/")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_ipv4_loopback_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://127.0.0.1/")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_ipv6_loopback_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://[::1]/")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_ipv6_link_local_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://[fe80::1]/")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_non_ascii_hostname_rejected_homograph(monkeypatch):
+    """Greek-omicron in `cοm` (U+03BF). Non-ASCII hostname rule rejects all IDN
+    forms; callers must pre-punycode their domain to xn--... before setting env."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://logos.jacobmei.cοm/")
+    with pytest.raises(RuntimeError, match="non-ASCII"):
+        load_branding_from_env()
+
+
+def test_d8_punycode_hostname_accepted(monkeypatch):
+    """Pre-punycoded IDN (xn--...) is plain ASCII and accepted."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://xn--fiqs8s.example/")
+    b = load_branding_from_env()
+    assert b.site_url == "https://xn--fiqs8s.example"
+
+
+def test_d8_percent_encoded_host_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://%6c%6fgos.example.com/")
+    with pytest.raises(RuntimeError, match="percent-encoding"):
+        load_branding_from_env()
+
+
+def test_d8_percent_encoded_path_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.com/%0d%0aDisallow:")
+    with pytest.raises(RuntimeError, match="percent-encoding"):
+        load_branding_from_env()
+
+
+def test_d8_control_char_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.com/\nDisallow:")
+    with pytest.raises(RuntimeError, match="control characters"):
+        load_branding_from_env()
+
+
+def test_d8_hostname_too_long_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://" + ("a" * 254) + ".com/")
+    with pytest.raises(RuntimeError, match="RFC 1035"):
+        load_branding_from_env()
+
+
+def test_d8_nonstandard_port_rejected(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.com:8080/")
+    with pytest.raises(RuntimeError, match="port 8080"):
+        load_branding_from_env()
+
+
+def test_d8_default_port_443_accepted(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.example:443/")
+    b = load_branding_from_env()
+    assert b.site_url == "https://x.example:443"
+
+
+def test_d8_private_host_override_accepts(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://10.0.0.1/")
+    monkeypatch.setenv("WENJI_ALLOW_PRIVATE_HOST", "1")
+    b = load_branding_from_env()
+    assert b.site_url == "https://10.0.0.1"
+
+
+def test_d8_private_host_override_only_literal_one(monkeypatch):
+    """Override env var must be exactly '1'; 'true' / 'yes' do NOT bypass."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://10.0.0.1/")
+    monkeypatch.setenv("WENJI_ALLOW_PRIVATE_HOST", "true")
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_branding_from_env()
+
+
+def test_d8_nonstandard_port_override_accepts_paas(monkeypatch):
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.fly.dev:8080/")
+    monkeypatch.setenv("WENJI_ALLOW_NONSTANDARD_PORT", "1")
+    b = load_branding_from_env()
+    assert b.site_url == "https://x.fly.dev:8080"
+
+
+def test_d8_nonstandard_port_override_rejects_below_1024(monkeypatch):
+    """Even with override, ports < 1024 (privileged) are rejected."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://x.com:22/")
+    monkeypatch.setenv("WENJI_ALLOW_NONSTANDARD_PORT", "1")
+    with pytest.raises(RuntimeError, match="port 22"):
+        load_branding_from_env()
+
+
+def test_d8_og_image_subject_to_same_whitelist(monkeypatch):
+    """og:image URL must pass the same whitelist (userinfo, private IP, etc.)."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://wenji.example.com/")
+    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "https://attacker.com@trusted.com/x.png")
+    with pytest.raises(RuntimeError, match="WENJI_OG_IMAGE_URL.*userinfo"):
+        load_branding_from_env()
+
+
+def test_d8_cors_origin_subject_to_whitelist(monkeypatch):
+    """Each CORS origin must pass the same whitelist."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "https://attacker@evil.com")
+    from wenji.web.branding import load_cors_origins_from_env
+    with pytest.raises(RuntimeError, match="WENJI_CORS_ORIGINS.*userinfo"):
+        load_cors_origins_from_env()
+
+
+def test_d8_http_cors_dev_override_relaxes_port(monkeypatch):
+    """WENJI_ALLOW_HTTP_CORS=1 implies non-default ports for http origins
+    (Vite dev server runs on 5173, etc.); developers should not need to set
+    WENJI_ALLOW_NONSTANDARD_PORT separately."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "http://localhost:5173")
+    monkeypatch.setenv("WENJI_ALLOW_HTTP_CORS", "1")
+    from wenji.web.branding import load_cors_origins_from_env
+    assert load_cors_origins_from_env() == ["http://localhost:5173"]
+
+
+def test_d8_http_cors_dev_override_does_not_relax_other_rules(monkeypatch):
+    """allow_http relaxing port does NOT extend to private IP / userinfo / etc."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "http://10.0.0.1:5173")
+    monkeypatch.setenv("WENJI_ALLOW_HTTP_CORS", "1")
+    from wenji.web.branding import load_cors_origins_from_env
+    with pytest.raises(RuntimeError, match="private/loopback/link-local"):
+        load_cors_origins_from_env()
+
+
+def test_d8_prod_happy_path_accepts_logos_domain(monkeypatch):
+    """The production deploy command's three branding env values MUST pass the
+    whitelist; this is a regression guard against accidental over-tightening."""
+    _clear_overrides(monkeypatch)
+    monkeypatch.setenv("WENJI_SITE_URL", "https://logos.jacobmei.com")
+    monkeypatch.setenv("WENJI_SITE_NAME", "Logos")
+    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "https://logos.jacobmei.com/static/og.png")
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
+    b = load_branding_from_env()
+    assert b.site_url == "https://logos.jacobmei.com"
+    assert b.site_name == "Logos"
+    assert b.og_image_url == "https://logos.jacobmei.com/static/og.png"
+    from wenji.web.branding import load_cors_origins_from_env
+    assert load_cors_origins_from_env() == ["https://logos.jacobmei.com"]

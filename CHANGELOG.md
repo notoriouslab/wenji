@@ -11,7 +11,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Env-driven branding for fork-friendly deployments: optional
   `WENJI_SITE_URL`, `WENJI_SITE_NAME`, `WENJI_OG_IMAGE_URL` control SEO
-  meta and brand text. All unset = no SEO meta rendered.
+  meta and brand text. All unset = no SEO meta rendered. URL values are
+  validated by a host whitelist at startup (rejects userinfo / private
+  IP / loopback / link-local / non-ASCII host / non-default port /
+  control characters / percent-encoding); the same whitelist applies to
+  each `WENJI_CORS_ORIGINS` element.
 - `/robots.txt`, `/sitemap.xml`, `/llms.txt` derived from the same env
   vars (conservative deny when unset).
 - `.env.example` template at repo root.
