@@ -93,7 +93,7 @@ def run_benchmark_command(
     snapshot: Path = typer.Option(
         Path("tests/benchmark_80_v2_snapshot.json"),
         "--snapshot",
-        help="logos benchmark v2 snapshot file (frozen via D4 git commit hash).",
+        help="benchmark v2 snapshot file (frozen via source commit hash).",
     ),
     db: Path = typer.Option(..., "--db", help="wenji.db path (must be ingested)."),
     port: int = typer.Option(8000, help="wenji serve port."),
@@ -121,8 +121,8 @@ def run_benchmark_command(
     """Run the 80-question v2 baseline against a running wenji serve.
 
     Produces ``wenji_r0_<date>.json`` (v2 schema run output) plus a
-    ``<out>.summary.json`` digest. The output conforms to the logos benchmark
-    v2 schema: each question gets per-hit ``gold_path_match`` (none/partial/full)
+    ``<out>.summary.json`` digest. The output conforms to the benchmark v2
+    schema: each question gets per-hit ``gold_path_match`` (none/partial/full)
     and a question-level ``pass`` plus ``passing_paths``.
 
     The ``--enable-rewrite`` / ``--no-rewrite`` flags do NOT control the
@@ -216,7 +216,17 @@ def _detect_wenji_version() -> str:
 @app.command("sanity-eyeball")
 def sanity_eyeball_command(
     wenji_r0: Path = typer.Option(..., "--wenji-r0", exists=True, help="wenji_r0 run output."),
-    logos_r13: Path = typer.Option(..., "--logos-r13", exists=True, help="logos_r13 run output."),
+    baseline_output: Path | None = typer.Option(
+        None,
+        "--baseline-output",
+        help="Baseline run output JSON (validated: ≤10 MB, schema, regular file).",
+    ),
+    legacy_logos_r13: Path | None = typer.Option(
+        None,
+        "--logos-r13",
+        hidden=True,
+        help="Removed legacy alias; rejected on use.",
+    ),
     n: int = typer.Option(8, help="Number of questions to sample for eyeball."),
     seed: int | None = typer.Option(None, help="Random seed for reproducible sampling."),
     out: Path = typer.Option(
@@ -229,8 +239,8 @@ def sanity_eyeball_command(
 
     Step 1: compute per-question top-10 hits overlap; abort with diagnostic if
     mean overlap < 0.70.
-    Step 2: sample N questions and present wenji top-5 vs logos top-5 side by
-    side; user enters comma-separated qids that look unreasonable. > 1 flag
+    Step 2: sample N questions and present wenji top-5 vs baseline top-5 side
+    by side; user enters comma-separated qids that look unreasonable. > 1 flag
     means subjective gate fails.
     Both pass → write promotion marker.
     """
@@ -238,15 +248,31 @@ def sanity_eyeball_command(
         compute_objective_overlap,
         emit_objective_diagnostic,
         evaluate_subjective_gate,
+        load_baseline_output,
         sample_eyeball_questions,
+        strip_control_chars,
         write_promotion_marker,
     )
 
+    if legacy_logos_r13 is not None:
+        typer.echo(
+            "error: --logos-r13 has been removed; use --baseline-output instead.",
+            err=True,
+        )
+        sys.exit(2)
+    if baseline_output is None:
+        typer.echo("error: --baseline-output is required.", err=True)
+        sys.exit(2)
+
     wenji_data = json.loads(wenji_r0.read_text(encoding="utf-8"))
-    logos_data = json.loads(logos_r13.read_text(encoding="utf-8"))
+    try:
+        baseline_data = load_baseline_output(baseline_output)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        sys.exit(2)
 
     typer.echo("=== objective gate ===", err=True)
-    obj = compute_objective_overlap(wenji_data, logos_data)
+    obj = compute_objective_overlap(wenji_data, baseline_data)
     typer.echo(emit_objective_diagnostic(obj))
     if not obj.passed:
         typer.echo(
@@ -258,15 +284,18 @@ def sanity_eyeball_command(
     typer.echo(f"PASS: mean_overlap={obj.mean_overlap:.4f} ≥ {obj.threshold:.2f}", err=True)
 
     typer.echo(f"\n=== subjective gate ({n} questions) ===", err=True)
-    samples = sample_eyeball_questions(wenji_data, logos_data, n=n, seed=seed)
+    samples = sample_eyeball_questions(wenji_data, baseline_data, n=n, seed=seed)
     for s in samples:
-        typer.echo(f"\n--- Q{s.qid}: {s.query[:80]} ---")
+        query_clean = strip_control_chars(s.query)[:80]
+        typer.echo(f"\n--- Q{s.qid}: {query_clean} ---")
         typer.echo("wenji top-5:")
         for r in s.wenji_top5:
-            typer.echo(f"  rank={r.get('rank')} title={(r.get('title') or '')[:80]}")
-        typer.echo("logos top-5:")
-        for r in s.logos_top5:
-            typer.echo(f"  rank={r.get('rank')} title={(r.get('title') or '')[:80]}")
+            title = strip_control_chars(r.get("title") or "")[:80]
+            typer.echo(f"  rank={r.get('rank')} title={title}")
+        typer.echo("baseline top-5:")
+        for r in s.baseline_top5:
+            title = strip_control_chars(r.get("title") or "")[:80]
+            typer.echo(f"  rank={r.get('rank')} title={title}")
     typer.echo("\nEnter comma-separated qids that look unreasonable (or empty if all OK):")
     raw = typer.prompt("flagged qids", default="", show_default=False)
     flagged = [int(x.strip()) for x in raw.split(",") if x.strip()]

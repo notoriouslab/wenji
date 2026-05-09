@@ -7,7 +7,7 @@
 The `wenji eval sanity-eyeball` CLI SHALL accept a baseline run output JSON via `--baseline-output <path>`. The flag MUST replace the legacy `--logos-r13` option entirely; the legacy name MUST NOT be accepted.
 
 #### Scenario: New flag accepted
-- **WHEN** `wenji eval sanity-eyeball --wenji-run wenji.json --baseline-output ref.json --n 8 --seed 42`
+- **WHEN** `wenji eval sanity-eyeball --wenji-r0 wenji.json --baseline-output ref.json --n 8 --seed 42`
 - **THEN** the command MUST execute and load both JSON files
 - **AND** the output MUST present side-by-side top-5 comparison
 
@@ -59,25 +59,35 @@ The frozen benchmark snapshot at `tests/benchmark_80_v2_snapshot.json` SHALL sto
 
 ### Requirement: baseline-output JSON undergoes schema and size validation
 
-The `wenji eval sanity-eyeball --baseline-output <path>` CLI SHALL validate the loaded JSON against a defined schema (top-level dict with `results` array of objects each containing `q`, `top5`), enforce a file size limit of 10 megabytes before parsing, and reject any string field exceeding 64 kilobytes. Before printing any baseline value to stdout, the system SHALL strip control characters matching `[\x00-\x08\x0b-\x1f\x7f]` to prevent log injection. Path MUST exist and MUST be a regular file.
+The `wenji eval sanity-eyeball --baseline-output <path>` CLI SHALL validate the loaded JSON against the persisted run-output schema (top-level JSON object with a `questions` array; each question object SHALL contain an `id` field, and `article_results` or `hits` SHALL be an array if present), enforce a file size limit of 10 megabytes before parsing, and reject any string field anywhere in the structure exceeding 64 kilobytes. Before printing any baseline value to stdout, the system SHALL strip control characters matching `[\x00-\x08\x0b-\x1f\x7f]` to prevent log injection. Path MUST exist and MUST be a regular file (not a directory or device).
+
+> Schema note: the persisted shape (`questions[].{id, article_results|hits}`) matches what `wenji eval run-benchmark` writes to disk via `cli/eval.py`. An earlier spec draft mentioned `results/q/top5`, which conflated the in-memory `run_baseline()` return value with the on-disk file shape; the persisted shape is canonical for this validator.
 
 #### Scenario: Schema mismatch rejected
-- **WHEN** the loaded JSON lacks a top-level `results` array
+- **WHEN** the loaded JSON top level lacks a `questions` array
 - **THEN** the command MUST exit non-zero with an error message naming the missing field
+
+#### Scenario: Question entry missing id rejected
+- **WHEN** any element of `questions` is not an object, or is missing the `id` field
+- **THEN** the command MUST exit non-zero with an error message naming the offending index
 
 #### Scenario: File size limit enforced
 - **WHEN** the baseline JSON file exceeds 10 megabytes
 - **THEN** the command MUST exit non-zero before parsing JSON
 - **AND** the error MUST mention the size limit
 
+#### Scenario: Oversized string field rejected
+- **WHEN** any string anywhere in the parsed baseline-output exceeds 64 kilobytes
+- **THEN** the command MUST exit non-zero with an error naming the JSON path of the offending string
+
 #### Scenario: Control characters stripped from console output
-- **WHEN** a baseline `top5` element contains the string `"\x1b[2J<fake success>"`
+- **WHEN** a baseline hit `title` contains the string `"\x1b[2J<fake success>"`
 - **THEN** the printed comparison line MUST NOT contain `\x1b` (ANSI escape) or other control bytes
 - **AND** the printed text MUST equal `<fake success>`
 
 #### Scenario: Path must be regular file
-- **WHEN** `--baseline-output` is given a directory path or symlink to /dev/null
-- **THEN** the command MUST exit non-zero with an error mentioning regular-file requirement
+- **WHEN** `--baseline-output` is given a directory path
+- **THEN** the command MUST exit non-zero with an error mentioning the regular-file requirement
 
 ## REMOVED Requirements
 
