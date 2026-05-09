@@ -28,7 +28,9 @@ coverage.xml
 
 # Local secrets / env
 .env
-.env.local
+.env.*
+!.env.example
+.envrc
 *.key
 
 # Wenji runtime caches
@@ -48,3 +50,6 @@ coverage.xml
 *.tar.gz
 *.rej
 *.orig
+
+# Spectra app data
+.spectra/
