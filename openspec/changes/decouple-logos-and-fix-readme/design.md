@@ -2,7 +2,7 @@
 
 ## Context
 
-wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app.py），CORS 預設 origin 也綁死該 domain。`wenji ingest from-logos-db` adapter 與 `wenji eval sanity-eyeball --logos-r13` 兩個 CLI surface 將「logos」當作功能識別字，前者僅一名使用者使用、後者通用功能但命名綁死。新 README 草稿三個視角審查（中立稽核 / 紅隊 / 邊界）共 17 項問題待修。
+wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templates + app.py），CORS 預設 origin 也綁死該 domain。`wenji ingest from-logos-db` adapter 與 `wenji eval sanity-eyeball --logos-r13` 兩個 CLI surface 將「logos」當作功能識別字，前者僅一名使用者使用、後者通用功能但命名綁死。新 README 草稿三個視角審查（中立稽核 / 紅隊 / 邊界）共 17 項問題待修。
 
 **約束**：
 - wenji 尚未發行至 PyPI，BREAKING change 影響面極小
@@ -137,7 +137,7 @@ wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app
 
 ### D8: URL host whitelist + IDN normalisation
 
-紅隊 G1 審查（CR-1）指出單純 scheme 驗證會被 `https://attacker.com@logos.jacobmei.com`、IDN homograph、cloud metadata IP（`169.254.169.254`）、CRLF（`\r\n`）注入繞過。
+紅隊 G1 審查（CR-1）指出單純 scheme 驗證會被 `https://attacker.com@your-deployment.example.com`、IDN homograph、cloud metadata IP（`169.254.169.254`）、CRLF（`\r\n`）注入繞過。
 
 **選項：**
 1. 白名單 scheme + 任意 host（原 design）
@@ -243,7 +243,7 @@ wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app
 
 ## Risks / Trade-offs
 
-- **[Risk] 主公自己的 logos 部署 CORS 在 deploy 後拒絕請求** → Mitigation：在 logos 部署的 `.env` 顯式設 `WENJI_CORS_ORIGINS=https://logos.jacobmei.com`。建議 apply 期間同步更新主公 logos production 的 env（或寫一段「主公部署 checklist」備註）
+- **[Risk] 主公自己的 logos 部署 CORS 在 deploy 後拒絕請求** → Mitigation：在 logos 部署的 `.env` 顯式設 `WENJI_CORS_ORIGINS=https://your-deployment.example.com`。建議 apply 期間同步更新主公 logos production 的 env（或寫一段「主公部署 checklist」備註）
 - **[Risk] B3 metadata key 改名後既有 r0 JSON load 失敗** → Mitigation：D6 的 backward-compat 讀取分支
 - **[Risk] B2 `--logos-r13` flag 改名後既有 shell history / 文件失效** → Mitigation：CHANGELOG BREAKING 說明，主公個人 workflow 同步更新
 - **[Risk] 模板條件 block 寫錯導致 SEO meta 殘留** → Mitigation：在 G3 加上 grep 檢查（`rg "logos\.jacobmei" src/ tests/`）回 0 為通過條件
@@ -256,7 +256,7 @@ wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app
 - 沒有 systemd 自啟（`rag-server.service` 存在但 disabled）、沒有 cron / webhook / GitHub Actions auto-deploy
 - Deploy 觸發：主公手動跑一段 bash command（`git pull origin main && sudo fuser -k 8001/tcp && nohup ... uvicorn ...`）
 - Env 配置方式：**inline command line**（不是 `.env` 檔）——env vars 直接寫在 nohup 前
-- 既有 env：`WENJI_CORS_ORIGINS=https://logos.jacobmei.com` 已顯式設
+- 既有 env：`WENJI_CORS_ORIGINS=https://your-deployment.example.com` 已顯式設
 
 意味著：
 - **無 auto-deploy hook 需要暫停** — 主公自己決定何時 pull + restart
@@ -281,14 +281,14 @@ wenji 目前有 11 處對外暴露的 `logos.jacobmei.com` URL（templates + app
 4. **主公 logos production 切換（主公自行決定時機，本 change 不阻擋）：**
    4.1 主公更新自己慣用的 deploy bash command，加上新 SEO env vars：
        ```bash
-       ... WENJI_CORS_ORIGINS=https://logos.jacobmei.com \
-           WENJI_SITE_URL=https://logos.jacobmei.com \
-           WENJI_SITE_NAME=Logos \
-           WENJI_OG_IMAGE_URL=https://logos.jacobmei.com/static/og-image.png \
+       ... WENJI_CORS_ORIGINS=https://your-deployment.example.com \
+           WENJI_SITE_URL=https://your-deployment.example.com \
+           WENJI_SITE_NAME=<your-brand> \
+           WENJI_OG_IMAGE_URL=https://your-deployment.example.com/static/og-image.png \
            uvicorn wenji.web.app:app --host 0.0.0.0 --port 8001
        ```
    4.2 主公手動跑 deploy command（git pull + fuser -k + nohup uvicorn）
-   4.3 curl 驗證：搜尋頁 canonical/og/JSON-LD 仍正確、CORS 仍允許 logos.jacobmei.com、`/robots.txt` 含 sitemap line、`/sitemap.xml` 仍 200
+   4.3 curl 驗證：搜尋頁 canonical/og/JSON-LD 仍正確、CORS 仍允許 your-deployment.example.com、`/robots.txt` 含 sitemap line、`/sitemap.xml` 仍 200
 
 **Rollback：**
 - Phase 內失敗 → `git revert` 該 phase commit（D11 列出每 phase commit 訊息）

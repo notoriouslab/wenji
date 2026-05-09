@@ -560,7 +560,7 @@ def test_robots_txt_with_site_url_contains_sitemap_line(populated_db, tmp_path, 
     assert r.status_code == 200
     assert "Sitemap: https://wenji.example.com/sitemap.xml" in r.text
     assert "Allow: /" in r.text
-    assert "logos.jacobmei" not in r.text
+    assert "logos" not in r.text.lower()
 
 
 def test_sitemap_xml_unset_returns_404(populated_db, tmp_path, monkeypatch):
@@ -577,7 +577,7 @@ def test_sitemap_xml_with_site_url_uses_that_url(populated_db, tmp_path, monkeyp
     r = c.get("/sitemap.xml")
     assert r.status_code == 200
     assert "<loc>https://wenji.example.com/</loc>" in r.text
-    assert "logos.jacobmei" not in r.text
+    assert "logos" not in r.text.lower()
 
 
 def test_llms_txt_unset_returns_404(populated_db, tmp_path, monkeypatch):
@@ -598,7 +598,7 @@ def test_llms_txt_with_site_url_uses_branded_name(populated_db, tmp_path, monkey
     assert r.status_code == 200
     assert "My Wenji Knowledge Engine" in r.text
     assert "https://wenji.example.com/" in r.text
-    assert "logos.jacobmei" not in r.text
+    assert "logos" not in r.text.lower()
 
 
 def test_invalid_site_url_scheme_fails_create_app(populated_db, tmp_path, monkeypatch):

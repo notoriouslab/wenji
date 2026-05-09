@@ -220,7 +220,7 @@ def _clear_overrides(monkeypatch):
 
 def test_d8_userinfo_rejected(monkeypatch):
     _clear_overrides(monkeypatch)
-    monkeypatch.setenv("WENJI_SITE_URL", "https://attacker.com@logos.jacobmei.com/")
+    monkeypatch.setenv("WENJI_SITE_URL", "https://attacker.com@example.com/")
     with pytest.raises(RuntimeError, match="userinfo"):
         load_branding_from_env()
 
@@ -264,7 +264,7 @@ def test_d8_non_ascii_hostname_rejected_homograph(monkeypatch):
     """Greek-omicron in `cοm` (U+03BF). Non-ASCII hostname rule rejects all IDN
     forms; callers must pre-punycode their domain to xn--... before setting env."""
     _clear_overrides(monkeypatch)
-    monkeypatch.setenv("WENJI_SITE_URL", "https://logos.jacobmei.cοm/")
+    monkeypatch.setenv("WENJI_SITE_URL", "https://wenji.exampl.cοm/")
     with pytest.raises(RuntimeError, match="non-ASCII"):
         load_branding_from_env()
 
@@ -392,17 +392,18 @@ def test_d8_http_cors_dev_override_does_not_relax_other_rules(monkeypatch):
         load_cors_origins_from_env()
 
 
-def test_d8_prod_happy_path_accepts_logos_domain(monkeypatch):
-    """The production deploy command's three branding env values MUST pass the
-    whitelist; this is a regression guard against accidental over-tightening."""
+def test_d8_typical_production_deployment_happy_path(monkeypatch):
+    """Typical production deployment env values MUST pass the whitelist; this
+    is a regression guard against accidental over-tightening that would break
+    real deploys."""
     _clear_overrides(monkeypatch)
-    monkeypatch.setenv("WENJI_SITE_URL", "https://logos.jacobmei.com")
-    monkeypatch.setenv("WENJI_SITE_NAME", "Logos")
-    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "https://logos.jacobmei.com/static/og.png")
-    monkeypatch.setenv("WENJI_CORS_ORIGINS", "https://logos.jacobmei.com")
+    monkeypatch.setenv("WENJI_SITE_URL", "https://wenji.example.com")
+    monkeypatch.setenv("WENJI_SITE_NAME", "My Wenji")
+    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "https://wenji.example.com/static/og.png")
+    monkeypatch.setenv("WENJI_CORS_ORIGINS", "https://wenji.example.com")
     b = load_branding_from_env()
-    assert b.site_url == "https://logos.jacobmei.com"
-    assert b.site_name == "Logos"
-    assert b.og_image_url == "https://logos.jacobmei.com/static/og.png"
+    assert b.site_url == "https://wenji.example.com"
+    assert b.site_name == "My Wenji"
+    assert b.og_image_url == "https://wenji.example.com/static/og.png"
     from wenji.web.branding import load_cors_origins_from_env
-    assert load_cors_origins_from_env() == ["https://logos.jacobmei.com"]
+    assert load_cors_origins_from_env() == ["https://wenji.example.com"]

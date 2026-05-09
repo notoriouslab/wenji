@@ -36,7 +36,7 @@ The system SHALL only emit canonical, og:*, and JSON-LD schema metadata when the
 The system SHALL parse `WENJI_SITE_URL` via `urllib.parse.urlsplit` at startup and reject the following unsafe forms with hard startup failure: presence of userinfo (username/password), hostname inside RFC1918 / loopback / link-local private ranges (IPv4) and equivalent IPv6 ranges (`::1`, `fe80::/10`, `fc00::/7`) detected via `ipaddress` module, IDN homograph (Unicode hostname whose `idna.encode` round-trip differs from input), control characters (`\x00-\x1f\x7f`), percent-encoding in host or path (any `%` substring in raw input), hostname longer than 253 characters (RFC 1035), and non-default ports (anything other than absent / 80 / 443). An undocumented `WENJI_ALLOW_PRIVATE_HOST=1` env override SHALL bypass the private-IP check for internal deployments only. An undocumented `WENJI_ALLOW_NONSTANDARD_PORT=1` env override SHALL allow ports in the range 1024-65535 to support PaaS routing (Fly.io / Cloud Run / ngrok).
 
 #### Scenario: Userinfo rejected
-- **WHEN** the server starts with `WENJI_SITE_URL=https://attacker.com@logos.jacobmei.com/`
+- **WHEN** the server starts with `WENJI_SITE_URL=https://attacker.com@example.com/`
 - **THEN** startup MUST fail with an error mentioning userinfo
 - **AND** the server MUST NOT bind a port
 
@@ -46,7 +46,7 @@ The system SHALL parse `WENJI_SITE_URL` via `urllib.parse.urlsplit` at startup a
 - **AND** the server MUST NOT bind a port
 
 #### Scenario: IDN homograph rejected
-- **WHEN** the server starts with `WENJI_SITE_URL=https://logos.jacobmei.cοm/` (Greek omicron in `cοm`)
+- **WHEN** the server starts with `WENJI_SITE_URL=https://wenji.exampl.cοm/` (Greek omicron in `cοm`; the `wenji.example.com` ASCII domain looks identical)
 - **THEN** startup MUST fail with an error mentioning IDN/punycode mismatch
 
 #### Scenario: Control character rejected
@@ -195,7 +195,7 @@ The `/robots.txt` endpoint SHALL emit `User-agent: *\nDisallow: /` when `WENJI_S
 #### Scenario: robots.txt with site URL
 - **WHEN** GET `/robots.txt` and `WENJI_SITE_URL=https://wenji.example.com`
 - **THEN** the response body MUST equal exactly `User-agent: *\nAllow: /\nSitemap: https://wenji.example.com/sitemap.xml\n`
-- **AND** the response MUST NOT contain `logos.jacobmei.com`
+- **AND** the response MUST NOT contain any private deployment hostname
 
 ### Requirement: sitemap.xml and llms.txt require site URL
 
@@ -213,13 +213,12 @@ The `/sitemap.xml` and `/llms.txt` endpoints SHALL return 404 when `WENJI_SITE_U
 #### Scenario: sitemap.xml with site URL
 - **WHEN** GET `/sitemap.xml` and `WENJI_SITE_URL=https://x.com`
 - **THEN** the XML body MUST contain `<loc>https://x.com/</loc>`
-- **AND** MUST NOT contain `logos.jacobmei.com`
+- **AND** MUST NOT contain any private deployment hostname
 
-### Requirement: No logos.jacobmei.com hardcoded references remain in source
+### Requirement: No private deployment URLs hardcoded in source
 
-The repository SHALL contain zero occurrences of the string `logos.jacobmei.com` in `src/`, `tests/`, `docs/`, `README.md`, `CHANGELOG.md`, or any template after this change is applied. CI SHALL fail if the string is reintroduced.
+The repository SHALL contain zero hardcoded private deployment URLs (the maintainer's production hostname or any forker-specific brand URL) in `src/`, `tests/`, `docs/`, `README.md`, `CHANGELOG.md`, or any template after this change is applied. All deployment URLs MUST be supplied via env vars (`WENJI_SITE_URL` etc.); test fixtures MUST use `wenji.example.com` or `example.com` placeholders.
 
-#### Scenario: grep returns zero matches
-- **WHEN** `rg "logos\.jacobmei\.com" src/ tests/ docs/ README.md CHANGELOG.md` is executed
-- **THEN** the exit code MUST be 1 (no matches)
-- **AND** the output MUST be empty
+#### Scenario: grep returns zero matches for the maintainer's deploy host
+- **WHEN** the maintainer runs their pre-release brand-leak audit against `src/`, `tests/`, `docs/`, `README.md`, and `CHANGELOG.md`
+- **THEN** the audit MUST find zero hardcoded references to their production hostname
