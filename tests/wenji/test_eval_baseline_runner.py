@@ -79,7 +79,7 @@ def test_run_benchmark_produces_v2_schema_output(tmp_path):
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["schema_version"] == "v2"
     assert data["pipeline_mode"] == "rag_full"
-    assert "logos_source_commit" in data
+    assert "source_commit" in data
     assert data["top_k_requested"] == 20
     assert len(data["questions"]) == 80
     assert "summary" in data

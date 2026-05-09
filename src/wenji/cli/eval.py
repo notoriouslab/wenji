@@ -146,11 +146,11 @@ def run_benchmark_command(
     import time
 
     from wenji.eval import run_baseline as _run_baseline_internal
-    from wenji.eval.loader_logos_v2 import load_logos_v2_snapshot
+    from wenji.eval.loader_benchmark_v2 import load_benchmark_v2_snapshot
 
-    cands, meta = load_logos_v2_snapshot(snapshot)
+    cands, meta = load_benchmark_v2_snapshot(snapshot)
     typer.echo(
-        f"loaded {len(cands)} candidates from snapshot (commit={meta.logos_source_commit[:8]})",
+        f"loaded {len(cands)} candidates from snapshot (commit={meta.source_commit[:8]})",
         err=True,
     )
 
@@ -167,7 +167,7 @@ def run_benchmark_command(
     )
     elapsed = time.time() - t0
 
-    # Wrap in logos-v2-compatible run output schema.
+    # Wrap in benchmark-v2-compatible run output schema.
     suffix = "_rewrite_on" if rewrite_enabled else "_rewrite_off"
     run_id = f"wenji_r0_{datetime.date.today().isoformat()}{suffix}"
     wenji_version = _detect_wenji_version()
@@ -175,7 +175,7 @@ def run_benchmark_command(
         "run_id": run_id,
         "schema_version": "v2",
         "wenji_version": wenji_version,
-        "logos_source_commit": meta.logos_source_commit,
+        "source_commit": meta.source_commit,
         "snapshot_taken_at": meta.snapshot_taken_at,
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "pipeline_mode": pipeline_mode,

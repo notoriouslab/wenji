@@ -10,7 +10,7 @@ def _sample_run() -> dict:
         "run_id": "wenji_r0_2026-05-03",
         "schema_version": "v2",
         "wenji_version": "0.3.1",
-        "logos_source_commit": "413642afa95ccc824d72a41c427b94f2cbc2e10c",
+        "source_commit": "413642afa95ccc824d72a41c427b94f2cbc2e10c",
         "snapshot_taken_at": "2026-05-03",
         "date": "2026-05-03T10:00:00+00:00",
         "pipeline_mode": "rag_full",
@@ -54,7 +54,7 @@ def test_report_has_six_sections():
     assert "## 2. Summary Metrics" in md
     assert "## 3. Sanity Check Results" in md
     assert "## 4. Per-Question Verdict" in md
-    assert "## 5. wenji_r0 vs logos_r13 Overlap Distribution" in md
+    assert "## 5. wenji_r0 vs Reference Baseline Overlap Distribution" in md
     assert "## 6. examples/eval.jsonl Schema Migration Appendix" in md
 
 
