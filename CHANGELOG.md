@@ -7,99 +7,39 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added (v0.3.7 — in progress, decouple-logos-and-fix-readme)
+### Added (v0.3.7)
 
-- **`wenji.web.branding` module** — env-driven SEO meta + brand text loader.
-  Three optional env vars validated at startup; unset = no SEO meta rendered
-  (safest default for fork-friendly distribution):
-  - `WENJI_SITE_URL` — enables canonical / og:* / JSON-LD output; HTTPS only;
-    trailing slash stripped on load. Full host whitelist (IDN, IPv6,
-    percent-encoding, length DoS, port restriction, RFC1918 / loopback /
-    link-local rejection) is the next milestone (task 2.1) and is **NOT**
-    yet implemented in this minimal validator — do not deploy on a host
-    where attacker can inject env vars without isolation.
-  - `WENJI_SITE_NAME` — brand text (max 256 chars, rejects HTML
-    metacharacters `< > " ' \r \n` at startup to prevent stored XSS via env
-    injection).
-  - `WENJI_OG_IMAGE_URL` — og:image content; same HTTPS validation.
-- **Branding-aware routes**:
-  - `/robots.txt` — unset `WENJI_SITE_URL` → conservative deny
-    (`User-agent: *\nDisallow: /\n`); set → permissive policy with
-    `Sitemap: <site_url>/sitemap.xml`.
-  - `/sitemap.xml` — unset → 404; set → minimal urlset with site_url base.
-  - `/llms.txt` — unset → 404; set → uses site_name (or "wenji") +
-    site_url.
-- **Templates rebrandable**: all hardcoded `logos.jacobmei.com` / `LOGOS` /
-  `Logos Knowledge Engine` strings in `base.html`, `index.html`,
-  `article.html` replaced with `site_name` / `site_url` template variables
-  that fall back to neutral "wenji" when unset. JSON-LD blocks now use
-  `{{ ... | tojson }}` so any user-controlled branding values are unicode
-  escaped (`<` → `<`) inside `<script>` context (Jinja2 HTML
-  autoescape does not protect script bodies).
-- **`.env.example` template** at repo root with all `WENJI_*` env vars
-  documented and `# DO NOT COMMIT` warning.
-- **D10 baseline JSON validator** for `wenji eval sanity-eyeball
-  --baseline-output`: pre-parse 10 MB file size cap, regular-file path
-  check, top-level schema (`questions[].id` + optional
-  `article_results|hits` arrays), and 64 KB per-string cap anywhere in
-  the structure. Plus `[\x00-\x08\x0b-\x1f\x7f]` control-character
-  strip on every value before stdout print (CR + DEL + ANSI ESC
-  removed; TAB + LF preserved) to defeat log-injection / CRLF-injection
-  via crafted baseline files.
+- Env-driven branding for fork-friendly deployments: optional
+  `WENJI_SITE_URL`, `WENJI_SITE_NAME`, `WENJI_OG_IMAGE_URL` control SEO
+  meta and brand text. All unset = no SEO meta rendered.
+- `/robots.txt`, `/sitemap.xml`, `/llms.txt` derived from the same env
+  vars (conservative deny when unset).
+- `.env.example` template at repo root.
+- Schema + size validation for `wenji eval sanity-eyeball
+  --baseline-output` (10 MB file cap, 64 KB per-string cap,
+  control-character strip on stdout).
 
-### Changed / BREAKING (v0.3.7 — in progress)
+### Changed / BREAKING (v0.3.7)
 
-- **BREAKING — `wenji ingest from-logos-db` removed**. The adapter
-  (`wenji.ingest.loader_logos_db`) served exactly one private user and is
-  no longer shipped. Maintainers needing to import from a logos schema
-  SQLite must keep a private copy of the loader outside the public repo.
-- **BREAKING — CORS default is now empty (deny all)**. Strict validator
-  rejects `*`, `null`, comma-separated entries containing `*`, and any
-  non-`https://` origin unless the undocumented dev override
-  `WENJI_ALLOW_HTTP_CORS=1` is set. Production deployments MUST
-  explicitly set `WENJI_CORS_ORIGINS=https://your-frontend.example.com`
-  (the maintainer's logos production already does this, so it is
-  unaffected).
-- **BREAKING — `wenji eval sanity-eyeball` flag renamed**: `--logos-r13`
-  → `--baseline-output`. The legacy flag is registered as a hidden
-  option that hard-fails (exit 2) with an error message naming the new
-  flag. Console output strings ("logos top-5:") and dataclass fields
-  (`PerQuestionOverlap.logos_count`, `SubjectiveSample.logos_top5`)
-  renamed to `baseline_*`.
-- **BREAKING — `wenji.eval.loader_logos_v2` module renamed** to
-  `wenji.eval.loader_benchmark_v2`. Import path
-  `from wenji.eval.loader_logos_v2 import …` raises `ModuleNotFoundError`.
-  The dataclass field `SnapshotMetadata.logos_source_commit` and the
-  benchmark snapshot JSON key with the same name are renamed to
-  `source_commit` with no backward compat (loader hard-errors when the
-  legacy key is the only one present); pre-existing private
-  `wenji_r0_*.json` outputs require in-place migration via
-  `jq '.metadata.source_commit = .metadata.logos_source_commit |
-  del(.metadata.logos_source_commit)'`.
+- **BREAKING**: CORS default is now empty (deny all). Production
+  deployments must set `WENJI_CORS_ORIGINS=https://your-frontend`.
+- **BREAKING**: `wenji ingest from-logos-db` removed.
+- **BREAKING**: `wenji eval sanity-eyeball --logos-r13` renamed to
+  `--baseline-output`.
+- **BREAKING**: `wenji.eval.loader_logos_v2` renamed to
+  `wenji.eval.loader_benchmark_v2`; benchmark snapshot metadata key
+  `logos_source_commit` renamed to `source_commit` (no backward compat —
+  pre-existing baseline JSONs need an in-place key rename).
 
-### Documentation (v0.3.7 — in progress)
+### Documentation (v0.3.7)
 
-- **README.md rewritten** following readme_framework 10-layer structure
-  (繁體中文 first, English fallback, hero centred). All `logos`
-  references removed; quickstart fixed
-  (`git clone … && pip install -e .`, `wenji ingest dir
-  examples/articles/`, `wenji download-model`); test count updated to
-  634 unit + 7 integration = 641; `axes.yaml` example aligned with
-  `examples/axes.yaml` ground truth (includes the optional
-  `description:` field); production checklist, LLM failure fallback,
-  schema migration, platform support matrix, HF mirror, `.env`
-  workflow, branding env vars all documented.
-- **`.gitignore`** adds `.env.*` and `.envrc`; whitelists `.env.example`.
-- **OpenSpec change `decouple-logos-and-fix-readme`** added under
-  `openspec/changes/` documenting the full 5-phase plan, retreat
-  protocol, and dual-round G1 review history.
+- README.md rewritten — 繁中 first / English fallback, fork-friendly
+  quickstart, `axes.yaml` example aligned with `examples/axes.yaml`.
 
-### Fixed (v0.3.7 — in progress)
+### Fixed (v0.3.7)
 
-- **`src/wenji/search/__init__.py` missing `import re`** — the
-  `_strip_markdown_for_snippet` helper was raising `NameError` at runtime
-  whenever called, masking three further test failures behind the import
-  error. Added the missing import.
+- `wenji.search.__init__` missing `import re` — `_strip_markdown_for_snippet`
+  was raising `NameError` at runtime.
 
 ### Fixed (v0.3.6.1)
 

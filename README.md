@@ -86,16 +86,22 @@ wenji serve --db wenji.db --port 8000
 > - 設 `WENJI_API_KEY=<random-32-bytes>` 開啟 API key auth；同時關掉 `/docs` `/openapi.json` 自動文件（沒設 API key 時這兩個端點公開）
 > - 設 `WENJI_CORS_ORIGINS=https://your-frontend.example.com`（預設 empty 拒所有 cross-origin）
 > - 綁 `127.0.0.1` 走反代（nginx / Caddy）+ 反代層做 rate limit（`/api/ask` 一次呼叫等於一次 LLM 計費）
+> - Docker / systemd：用 `EnvironmentFile=/etc/wenji.env` 載入 `WENJI_*`（不要 inline `Environment=` 或 docker `-e`，會被 `systemctl show` / `ps` 看到）
 > - `axes.yaml` 為選配；缺檔不影響 ingest/search，只是 sidebar 不會有分軸
 
 #### 場景 3：選配 LLM query rewrite
 
 ```bash
-export WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
-export WENJI_LLM_API_KEY=<your-key>
-export WENJI_LLM_MODEL=llama-3.3-70b-versatile
+# 複製 .env.example 為 .env 後填入下列值（請勿 commit；.gitignore 已內建）：
+#   WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
+#   WENJI_LLM_API_KEY=<your-key>
+#   WENJI_LLM_MODEL=llama-3.3-70b-versatile
+
+direnv allow .   # 或 `source .env`，二選一載入
 wenji serve --db wenji.db
 ```
+
+詳細的 `.env` 安全建議（不要 `export` 進 shell rc、不要 `-e` 給 docker）見「進階設定 → LLM Query Rewrite」。
 
 rewrite 格式：1-3 組關鍵詞以 `|` 分隔（BM25-friendly）；結果 SQLite cache（預設 30 天 TTL）。
 
@@ -342,7 +348,7 @@ pytest -m integration              # 真實 ONNX（需下載 ~600 MB）
 | **Indexing cost** | **Zero LLM calls.** Deterministic, byte-identical rebuild from disk. |
 | **LLM use** | Optional, query-time only, cached, with a structured fallback that works without any LLM. |
 | **Deploy size** | One Python process, one SQLite file. No external services. |
-| **Tested on** | Python 3.10 / 3.11 / 3.12 — 641 tests (634 unit + 7 integration). |
+| **Tested on** | Python 3.10 / 3.11 / 3.12 — 641 tests (634 unit + 7 integration). 3.13 not yet supported (`pyproject.toml` pins `requires-python = ">=3.10,<3.13"`). |
 
 ### Why wenji?
 
