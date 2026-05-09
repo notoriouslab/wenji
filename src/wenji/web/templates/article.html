@@ -1,48 +1,50 @@
 {% extends "base.html" %}
 
 {% block title %}
-{{ article.title or '(無標題)' }} — LOGOS
+{{ article.title or '(無標題)' }} — {{ site_name or "wenji" }}
 {% endblock %}
 
 {% block description %}{{ article.description or article.title }}{% endblock %}
 
 {% block extra_meta %}
-  <link rel="canonical" href="https://logos.jacobmei.com/article/{{ article.article_id }}">
+  {% if site_url %}
+  <link rel="canonical" href="{{ site_url|e }}/article/{{ article.article_id|e }}">
   <!-- OpenGraph / AEO -->
-  <meta property="og:site_name" content="LOGOS">
+  <meta property="og:site_name" content="{{ (site_name or 'wenji')|e }}">
   <meta property="og:title" content="{{ article.title|e }}">
   <meta property="og:description" content="{{ (article.description or article.title)|e }}">
-  <meta property="og:url" content="https://logos.jacobmei.com/article/{{ article.article_id }}">
+  <meta property="og:url" content="{{ site_url|e }}/article/{{ article.article_id|e }}">
   <meta property="og:type" content="article">
-  <meta property="og:image" content="https://logos.jacobmei.com/static/og-image.png">
-  
+  {% if og_image_url %}
+  <meta property="og:image" content="{{ og_image_url|e }}">
+  {% endif %}
+
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ article.title|e }}">
   <meta name="twitter:description" content="{{ (article.description or article.title)|e }}">
-  
-  <script type="application/ld+json">
-  {
+
+  <script type="application/ld+json">{{ {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": "{{ article.title|e }}",
-    "description": "{{ (article.description or article.title)|e }}",
+    "headline": article.title,
+    "description": article.description or article.title,
     "author": {
       "@type": "Person",
-      "name": "{{ article.author or 'LOGOS' }}"
+      "name": article.author or (site_name or "wenji")
     },
-    "datePublished": "{{ article.pub_date or '' }}",
-    "url": "https://logos.jacobmei.com/article/{{ article.article_id }}",
+    "datePublished": article.pub_date or "",
+    "url": site_url + "/article/" + (article.article_id|string),
     "publisher": {
       "@type": "Organization",
-      "name": "LOGOS",
+      "name": site_name or "wenji",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://logos.jacobmei.com/static/logo.png"
-      }
+        "url": og_image_url
+      } if og_image_url else None
     }
-  }
-  </script>
+  } | tojson }}</script>
+  {% endif %}
 {% endblock %}
 
 {% block search_mini %}

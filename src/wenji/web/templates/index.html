@@ -1,23 +1,23 @@
 {% extends "base.html" %}
 
 {% block title %}
-Logos Knowledge Engine{% if q %} — {{ q }}{% endif %}
+{{ site_name or "wenji" }} Knowledge Engine{% if q %} — {{ q }}{% endif %}
 {% endblock %}
 
 {% block extra_meta %}
-<script type="application/ld+json">
-{
+{% if site_url %}
+<script type="application/ld+json">{{ {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": "Logos Knowledge Engine",
-  "url": "https://logos.jacobmei.com",
+  "name": (site_name or "wenji") + " Knowledge Engine",
+  "url": site_url,
   "potentialAction": {
     "@type": "SearchAction",
-    "target": "https://logos.jacobmei.com/?q={search_term_string}",
+    "target": site_url + "/?q={search_term_string}",
     "query-input": "required name=search_term_string"
   }
-}
-</script>
+} | tojson }}</script>
+{% endif %}
 {% endblock %}
 
 {% block content %}

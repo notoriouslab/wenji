@@ -28,7 +28,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,11 +37,12 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
 from wenji.ask import Asker
+from wenji.browse.tag import TagBrowser
 from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, WenjiError
 from wenji.search import Searcher
-from wenji.browse.tag import TagBrowser
+from wenji.web.branding import load_branding_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +88,8 @@ def _markdown_renderer():
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
         try:
-            from mdit_py_plugins.front_matter import front_matter_plugin
             from mdit_py_plugins.footnote import footnote_plugin
+            from mdit_py_plugins.front_matter import front_matter_plugin
         except ImportError:
             front_matter_plugin = None
             footnote_plugin = None
@@ -101,7 +102,7 @@ def _markdown_renderer():
             _MD_RENDERER.use(front_matter_plugin)
         if footnote_plugin:
             _MD_RENDERER.use(footnote_plugin)
-            
+
     return _MD_RENDERER
 
 
@@ -230,6 +231,14 @@ def create_app(
     # (Cloudflare, nginx) for per-IP throttling.
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+    # Branding env vars (all optional). Validated at startup so misconfiguration
+    # cannot reach a serving process. Unset = no SEO meta rendered, brand text
+    # falls back to neutral "wenji". See src/wenji/web/branding.py.
+    branding = load_branding_from_env()
+    templates.env.globals["site_url"] = branding.site_url
+    templates.env.globals["site_name"] = branding.site_name
+    templates.env.globals["og_image_url"] = branding.og_image_url
 
     state: dict[str, Any] = {
         "db_path": Path(db_path)
@@ -441,52 +450,61 @@ def create_app(
             "searcher_ready": state["searcher"] is not None,
         }
 
-    @app.get("/robots.txt", response_class=HTMLResponse)
-    def robots_txt() -> str:
-        return """User-agent: *
-Allow: /
-Disallow: /api/
-
-# AI Bots
-User-agent: GPTBot
-Allow: /
-User-agent: ChatGPT-User
-Allow: /
-User-agent: Claude-WebCheck
-Allow: /
-User-agent: ClaudeBot
-Allow: /
-User-agent: Google-Extended
-Allow: /
-User-agent: PerplexityBot
-Allow: /
-User-agent: YouBot
-Allow: /
-
-Sitemap: https://logos.jacobmei.com/sitemap.xml
-"""
+    @app.get("/robots.txt", response_class=PlainTextResponse)
+    def robots_txt() -> PlainTextResponse:
+        # When WENJI_SITE_URL is unset, default to conservative deny so private
+        # corpora are not crawled by default. When set, emit a permissive policy
+        # plus a sitemap line for that site.
+        if not branding.site_url:
+            return PlainTextResponse("User-agent: *\nDisallow: /\n")
+        body = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /api/\n"
+            "\n"
+            "# AI Bots\n"
+            "User-agent: GPTBot\nAllow: /\n"
+            "User-agent: ChatGPT-User\nAllow: /\n"
+            "User-agent: Claude-WebCheck\nAllow: /\n"
+            "User-agent: ClaudeBot\nAllow: /\n"
+            "User-agent: Google-Extended\nAllow: /\n"
+            "User-agent: PerplexityBot\nAllow: /\n"
+            "User-agent: YouBot\nAllow: /\n"
+            "\n"
+            f"Sitemap: {branding.site_url}/sitemap.xml\n"
+        )
+        return PlainTextResponse(body)
 
     @app.get("/llms.txt", response_class=PlainTextResponse)
-    def llms_txt() -> str:
-        return """# LOGOS Knowledge Engine
-靈糧堂知識搜尋引擎 - 提供深入、精準的屬靈資源檢索與 AI 彙整。
-
-## Core Links
-- [Home](https://logos.jacobmei.com/)
-- [Sitemap](https://logos.jacobmei.com/sitemap.xml)
-"""
+    def llms_txt() -> PlainTextResponse:
+        if not branding.site_url:
+            raise HTTPException(status_code=404)
+        name = branding.site_name or "wenji"
+        body = (
+            f"# {name} Knowledge Engine\n"
+            "中文 markdown 知識搜尋引擎。\n"
+            "\n"
+            "## Core Links\n"
+            f"- [Home]({branding.site_url}/)\n"
+            f"- [Sitemap]({branding.site_url}/sitemap.xml)\n"
+        )
+        return PlainTextResponse(body)
 
     @app.get("/ai.txt", response_class=PlainTextResponse)
     def ai_txt() -> str:
         return "User-agent: *\nAllow: /article/*.md\nAllow: /article/*\n"
 
-    @app.get("/sitemap.xml", response_class=HTMLResponse)
-    def sitemap_xml() -> str:
-        # Simple static sitemap for demo, ideally dynamic from DB
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://logos.jacobmei.com/</loc><priority>1.0</priority></url>
-</urlset>"""
+    @app.get("/sitemap.xml")
+    def sitemap_xml() -> Response:
+        if not branding.site_url:
+            raise HTTPException(status_code=404)
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"  <url><loc>{branding.site_url}/</loc><priority>1.0</priority></url>\n"
+            "</urlset>"
+        )
+        return Response(content=body, media_type="application/xml")
 
     def _compute_facets(
         conn: sqlite3.Connection,

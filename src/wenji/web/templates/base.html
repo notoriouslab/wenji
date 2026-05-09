@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Logos Knowledge Engine{% endblock %}</title>
+  <title>{% block title %}{{ site_name or "wenji" }} Knowledge Engine{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css?v=2.5">
-  <meta name="description" content="{% block description %}Logos - 靈糧堂知識搜尋引擎。提供深入、精準的屬靈資源檢索與彙整。{% endblock %}">
+  <meta name="description" content="{% block description %}{{ site_name or "wenji" }} — 中文 markdown 知識搜尋引擎。{% endblock %}">
   <meta name="robots" content="index, follow">
   {% block extra_meta %}{% endblock %}
 </head>
@@ -13,7 +13,7 @@
   <div class="backdrop" onclick="closeAllPanels()"></div>
   <header class="topbar">
     <div class="topbar-left">
-      <a href="/" class="brand">LOGOS</a>
+      <a href="/" class="brand">{{ site_name or "wenji" }}</a>
       <nav class="nav-links">
         <a class="nav-item" href="/tags">標籤總覽</a>
         <a class="nav-item" onclick="openPanel('ask-panel')">自由問答</a>

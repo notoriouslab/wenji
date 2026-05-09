@@ -524,3 +524,100 @@ def test_searcher_forwards_intent_source_types_env_to_classifier(
 
     assert captured.get("sources") == ["example:corpus-christian"]
     assert captured.get("intent_source_types") == ist_data
+
+
+# --- Branding-aware routes (v0.3.7+, decouple-logos-and-fix-readme phase 1) ---
+
+
+def _make_branded_client(populated_db, tmp_path, monkeypatch, env: dict[str, str]):
+    """Build a TestClient with given branding env vars set, no fake searcher."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    for k in ("WENJI_SITE_URL", "WENJI_SITE_NAME", "WENJI_OG_IMAGE_URL"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    app = create_app(db_path=file_db, searcher=None)
+    return TestClient(app)
+
+
+def test_robots_txt_unset_returns_conservative_deny(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(populated_db, tmp_path, monkeypatch, {})
+    r = c.get("/robots.txt")
+    assert r.status_code == 200
+    assert r.text == "User-agent: *\nDisallow: /\n"
+    assert "logos" not in r.text.lower()
+
+
+def test_robots_txt_with_site_url_contains_sitemap_line(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(
+        populated_db, tmp_path, monkeypatch,
+        {"WENJI_SITE_URL": "https://wenji.example.com/"},
+    )
+    r = c.get("/robots.txt")
+    assert r.status_code == 200
+    assert "Sitemap: https://wenji.example.com/sitemap.xml" in r.text
+    assert "Allow: /" in r.text
+    assert "logos.jacobmei" not in r.text
+
+
+def test_sitemap_xml_unset_returns_404(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(populated_db, tmp_path, monkeypatch, {})
+    r = c.get("/sitemap.xml")
+    assert r.status_code == 404
+
+
+def test_sitemap_xml_with_site_url_uses_that_url(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(
+        populated_db, tmp_path, monkeypatch,
+        {"WENJI_SITE_URL": "https://wenji.example.com"},
+    )
+    r = c.get("/sitemap.xml")
+    assert r.status_code == 200
+    assert "<loc>https://wenji.example.com/</loc>" in r.text
+    assert "logos.jacobmei" not in r.text
+
+
+def test_llms_txt_unset_returns_404(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(populated_db, tmp_path, monkeypatch, {})
+    r = c.get("/llms.txt")
+    assert r.status_code == 404
+
+
+def test_llms_txt_with_site_url_uses_branded_name(populated_db, tmp_path, monkeypatch):
+    c = _make_branded_client(
+        populated_db, tmp_path, monkeypatch,
+        {
+            "WENJI_SITE_URL": "https://wenji.example.com",
+            "WENJI_SITE_NAME": "My Wenji",
+        },
+    )
+    r = c.get("/llms.txt")
+    assert r.status_code == 200
+    assert "My Wenji Knowledge Engine" in r.text
+    assert "https://wenji.example.com/" in r.text
+    assert "logos.jacobmei" not in r.text
+
+
+def test_invalid_site_url_scheme_fails_create_app(populated_db, tmp_path, monkeypatch):
+    """Adversarial: javascript: URL must hard-fail at app creation."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    monkeypatch.setenv("WENJI_SITE_URL", "javascript:alert(1)")
+    with pytest.raises(RuntimeError):
+        create_app(db_path=file_db, searcher=None)
+
+
+def test_site_name_with_html_metacharacter_fails_create_app(populated_db, tmp_path, monkeypatch):
+    """Adversarial: site_name containing </script> must hard-fail at app creation."""
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    monkeypatch.setenv("WENJI_SITE_NAME", "</script><script>alert(1)//")
+    with pytest.raises(RuntimeError):
+        create_app(db_path=file_db, searcher=None)

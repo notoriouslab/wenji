@@ -1,0 +1,103 @@
+"""Tests for branding env loader (v0.3.7 minimal validator).
+
+Covers WENJI_SITE_URL / WENJI_SITE_NAME / WENJI_OG_IMAGE_URL handling.
+Full host whitelist (IDN / IPv6 / percent-encoding / length DoS / port)
+is task 2.1 in decouple-logos-and-fix-readme; this file covers the
+minimal HTTPS-scheme + name char-class validator only.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from wenji.web.branding import Branding, load_branding_from_env
+
+
+def test_all_unset_returns_none(monkeypatch):
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    monkeypatch.delenv("WENJI_SITE_NAME", raising=False)
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    b = load_branding_from_env()
+    assert b == Branding(site_url=None, site_name=None, og_image_url=None)
+
+
+def test_whitespace_only_treated_as_unset(monkeypatch):
+    monkeypatch.setenv("WENJI_SITE_URL", "   ")
+    monkeypatch.setenv("WENJI_SITE_NAME", "\t\n")
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    b = load_branding_from_env()
+    assert b.site_url is None
+    assert b.site_name is None
+
+
+def test_https_url_accepted_and_trailing_slash_stripped(monkeypatch):
+    monkeypatch.setenv("WENJI_SITE_URL", "https://wenji.example.com/")
+    monkeypatch.delenv("WENJI_SITE_NAME", raising=False)
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    b = load_branding_from_env()
+    assert b.site_url == "https://wenji.example.com"
+
+
+def test_non_https_scheme_rejected(monkeypatch):
+    monkeypatch.setenv("WENJI_SITE_URL", "javascript:alert(1)")
+    with pytest.raises(RuntimeError, match="https://"):
+        load_branding_from_env()
+
+
+def test_http_scheme_rejected(monkeypatch):
+    monkeypatch.setenv("WENJI_SITE_URL", "http://example.com")
+    with pytest.raises(RuntimeError, match="https://"):
+        load_branding_from_env()
+
+
+def test_og_image_url_same_validation(monkeypatch):
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    monkeypatch.delenv("WENJI_SITE_NAME", raising=False)
+    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "ftp://example.com/og.png")
+    with pytest.raises(RuntimeError, match="https://"):
+        load_branding_from_env()
+
+
+def test_site_name_accepted(monkeypatch):
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    monkeypatch.setenv("WENJI_SITE_NAME", "My Wenji")
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    b = load_branding_from_env()
+    assert b.site_name == "My Wenji"
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        "</script>",
+        '<script>alert(1)</script>',
+        'name with " quote',
+        "name with ' apostrophe",
+        "with\rcarriage",
+        "with\nnewline",
+    ],
+)
+def test_site_name_forbidden_chars_rejected(monkeypatch, bad_value):
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    monkeypatch.setenv("WENJI_SITE_NAME", bad_value)
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="forbidden character"):
+        load_branding_from_env()
+
+
+def test_site_name_oversized_rejected(monkeypatch):
+    monkeypatch.delenv("WENJI_SITE_URL", raising=False)
+    monkeypatch.setenv("WENJI_SITE_NAME", "a" * 257)
+    monkeypatch.delenv("WENJI_OG_IMAGE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="exceeds"):
+        load_branding_from_env()
+
+
+def test_full_set(monkeypatch):
+    monkeypatch.setenv("WENJI_SITE_URL", "https://wenji.example.com")
+    monkeypatch.setenv("WENJI_SITE_NAME", "My Wenji")
+    monkeypatch.setenv("WENJI_OG_IMAGE_URL", "https://wenji.example.com/og.png")
+    b = load_branding_from_env()
+    assert b.site_url == "https://wenji.example.com"
+    assert b.site_name == "My Wenji"
+    assert b.og_image_url == "https://wenji.example.com/og.png"
