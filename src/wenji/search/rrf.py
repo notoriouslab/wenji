@@ -10,10 +10,14 @@ contribution when ``source_type`` is in the boost set.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any
 
+from wenji.core.errors import SearchError
 from wenji.search.bm25 import build_fts_query
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RRF_K = 60
 
@@ -133,8 +137,9 @@ def chunk_bm25_search(
             "ORDER BY rs ASC LIMIT ?",
             (fts_query, raw_limit),
         ).fetchall()
-    except sqlite3.OperationalError:
-        return {}
+    except sqlite3.OperationalError as exc:
+        logger.warning("chunks_fts query failed: %s", exc, exc_info=True)
+        raise SearchError(f"chunks_fts query failed: {exc}") from exc
 
     best: dict[str, float] = {}
     for aid, rs in rows:

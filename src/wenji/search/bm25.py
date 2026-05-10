@@ -10,10 +10,13 @@ Excludes ``category = 'excluded'`` by default. Optional ``axis`` filter joins
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any
 
 from wenji.core.errors import SearchError
+
+logger = logging.getLogger(__name__)
 
 
 def build_fts_query(raw: str, *, column: str | None = None) -> str:
@@ -105,6 +108,7 @@ def bm25_search(
     try:
         rows = conn.execute("".join(sql_parts), params).fetchall()
     except sqlite3.OperationalError as exc:
+        logger.warning("articles_fts query failed: %s", exc, exc_info=True)
         raise SearchError(f"FTS5 query failed: {exc}") from exc
 
     norms = _normalise_bm25_scores(rows)
