@@ -1,7 +1,7 @@
 {
-  "logos_source_commit": "413642afa95ccc824d72a41c427b94f2cbc2e10c",
+  "source_commit": "413642afa95ccc824d72a41c427b94f2cbc2e10c",
   "snapshot_taken_at": "2026-05-03",
-  "snapshot_source_path": "tests/benchmark_80.json (logos repo)",
+  "snapshot_source_path": "upstream benchmark v2 80q",
   "version": "R8",
   "date": "2026-03-22",
   "description": "80 題福音問答品質測試集，18 個主題，涵蓋神學、護教、文化、社會議題",

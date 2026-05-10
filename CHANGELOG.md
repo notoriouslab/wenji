@@ -7,6 +7,44 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (v0.3.7)
+
+- Env-driven branding for fork-friendly deployments: optional
+  `WENJI_SITE_URL`, `WENJI_SITE_NAME`, `WENJI_OG_IMAGE_URL` control SEO
+  meta and brand text. All unset = no SEO meta rendered. URL values are
+  validated by a host whitelist at startup (rejects userinfo / private
+  IP / loopback / link-local / non-ASCII host / non-default port /
+  control characters / percent-encoding); the same whitelist applies to
+  each `WENJI_CORS_ORIGINS` element.
+- `/robots.txt`, `/sitemap.xml`, `/llms.txt` derived from the same env
+  vars (conservative deny when unset).
+- `.env.example` template at repo root.
+- Schema + size validation for `wenji eval sanity-eyeball
+  --baseline-output` (10 MB file cap, 64 KB per-string cap,
+  control-character strip on stdout).
+
+### Changed / BREAKING (v0.3.7)
+
+- **BREAKING**: CORS default is now empty (deny all). Production
+  deployments must set `WENJI_CORS_ORIGINS=https://your-frontend`.
+- **BREAKING**: `wenji ingest from-logos-db` removed.
+- **BREAKING**: `wenji eval sanity-eyeball --logos-r13` renamed to
+  `--baseline-output`.
+- **BREAKING**: `wenji.eval.loader_logos_v2` renamed to
+  `wenji.eval.loader_benchmark_v2`; benchmark snapshot metadata key
+  `logos_source_commit` renamed to `source_commit` (no backward compat —
+  pre-existing baseline JSONs need an in-place key rename).
+
+### Documentation (v0.3.7)
+
+- README.md rewritten — 繁中 first / English fallback, fork-friendly
+  quickstart, `axes.yaml` example aligned with `examples/axes.yaml`.
+
+### Fixed (v0.3.7)
+
+- `wenji.search.__init__` missing `import re` — `_strip_markdown_for_snippet`
+  was raising `NameError` at runtime.
+
 ### Fixed (v0.3.6.1)
 
 - **`QueryRewriter` prompt aligned with logos production** — the

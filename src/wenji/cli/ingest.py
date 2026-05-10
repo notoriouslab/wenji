@@ -1,9 +1,7 @@
 """``wenji ingest`` subapp.
 
 Subcommands:
-- ``dir``: ingest a markdown corpus directory (the original behaviour).
-- ``from-logos-db``: dump a logos sqlite database to a markdown corpus
-  directory ready for ``wenji ingest dir``.
+- ``dir``: ingest a markdown corpus directory.
 
 Note: ``wenji ingest <path>`` (no subcommand) is the legacy form and is no
 longer supported in v0.3.1. Use ``wenji ingest dir <path>`` explicitly.
@@ -67,33 +65,6 @@ def dir_command(
     conn.close()
     typer.echo(json.dumps({"ingested": len(article_ids)}, ensure_ascii=False), err=False)
     sys.exit(0)
-
-
-@app.command("from-logos-db")
-def from_logos_db_command(
-    src: Path = typer.Option(..., "--src", exists=True, help="logos.db path."),
-    out: Path = typer.Option(..., "--out", help="Output directory for .md corpus."),
-) -> None:
-    """Dump a logos sqlite DB to a markdown corpus directory.
-
-    The output is consumed by ``wenji ingest dir <out>`` to perform the
-    actual jieba pre-tokenization, BGE-M3 embedding, and chunking.
-    """
-    from wenji.ingest.loader_logos_db import dump_logos_db
-
-    typer.echo(f"dumping {src} → {out}/", err=True)
-    manifest = dump_logos_db(src, out)
-    typer.echo(
-        json.dumps(
-            {
-                "article_count": manifest.article_count,
-                "out_dir": str(out),
-                "source_type_distribution": manifest.source_type_distribution,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
 
 
 # Backward-compat shim for callers expecting a single ``command`` symbol.

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="tags-index-container" style="max-width: 1000px; margin: 0 auto; padding: 2rem;">
+  <nav class="breadcrumb" aria-label="Breadcrumb" style="margin-bottom: 2rem; font-size: 0.85rem; color: var(--color-text-muted);">
+    <ol style="list-style: none; padding: 0; display: flex; gap: 0.5rem;">
+      <li><a href="/" style="color: var(--color-primary); text-decoration: none;">首頁</a></li>
+      <li style="color: #ccc;">/</li>
+      <li style="color: var(--color-text);">標籤總覽</li>
+    </ol>
+  </nav>
+
+  <h1 style="font-family: 'Outfit'; font-weight: 700; font-size: 2.5rem; margin-bottom: 2rem;">標籤總覽 <span style="font-size: 1rem; font-weight: 400; color: var(--color-text-muted);">({{ tags|length }} 個主題)</span></h1>
+
+  <div class="tags-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+    {% for name, count in tags %}
+    <a href="/tag/{{ name|urlencode }}" class="tag-card" style="display: block; padding: 1.5rem; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; text-decoration: none; transition: all 0.2s ease;">
+      <div class="tag-name" style="font-weight: 700; color: var(--color-text); margin-bottom: 0.5rem;">#{{ name }}</div>
+      <div class="tag-count" style="font-size: 0.8rem; color: var(--color-text-muted);">{{ count }} 篇文章</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+  .tag-card:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+</style>
+{% endblock %}

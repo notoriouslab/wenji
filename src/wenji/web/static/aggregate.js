@@ -119,15 +119,15 @@
         </li>
       `;
     }).join("");
-    const consensusItems = (data.consensus || []).map((c) => `<li>${escapeHtml(c)}</li>`).join("");
-    const disagreementItems = (data.disagreements || []).map((c) => `<li>${escapeHtml(c)}</li>`).join("");
+    const consensusItems = (data.consensus_html || []).map((c) => `<li>${c}</li>`).join("");
+    const disagreementItems = (data.disagreements_html || []).map((c) => `<li>${c}</li>`).join("");
     const narrative = data.narrative_html
       ? `<section class="chat-narrative">${data.narrative_html}</section>`
       : `<p class="chat-narrative-empty">（未配置 LLM 或失敗，僅顯示結構化結果）</p>`;
     resultEl.innerHTML = `
       ${narrative}
-      ${consensusItems ? `<h4>共識</h4><ul>${consensusItems}</ul>` : ""}
-      ${disagreementItems ? `<h4>分歧</h4><ul>${disagreementItems}</ul>` : ""}
+      ${consensusItems ? `<h4>共識</h4><ul class="chat-consensus">${consensusItems}</ul>` : ""}
+      ${disagreementItems ? `<h4>分歧</h4><ul class="chat-disagreements">${disagreementItems}</ul>` : ""}
       <h4>來源觀點</h4>
       <ol class="chat-sources">${views}</ol>
     `;

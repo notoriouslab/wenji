@@ -1,0 +1,102 @@
+<script>
+(function () {
+  var STORAGE_KEY = "wenji_bookmarks";
+  var LEGACY_KEY = "bol_collected";
+
+  function getBookmarks() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function setBookmarks(obj) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+  }
+
+  function isBookmarked(id) {
+    return !!getBookmarks()[id];
+  }
+
+  function toggleBookmark(id, title, date) {
+    var bm = getBookmarks();
+    if (bm[id]) {
+      delete bm[id];
+    } else {
+      bm[id] = { t: title, d: date || "" };
+    }
+    setBookmarks(bm);
+    updateBookmarkUI();
+    return !bm[id];
+  }
+
+  function getBookmarkCount() {
+    return Object.keys(getBookmarks()).length;
+  }
+
+  function renderBookmarkList() {
+    var bm = getBookmarks();
+    var ids = Object.keys(bm);
+    if (!ids.length) return "<p class='bookmark-empty'>尚無收藏</p>";
+    var html = '<ul class="bookmark-list">';
+    ids.forEach(function (id) {
+      var item = bm[id];
+      html += '<li><a href="/article/' + encodeURIComponent(id) + '">' +
+        (item.t || id) + '</a>' +
+        (item.d ? ' <span class="bookmark-date">' + item.d + '</span>' : '') +
+        '</li>';
+    });
+    html += '</ul>';
+    return html;
+  }
+
+  function updateBookmarkUI() {
+    // Update count badge
+    var badge = document.querySelector(".bookmark-count-badge");
+    if (badge) badge.textContent = getBookmarkCount();
+
+    // Update toggle icons on current page
+    document.querySelectorAll(".bookmark-toggle").forEach(function (btn) {
+      var id = btn.getAttribute("data-article-id");
+      var bookmarked = isBookmarked(id);
+      btn.textContent = bookmarked ? "\u2665" : "\u2661";
+      btn.classList.toggle("bookmarked", bookmarked);
+    });
+
+    // Update bookmark panel content if open
+    var panel = document.querySelector(".bookmark-panel-content");
+    if (panel) panel.innerHTML = renderBookmarkList();
+  }
+
+  // Migration from legacy key
+  function migrateLegacy() {
+    var hasNew = localStorage.getItem(STORAGE_KEY) !== null;
+    var legacy = localStorage.getItem(LEGACY_KEY);
+    if (!hasNew && legacy !== null) {
+      try {
+        var old = JSON.parse(legacy);
+        var bm = {};
+        Object.keys(old).forEach(function (id) {
+          bm[id] = { t: old[id], d: "" };
+        });
+        setBookmarks(bm);
+        localStorage.removeItem(LEGACY_KEY);
+      } catch (e) {}
+    }
+  }
+
+  // Init on page load
+  migrateLegacy();
+
+  // Expose to global scope for onclick handlers
+  window.wenjiBookmarks = {
+    toggle: toggleBookmark,
+    isBookmarked: isBookmarked,
+    updateUI: updateBookmarkUI,
+  };
+
+  // Sync UI after DOM ready
+  document.addEventListener("DOMContentLoaded", updateBookmarkUI);
+})();
+</script>

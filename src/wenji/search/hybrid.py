@@ -3,8 +3,8 @@
 ``hybrid_score = α × bm25_score + (1 − α) × cosine_score``
 
 Articles found in only one source get 0 for the missing component. Default
-``α = 0.25`` per logos v1.1 calibration (favours vector recall but BM25 still
-breaks ties on exact-token matches).
+``α = 0.25`` per upstream v1.1 calibration (favours vector recall but BM25
+still breaks ties on exact-token matches).
 """
 
 from __future__ import annotations

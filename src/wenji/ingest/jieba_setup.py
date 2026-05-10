@@ -6,7 +6,7 @@ Phrase MATCH (``"因信稱義"``) then locates a sequence of 4 char-level tokens
 in the indexed string — robust to jieba segmentation drift between query and
 ingest time, which broke earlier ``jieba.cut(...) + space-join`` attempts.
 
-Logos production (``articles_fts_v2``) follows the same approach.
+The upstream production (``articles_fts_v2``) follows the same approach.
 
 jieba is still bootstrapped here for v0.2+ query understanding (multi-term
 expansion / alias matching) but does NOT participate in FTS tokenisation in

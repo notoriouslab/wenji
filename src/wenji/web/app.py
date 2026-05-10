@@ -26,9 +26,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,16 +37,29 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
 from wenji.ask import Asker
+from wenji.browse.tag import TagBrowser
 from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, WenjiError
 from wenji.search import Searcher
+from wenji.web.branding import load_branding_from_env, load_cors_origins_from_env
 
 logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
+
+TOPIC_SHORTCUTS = [
+    {
+        "category": "靈修與實踐",
+        "topics": ["禱告的意義", "禁食禱告", "靈命成長", "屬靈爭戰", "讀經方法"],
+    },
+    {
+        "category": "教會與事工",
+        "topics": ["門訓落實", "小組事工", "宣教策略", "青年牧區", "領袖培育"],
+    },
+]
 
 
 _MD_RENDERER = None
@@ -75,10 +88,22 @@ def _markdown_renderer():
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
 
+        try:
+            from mdit_py_plugins.footnote import footnote_plugin
+            from mdit_py_plugins.front_matter import front_matter_plugin
+        except ImportError:
+            front_matter_plugin = None
+            footnote_plugin = None
+
         _MD_RENDERER = MarkdownIt(
             "default",
-            {"html": False, "breaks": False, "linkify": False, "validateLink": _safe_link},
+            {"html": True, "breaks": True, "linkify": True, "validateLink": _safe_link},
         )
+        if front_matter_plugin:
+            _MD_RENDERER.use(front_matter_plugin)
+        if footnote_plugin:
+            _MD_RENDERER.use(footnote_plugin)
+
     return _MD_RENDERER
 
 
@@ -173,17 +198,18 @@ def create_app(
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
     app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
-    cors_origins_raw = os.environ.get("WENJI_CORS_ORIGINS", "")
-    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
-    if "*" in cors_origins:
-        logger.warning("WENJI_CORS_ORIGINS contains '*'; ignoring for security")
-        cors_origins = [o for o in cors_origins if o != "*"]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-API-Key"],
-    )
+
+    # CORS validator: empty list = CORSMiddleware not installed (deny all).
+    # Strict validation (reject `*` / `null` / wildcard subdomain / non-https)
+    # raises RuntimeError at startup. See web/branding.py for full rules.
+    cors_origins = load_cors_origins_from_env()
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Content-Type", "X-API-Key"],
+        )
 
     api_key = os.environ.get("WENJI_API_KEY", "").strip()
 
@@ -207,6 +233,14 @@ def create_app(
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+    # Branding env vars (all optional). Validated at startup so misconfiguration
+    # cannot reach a serving process. Unset = no SEO meta rendered, brand text
+    # falls back to neutral "wenji". See src/wenji/web/branding.py.
+    branding = load_branding_from_env()
+    templates.env.globals["site_url"] = branding.site_url
+    templates.env.globals["site_name"] = branding.site_name
+    templates.env.globals["og_image_url"] = branding.og_image_url
+
     state: dict[str, Any] = {
         "db_path": Path(db_path)
         if db_path
@@ -216,7 +250,17 @@ def create_app(
         "axes_config": axes_config if axes_config is not None else _axes_config_from_env(),
         "entity_scorer": entity_scorer,
         "intent_classifier": intent_classifier,
+        "tag_browser": None,  # Lazy init
+        # Demo/tenant mode: when set, all queries are pre-filtered to this source_type.
+        # Set via WENJI_DEMO_SOURCE env var. Remove env var + restart to restore full corpus.
+        "demo_source": os.environ.get("WENJI_DEMO_SOURCE", "").strip() or None,
     }
+
+    def _get_tag_browser() -> TagBrowser:
+        if state["tag_browser"] is None:
+            sfilter = state["demo_source"]
+            state["tag_browser"] = TagBrowser(str(state["db_path"]), source_filter=sfilter)
+        return state["tag_browser"]
 
     def _get_conn() -> sqlite3.Connection:
         # FastAPI dispatches sync routes via a thread pool, so the lazy
@@ -243,7 +287,8 @@ def create_app(
         as ``alias_map``. WENJI_INTENT_SOURCE_TYPES (JSON file path mapping
         ``{intent: [source_type]}``) is forwarded to ``IntentClassifier.from_sources``
         as ``intent_source_types``. These enable full deployment-specific
-        composition (e.g. logos consumer setup) over env-based loading.
+        composition (e.g. private downstream consumer setup) over env-based
+        loading.
         """
         if state["searcher"] is not None:
             return state["searcher"]
@@ -344,11 +389,20 @@ def create_app(
             raise HTTPException(status_code=504, detail="search engine not ready")
         return Asker(_get_conn(), llm_client=state["llm_client"], searcher=searcher)
 
-    def _build_filter(filter_dict: dict | None) -> Filter | None:
-        if not filter_dict:
+    def _build_filter(filter_dict: dict | None, demo_src: str | None = None) -> Filter | None:
+        """Build a Filter from request body dict, merging demo_source constraint.
+
+        ``demo_src`` (from WENJI_DEMO_SOURCE) is always enforced as the
+        source_type baseline — caller-supplied filter can further narrow
+        (e.g. add a tag) but cannot widen beyond the demo source.
+        """
+        merged = dict(filter_dict) if filter_dict else {}
+        if demo_src:
+            merged.setdefault("source_type", demo_src)
+        if not merged:
             return None
         try:
-            return Filter(**filter_dict)
+            return Filter(**merged)
         except TypeError as exc:
             raise HTTPException(status_code=400, detail=f"invalid filter: {exc}") from exc
 
@@ -358,10 +412,21 @@ def create_app(
         *,
         tag: str | None,
         source_type: str | None,
+        year: str | None = None,
     ) -> list[dict[str, Any]]:
-        if not results or (tag is None and source_type is None):
+        if not results or (tag is None and source_type is None and year is None):
             return results
-        f = Filter(tag=tag, source_type=source_type)
+        f_kwargs = {"tag": tag, "source_type": source_type}
+        if year:
+            f_kwargs["pub_year"] = int(year)
+        f = Filter(**f_kwargs)
+        clause, params = f.to_sql_where(table_alias="m")
+        if not clause:
+            return results
+        f_kwargs = {"tag": tag, "source_type": source_type}
+        if year:
+            f_kwargs["pub_year"] = int(year)
+        f = Filter(**f_kwargs)
         clause, params = f.to_sql_where(table_alias="m")
         if not clause:
             return results
@@ -386,6 +451,62 @@ def create_app(
             "status": "ok",
             "searcher_ready": state["searcher"] is not None,
         }
+
+    @app.get("/robots.txt", response_class=PlainTextResponse)
+    def robots_txt() -> PlainTextResponse:
+        # When WENJI_SITE_URL is unset, default to conservative deny so private
+        # corpora are not crawled by default. When set, emit a permissive policy
+        # plus a sitemap line for that site.
+        if not branding.site_url:
+            return PlainTextResponse("User-agent: *\nDisallow: /\n")
+        body = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /api/\n"
+            "\n"
+            "# AI Bots\n"
+            "User-agent: GPTBot\nAllow: /\n"
+            "User-agent: ChatGPT-User\nAllow: /\n"
+            "User-agent: Claude-WebCheck\nAllow: /\n"
+            "User-agent: ClaudeBot\nAllow: /\n"
+            "User-agent: Google-Extended\nAllow: /\n"
+            "User-agent: PerplexityBot\nAllow: /\n"
+            "User-agent: YouBot\nAllow: /\n"
+            "\n"
+            f"Sitemap: {branding.site_url}/sitemap.xml\n"
+        )
+        return PlainTextResponse(body)
+
+    @app.get("/llms.txt", response_class=PlainTextResponse)
+    def llms_txt() -> PlainTextResponse:
+        if not branding.site_url:
+            raise HTTPException(status_code=404)
+        name = branding.site_name or "wenji"
+        body = (
+            f"# {name} Knowledge Engine\n"
+            "中文 markdown 知識搜尋引擎。\n"
+            "\n"
+            "## Core Links\n"
+            f"- [Home]({branding.site_url}/)\n"
+            f"- [Sitemap]({branding.site_url}/sitemap.xml)\n"
+        )
+        return PlainTextResponse(body)
+
+    @app.get("/ai.txt", response_class=PlainTextResponse)
+    def ai_txt() -> str:
+        return "User-agent: *\nAllow: /article/*.md\nAllow: /article/*\n"
+
+    @app.get("/sitemap.xml")
+    def sitemap_xml() -> Response:
+        if not branding.site_url:
+            raise HTTPException(status_code=404)
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"  <url><loc>{branding.site_url}/</loc><priority>1.0</priority></url>\n"
+            "</urlset>"
+        )
+        return Response(content=body, media_type="application/xml")
 
     def _compute_facets(
         conn: sqlite3.Connection,
@@ -495,20 +616,38 @@ def create_app(
         inside the `/` index handler where search results are available.
         """
         conn = _get_conn()
+        demo_src = state["demo_source"]
         try:
-            return JSONResponse(_compute_facets(conn, top))
+            facets = _compute_facets(conn, top)
+            # In demo mode, hide source_types other than the pinned one
+            if demo_src:
+                facets["source_types"] = [
+                    s for s in facets["source_types"] if s["name"] == demo_src
+                ]
+            return JSONResponse(facets)
         finally:
             conn.close()
 
     @app.get("/api/axes")
     def api_axes() -> dict[str, Any]:
         conn = _get_conn()
+        demo_src = state["demo_source"]
         try:
-            rows = conn.execute(
-                "SELECT axis_id, COUNT(*) FROM article_axes "
-                "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC",
-                (UNCLASSIFIED,),
-            ).fetchall()
+            if demo_src:
+                sql = (
+                    "SELECT a.axis_id, COUNT(*) FROM article_axes a "
+                    "JOIN articles_meta m ON a.article_id = m.article_id "
+                    "WHERE a.axis_id != ? AND m.source_type = ? "
+                    "GROUP BY a.axis_id ORDER BY 2 DESC"
+                )
+                params = (UNCLASSIFIED, demo_src)
+            else:
+                sql = (
+                    "SELECT axis_id, COUNT(*) FROM article_axes "
+                    "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC"
+                )
+                params = (UNCLASSIFIED,)
+            rows = conn.execute(sql, params).fetchall()
         finally:
             conn.close()
         cfg: AxesConfig | None = state.get("axes_config")
@@ -574,6 +713,7 @@ def create_app(
                     ),
                 },
             )
+        demo_src = state["demo_source"]
         try:
             # Compute rewritten_query for transparency (v0.3.2). Calling
             # rewriter.rewrite() here is safe — Searcher.search() also calls it
@@ -589,6 +729,14 @@ def create_app(
                     # Rewriter has its own timeout/fallback; ignore here.
                     pass
             results = s.search(q, axis=axis, limit=limit)
+            if demo_src:
+                filter_conn = _get_conn()
+                try:
+                    results = _post_filter_results(
+                        filter_conn, results, tag=None, source_type=demo_src
+                    )
+                finally:
+                    filter_conn.close()
             return JSONResponse(
                 {"results": results, "query": q, "rewritten_query": rewritten_query}
             )
@@ -603,12 +751,23 @@ def create_app(
         the user to type the exclusion list manually.
         """
         conn = _get_conn()
+        demo_src = state["demo_source"]
         try:
-            rows = conn.execute(
-                "SELECT subtype, COUNT(*) FROM articles_meta "
-                "WHERE subtype IS NOT NULL AND subtype != '' "
-                "GROUP BY subtype ORDER BY 2 DESC"
-            ).fetchall()
+            if demo_src:
+                sql = (
+                    "SELECT subtype, COUNT(*) FROM articles_meta "
+                    "WHERE subtype IS NOT NULL AND subtype != '' AND source_type = ? "
+                    "GROUP BY subtype ORDER BY 2 DESC"
+                )
+                params = (demo_src,)
+            else:
+                sql = (
+                    "SELECT subtype, COUNT(*) FROM articles_meta "
+                    "WHERE subtype IS NOT NULL AND subtype != '' "
+                    "GROUP BY subtype ORDER BY 2 DESC"
+                )
+                params = ()
+            rows = conn.execute(sql, params).fetchall()
         finally:
             conn.close()
         return JSONResponse({"subtypes": [{"name": r[0], "count": r[1]} for r in rows]})
@@ -628,7 +787,7 @@ def create_app(
         if not isinstance(k_raw, int) or k_raw <= 0:
             raise HTTPException(status_code=400, detail="'k' must be a positive integer")
         k_raw = min(k_raw, 50)
-        filter_obj = _build_filter(body.get("filter"))
+        filter_obj = _build_filter(body.get("filter"), demo_src=state["demo_source"])
         agg = _get_aggregator()
         try:
             result = agg.topic_summary(tag, filter=filter_obj, k=k_raw)
@@ -656,7 +815,7 @@ def create_app(
         axis = body.get("axis")
         if axis is not None and not isinstance(axis, str):
             raise HTTPException(status_code=400, detail="'axis' must be a string or null")
-        filter_obj = _build_filter(body.get("filter"))
+        filter_obj = _build_filter(body.get("filter"), demo_src=state["demo_source"])
         asker = _get_asker()
         try:
             result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj)
@@ -685,7 +844,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="'per_source' must be a positive integer")
         top_sources = min(top_sources, 20)
         per_source = min(per_source, 10)
-        filter_obj = _build_filter(body.get("filter"))
+        filter_obj = _build_filter(body.get("filter"), demo_src=state["demo_source"])
         agg = _get_aggregator()
         try:
             result = agg.concept_perspectives(
@@ -698,7 +857,33 @@ def create_app(
             agg.db.close()
         payload = asdict(result)
         payload["narrative_html"] = _render_narrative(result.narrative)
+        payload["consensus_html"] = [_render_narrative(c) for c in (result.consensus or [])]
+        payload["disagreements_html"] = [_render_narrative(d) for d in (result.disagreements or [])]
         return JSONResponse(payload)
+
+    @app.get("/tags", response_class=HTMLResponse)
+    def tags_index(request: Request):
+        browser = _get_tag_browser()
+        tags = browser.list_tags()
+        return templates.TemplateResponse(
+            "tags_index.html", {"request": request, "tags": tags, "title": "所有標籤"}
+        )
+
+    @app.get("/tag/{name}", response_class=HTMLResponse)
+    def tag_detail(request: Request, name: str):
+        browser = _get_tag_browser()
+        detail = browser.get_tag_detail(name)
+        if not detail:
+            raise HTTPException(status_code=404, detail="Tag not found")
+        related = browser.get_related_tags(name)
+        return templates.TemplateResponse(
+            "tag_detail.html", {"request": request, "tag": detail, "related_tags": related}
+        )
+
+    @app.get("/api/tags")
+    def api_tags():
+        browser = _get_tag_browser()
+        return {"tags": [{"name": t[0], "count": t[1]} for t in browser.list_tags()]}
 
     @app.get("/", response_class=HTMLResponse)
     def index(
@@ -707,25 +892,35 @@ def create_app(
         axis: str | None = None,
         tag: str | None = None,
         source_type: str | None = None,
+        year: str | None = None,
+        limit: int = Query(default=50, ge=1, le=200),
     ) -> HTMLResponse:
         results: list[dict[str, Any]] = []
         candidate_ids: set[str] | None = None
         error_message: str | None = None
-        # Browse-by-facet: tag/source_type without a query lists matching
+        # Demo mode: pre-fill source_type if user is actively searching/browsing
+        demo_src = state["demo_source"]
+        if demo_src and not source_type and (q or tag or year):
+            source_type = demo_src
+        # Browse-by-facet: tag/source_type/year without a query lists matching
         # articles directly from articles_meta (newest first), so users can
         # explore a tag in isolation from the article-page tag chips.
-        if not q and (tag or source_type):
+        if not q and (tag or source_type or year):
             browse_conn = _get_conn()
             try:
-                f = Filter(tag=tag, source_type=source_type)
+                f_kwargs = {"tag": tag, "source_type": source_type}
+                if year:
+                    f_kwargs["pub_year"] = int(year)
+                f = Filter(**f_kwargs)
                 clause, params = f.to_sql_where(table_alias="m")
                 sql = (
                     "SELECT m.article_id, m.title, m.source_type, m.category, m.pub_date "
                     "FROM articles_meta m "
                     "WHERE IFNULL(m.category, '') != 'excluded'"
                     + (f" AND {clause}" if clause else "")
-                    + " ORDER BY COALESCE(m.pub_date, '') DESC LIMIT 30"
+                    + " ORDER BY COALESCE(m.pub_date, '') DESC LIMIT ?"
                 )
+                params.append(limit)
                 rows = browse_conn.execute(sql, params).fetchall()
                 results = [
                     {
@@ -757,11 +952,11 @@ def create_app(
                     fetch_limit = 50
                     results = s.search(q, axis=axis, limit=fetch_limit)
                     candidate_ids = {r["article_id"] for r in results}
-                    if tag or source_type:
+                    if tag or source_type or year:
                         filter_conn = _get_conn()
                         try:
                             results = _post_filter_results(
-                                filter_conn, results, tag=tag, source_type=source_type
+                                filter_conn, results, tag=tag, source_type=source_type, year=year
                             )
                         finally:
                             filter_conn.close()
@@ -772,11 +967,21 @@ def create_app(
         # axes for filter sidebar
         try:
             conn = _get_conn()
-            axis_rows = conn.execute(
-                "SELECT axis_id, COUNT(*) FROM article_axes "
-                "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC",
-                (UNCLASSIFIED,),
-            ).fetchall()
+            if demo_src:
+                sql = (
+                    "SELECT a.axis_id, COUNT(*) FROM article_axes a "
+                    "JOIN articles_meta m ON a.article_id = m.article_id "
+                    "WHERE a.axis_id != ? AND m.source_type = ? "
+                    "GROUP BY a.axis_id ORDER BY 2 DESC"
+                )
+                params = (UNCLASSIFIED, demo_src)
+            else:
+                sql = (
+                    "SELECT axis_id, COUNT(*) FROM article_axes "
+                    "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC"
+                )
+                params = (UNCLASSIFIED,)
+            axis_rows = conn.execute(sql, params).fetchall()
             conn.close()
             cfg: AxesConfig | None = state.get("axes_config")
             axes = []
@@ -799,6 +1004,10 @@ def create_app(
             conn = _get_conn()
             try:
                 facets = _compute_facets(conn, 15, query_ids=candidate_ids)
+                if demo_src:
+                    facets["source_types"] = [
+                        s for s in facets["source_types"] if s["name"] == demo_src
+                    ]
             finally:
                 conn.close()
         except sqlite3.OperationalError:
@@ -809,9 +1018,12 @@ def create_app(
             "index.html",
             {
                 "query": q,
+                "q": q,
                 "axis": axis,
                 "tag": tag,
                 "source_type": source_type,
+                "year": year,
+                "topic_shortcuts": TOPIC_SHORTCUTS,
                 "results": results,
                 "axes": axes,
                 "facets": facets,
@@ -819,12 +1031,13 @@ def create_app(
             },
         )
 
-    @app.get("/article/{article_id}", response_class=HTMLResponse)
+    @app.get("/article/{article_id}", response_model=None)
+    @app.get("/article/{article_id}.md", response_model=None)
     def article(
         request: Request,
         article_id: str,
         q: str = "",
-    ) -> HTMLResponse:
+    ) -> HTMLResponse | PlainTextResponse:
         conn = _get_conn()
         try:
             meta = conn.execute(
@@ -895,6 +1108,16 @@ def create_app(
         if not isinstance(tag_list, list):
             tag_list = []
 
+        # AEO: Markdown Content Negotiation
+        accept_header = request.headers.get("Accept", "")
+        if "text/markdown" in accept_header or request.url.path.endswith(".md"):
+            md_content = f"# {meta[1]}\n\n"
+            md_content += f"- **Date**: {meta[4]}\n"
+            md_content += f"- **Author**: {meta[3]}\n"
+            md_content += f"- **Source**: {meta[2]}\n\n"
+            md_content += content
+            return PlainTextResponse(md_content, media_type="text/markdown")
+
         article_data = {
             "article_id": meta[0],
             "title": meta[1],
@@ -906,7 +1129,7 @@ def create_app(
             "tag_list": tag_list,
             "source_url": meta[7],
             "description": meta[8],
-            "content": content,
+            "content_html": _render_chunk(content or "", q),
             "chunks": chunks,
             "matched_indexes": sorted(matched_indexes),
             "query": q,

@@ -2,11 +2,11 @@
 
 Sections (per spec ``Baseline report``):
 
-1. Run metadata (wenji_version, logos_source_commit, date, corpus size).
+1. Run metadata (wenji_version, source_commit, date, corpus size).
 2. Summary metrics (pass_rate_pct, by_category, elapsed_total_sec).
 3. Sanity check results (objective overlap, subjective eyeball verdict).
 4. Per-question table (id, query, category, pass, passing_paths, top-3 hits).
-5. wenji_r0 vs logos_r13 hits overlap distribution histogram.
+5. wenji_r0 vs reference baseline hits overlap distribution histogram.
 6. examples/eval.jsonl classical poetry pre/post diff appendix.
 
 For r1 reports, an extra section records the trim manifest.
@@ -24,7 +24,7 @@ def _section_metadata(run: dict, corpus_size: int | None) -> str:
         "",
         f"- **run_id**: `{run.get('run_id', 'n/a')}`",
         f"- **wenji_version**: `{run.get('wenji_version', 'unknown')}`",
-        f"- **logos_source_commit**: `{run.get('logos_source_commit', 'n/a')}`",
+        f"- **source_commit**: `{run.get('source_commit', 'n/a')}`",
         f"- **snapshot_taken_at**: {run.get('snapshot_taken_at', 'n/a')}",
         f"- **date**: {run.get('date', 'n/a')}",
         f"- **pipeline_mode**: `{run.get('pipeline_mode', 'n/a')}`",
@@ -110,7 +110,7 @@ def _section_per_question(run: dict, top_n_hits: int = 3) -> str:
 def _section_overlap_histogram(per_question_overlaps: list[dict] | None) -> str:
     if not per_question_overlaps:
         return (
-            "## 5. wenji_r0 vs logos_r13 Overlap Distribution\n\n"
+            "## 5. wenji_r0 vs Reference Baseline Overlap Distribution\n\n"
             "_No overlap data supplied (sanity check artifact not loaded)._"
         )
     bins = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.01]
@@ -122,7 +122,7 @@ def _section_overlap_histogram(per_question_overlaps: list[dict] | None) -> str:
                 counter[f"[{lo:.1f}, {hi:.1f})"] += 1
                 break
     lines = [
-        "## 5. wenji_r0 vs logos_r13 Overlap Distribution",
+        "## 5. wenji_r0 vs Reference Baseline Overlap Distribution",
         "",
         "| bin | count | bar |",
         "|---|---:|---|",

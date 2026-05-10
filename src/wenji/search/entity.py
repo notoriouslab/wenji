@@ -1,12 +1,11 @@
 """Entity-aware scoring with dependency-injected entity_dict and alias_map.
 
-Ports the dual-signal scoring model from
-``logos/scripts/entity_scorer.py``:
+Ports the dual-signal scoring model from an upstream RAG entity scorer:
 
   ``final_score = alpha * relevance + (1 - alpha) * entity_coverage``
 
 The wenji port keeps the algorithm corpus-agnostic — entity_dict and
-alias_map are caller-injected (no logos curation bundled). For the
+alias_map are caller-injected (no upstream curation bundled). For the
 multi-source loader that composes wheel-bundled examples with private
 dictionaries see :class:`EntityScorer.from_sources`.
 """
@@ -226,7 +225,7 @@ class EntityScorer:
                 )
             entity_coverage = 0.05
 
-        # Logos formula: alpha is the relevance weight (NOT entity weight).
+        # Linear hybrid formula: alpha is the relevance weight (NOT entity weight).
         final = a * relevance + (1 - a) * entity_coverage
 
         parts: list[str] = []

@@ -1,19 +1,18 @@
-"""Loader for logos benchmark v2 80-question gold set snapshots.
+"""Loader for the v2 80-question benchmark gold set snapshot.
 
-Reads ``tests/benchmark_80_v2_snapshot.json`` (or any compatible logos
-benchmark v2 schema file) and flattens ``categories[].questions[]`` into a
-list of multi-path :class:`Candidate` objects suitable for
+Reads ``tests/benchmark_80_v2_snapshot.json`` (or any compatible
+benchmark v2 schema file) and flattens ``categories[].questions[]``
+into a list of multi-path :class:`Candidate` objects suitable for
 :func:`wenji.eval.run_baseline`.
 
-The snapshot SHALL be a frozen copy of the upstream logos
-``tests/benchmark_80.json`` with two added top-level fields recording
-provenance:
+The snapshot SHALL be a frozen copy of an upstream benchmark file with
+two added top-level fields recording provenance:
 
-- ``logos_source_commit``: git SHA of the logos repository at snapshot time
+- ``source_commit``: git SHA of the upstream repository at snapshot time
 - ``snapshot_taken_at``: ISO date the snapshot was captured
 
-Live-linking the upstream file outside the wenji repository is permitted but
-emits a warning since the schema may drift; the snapshot pattern is
+Live-linking the upstream file outside the wenji repository is permitted
+but emits a warning since the schema may drift; the snapshot pattern is
 recommended for reproducibility.
 """
 
@@ -31,9 +30,9 @@ from wenji.eval.jsonl import Candidate, GoldPath
 
 @dataclass(frozen=True)
 class SnapshotMetadata:
-    """Provenance metadata extracted from a logos v2 snapshot file."""
+    """Provenance metadata extracted from a v2 benchmark snapshot file."""
 
-    logos_source_commit: str
+    source_commit: str
     snapshot_taken_at: str
     snapshot_source_path: str
     version: str
@@ -65,8 +64,9 @@ def _parse_gold_path(raw: dict, *, qid: int, idx: int) -> GoldPath:
     if not isinstance(keywords_raw, list) or not keywords_raw:
         raise IngestError(f"question {qid}: gold_paths[{idx}].keywords must be a non-empty list")
 
-    # logos v2 has `representative_corpus_articles` — extract titles as
-    # article_hints when present. Field may be a list of dicts {title,path,...}
+    # The upstream v2 schema has `representative_corpus_articles` — extract
+    # titles as article_hints when present. Field may be a list of dicts
+    # {title,path,...}
     # or a list of strings, or null.
     rca = raw.get("representative_corpus_articles")
     article_hints: list[str] = []
@@ -87,10 +87,10 @@ def _parse_gold_path(raw: dict, *, qid: int, idx: int) -> GoldPath:
     )
 
 
-def load_logos_v2_snapshot(
+def load_benchmark_v2_snapshot(
     snapshot_path: str | Path,
 ) -> tuple[list[Candidate], SnapshotMetadata]:
-    """Load a logos benchmark v2 snapshot and return (candidates, metadata).
+    """Load a v2 benchmark snapshot and return (candidates, metadata).
 
     The categories' questions are flattened into a single list of multi-path
     Candidates. Path uniqueness within each question is verified.
@@ -116,15 +116,13 @@ def load_logos_v2_snapshot(
         raise IngestError(f"snapshot top-level must be object, got {type(data).__name__}")
 
     metadata = SnapshotMetadata(
-        logos_source_commit=str(data.get("logos_source_commit", "")),
+        source_commit=str(data.get("source_commit", "")),
         snapshot_taken_at=str(data.get("snapshot_taken_at", "")),
         snapshot_source_path=str(data.get("snapshot_source_path", "")),
         version=str(data.get("version", "")),
     )
-    if not metadata.logos_source_commit:
-        raise IngestError(
-            "snapshot missing required field 'logos_source_commit' (provenance metadata)"
-        )
+    if not metadata.source_commit:
+        raise IngestError("snapshot missing required field 'source_commit' (provenance metadata)")
 
     categories = data.get("categories")
     if not isinstance(categories, list) or not categories:
@@ -176,7 +174,7 @@ def load_logos_v2_snapshot(
                     query=query,
                     gold_paths=gold_paths,
                     category=cat_name,
-                    source="logos_v2",
+                    source="benchmark_v2",
                 )
             )
 

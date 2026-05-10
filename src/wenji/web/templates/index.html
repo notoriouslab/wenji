@@ -1,168 +1,139 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>wenji search{% if query %} — {{ query }}{% endif %}</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  <header class="topbar">
-    <a href="/" class="brand">wenji</a>
-    <form action="/" method="get" class="search-form" id="search-form">
-      <input
-        type="search"
-        name="q"
-        value="{{ query|e }}"
-        placeholder="搜尋..."
-        autofocus
-        required>
-      {% if axis %}<input type="hidden" name="axis" value="{{ axis|e }}">{% endif %}
-      {% if tag %}<input type="hidden" name="tag" value="{{ tag|e }}">{% endif %}
-      {% if source_type %}<input type="hidden" name="source_type" value="{{ source_type|e }}">{% endif %}
-      <button type="submit">搜尋</button>
-    </form>
-  </header>
+{% extends "base.html" %}
+
+{% block title %}
+{{ site_name or "wenji" }} Knowledge Engine{% if q %} — {{ q }}{% endif %}
+{% endblock %}
+
+{% block extra_meta %}
+{% if site_url %}
+<script type="application/ld+json">{{ {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": (site_name or "wenji") + " Knowledge Engine",
+  "url": site_url,
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": site_url + "/?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+} | tojson }}</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if not q and not tag and not source_type and not year %}
+  <section class="hero-section">
+    <h1 class="hero-title">UNCOVER DEEPER TRUTH.</h1>
+    <p class="hero-subtitle">{{ site_name or "wenji" }} Knowledge Engine. Powered by Insight, Faith, and Wisdom.</p>
+    
+    <div class="search-form-container">
+      <form action="/" method="get" class="search-form" id="search-form-hero">
+        <input
+          type="search"
+          name="q"
+          placeholder="搜尋關於屬靈操練、教會事工或神學的問題..."
+          autofocus
+          required>
+        <button type="submit">搜尋</button>
+      </form>
+    </div>
+
+    {% if topic_shortcuts %}
+    <div class="layout" style="display: block; max-width: 960px; margin-top: 4rem;">
+      <div class="topic-discovery">
+        {% for group in topic_shortcuts %}
+        <div class="topic-card">
+          <div class="topic-card-icon">
+            {% if group.category == '靈修與實踐' %}🧘{% else %}⛪{% endif %}
+          </div>
+          <h2>{{ group.category }}</h2>
+          <div class="topic-chips">
+            {% for topic in group.topics %}
+            <span class="topic-chip" onclick="var i=document.querySelector('#search-form-hero input'); i.value=this.textContent; document.getElementById('search-form-hero').submit();">{{ topic }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 
   {% if error %}
-  <div class="error-banner" role="alert">
+  <div class="error-banner" role="alert" style="max-width: 800px; margin: 2rem auto;">
     <strong>暫時無法搜尋</strong>
     <p>{{ error }}</p>
   </div>
   {% endif %}
 
+  {% if q or tag or source_type or year %}
   <main class="layout">
     <aside class="axis-sidebar">
-      <h3>軸 (Axes)</h3>
+      <h3>維度分層</h3>
       <ul>
-        <li><a href="/?q={{ query|urlencode }}"
-               class="{% if not axis %}active{% endif %}">全部</a></li>
-        {% for a in axes %}
-        <li{% if a.depth %} style="padding-left: {{ a.depth * 12 }}px"{% endif %}>
-          <a href="/?q={{ query|urlencode }}&amp;axis={{ a.id|urlencode }}"
-             class="{% if axis == a.id %}active{% endif %}">
-            {{ a.id }} <span class="count">({{ a.count }})</span>
-          </a>
-        </li>
-        {% endfor %}
+        <li><a href="/?q={{ q|urlencode }}"
+               class="{% if not axis %}active{% endif %}">全部 <span class="count">∞</span></a></li>
+        {% if axes %}
+          {% for a in axes %}
+          <li{% if a.depth %} style="padding-left: {{ a.depth * 12 }}px"{% endif %}>
+            <a href="/?q={{ q|urlencode }}&amp;axis={{ a.id|urlencode }}"
+               class="{% if axis == a.id %}active{% endif %}">
+              {{ a.id }} <span class="count">{{ a.count }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        {% endif %}
       </ul>
 
       {% if facets and (facets.tags or facets.source_types) %}
-      <details class="facet-section">
-        <summary>熱門 Tag / 類型</summary>
+      <div style="margin-top: 2rem;">
+        <h3>熱門分類</h3>
         {% if facets.tags %}
-        <h4>熱門 Tag</h4>
-        <ul class="facet-list">
-          {% for f in facets.tags %}
-          <li class="{% if facets.query_aware and not f.query_count %}facet-zero{% endif %}">
-            <a href="/?q={{ query|urlencode }}{% if axis %}&amp;axis={{ axis|urlencode }}{% endif %}&amp;tag={{ f.name|urlencode }}"
-               class="{% if tag == f.name %}active{% endif %}">
-              {{ f.name }} <span class="count">{% if facets.query_aware %}({{ f.count }}/{{ f.query_count }}){% else %}({{ f.count }}){% endif %}</span>
-            </a>
-          </li>
+        <div class="topic-chips" style="margin-top: 1rem;">
+          {% for f in facets.tags[:10] %}
+          <a href="/?q={{ q|urlencode }}{% if axis %}&amp;axis={{ axis|urlencode }}{% endif %}&amp;tag={{ f.name|urlencode }}"
+             class="topic-chip {% if tag == f.name %}active{% endif %}" style="text-decoration: none;">
+            {{ f.name }}
+            <span style="font-size: 0.7rem; opacity: 0.6; margin-left: 2px;">
+              {% if facets.query_aware %}({{ f.count }}/{{ f.query_count }}){% else %}({{ f.count }}){% endif %}
+            </span>
+          </a>
           {% endfor %}
-        </ul>
+        </div>
         {% endif %}
-        {% if facets.source_types %}
-        <h4>熱門類型</h4>
-        <ul class="facet-list">
-          {% for f in facets.source_types %}
-          <li class="{% if facets.query_aware and not f.query_count %}facet-zero{% endif %}">
-            <a href="/?q={{ query|urlencode }}{% if axis %}&amp;axis={{ axis|urlencode }}{% endif %}&amp;source_type={{ f.name|urlencode }}"
-               class="{% if source_type == f.name %}active{% endif %}">
-              {{ f.name }} <span class="count">{% if facets.query_aware %}({{ f.count }}/{{ f.query_count }}){% else %}({{ f.count }}){% endif %}</span>
-            </a>
-          </li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-      </details>
+      </div>
       {% endif %}
     </aside>
 
     <section class="results">
-      {% if not error and (query or tag or source_type) %}
+      {% if not error %}
         {% if results %}
-        <p class="result-count">
-          {% if not query and (tag or source_type) %}
-          瀏覽 {% if tag %}<code>tag={{ tag }}</code>{% endif %}{% if source_type %}<code>source_type={{ source_type }}</code>{% endif %}
-          ({{ results|length }} 筆，依出版日期由新到舊)
-          {% else %}
-          找到 <strong>{{ results|length }}</strong> 筆結果
-          {% endif %}
-        </p>
+        <div style="margin-bottom: 2rem; border-bottom: 1px solid var(--color-border); padding-bottom: 1rem;">
+          <p class="result-count" style="margin:0;">
+            {% if not q and (tag or source_type or year) %}
+            正在瀏覽 <strong>{% if tag %}#{{ tag }}{% endif %} {% if source_type %}{{ source_type }}{% endif %} {% if year %}{{ year }}年{% endif %}</strong>
+            {% else %}
+            找到 <strong>{{ results|length }}</strong> 筆相關結果
+            {% endif %}
+          </p>
+        </div>
         <ol class="result-list">
           {% for r in results %}
           {% include "result.html" %}
           {% endfor %}
         </ol>
         {% else %}
-        <p class="empty">查無結果。</p>
+        <p class="empty" style="text-align: center; margin-top: 4rem;">查無結果，試試不同的關鍵字？</p>
         {% endif %}
-      {% elif not (query or tag or source_type) %}
-      <p class="welcome">在上方輸入查詢以開始搜尋。</p>
       {% endif %}
     </section>
   </main>
+  {% endif %}
+{% endblock %}
 
-  <details class="ask-panel" id="ask-panel">
-    <summary>自由問答 <span class="hint">直接提問，wenji 從語料中檢索答案並列出引用段落</span></summary>
-    <div class="ask-panel-body">
-      <p class="ask-intro">
-        每次發問獨立（不保留上下文）。LLM 失敗時仍會顯示檢索結果。
-      </p>
-      <form id="ask-form" class="ask-form">
-        <label>
-          <span class="ask-label">問題</span>
-          <textarea name="q" id="ask-q" placeholder="例：因信稱義是什麼？" rows="2" required></textarea>
-        </label>
-        <label class="ask-axis-row">
-          <span class="ask-label">軸（選填）</span>
-          <select name="axis" id="ask-axis">
-            <option value="">全部</option>
-          </select>
-        </label>
-        <button type="submit">送出</button>
-      </form>
-      <div id="ask-result" class="ask-result" aria-live="polite"></div>
-    </div>
-  </details>
-
-  <details class="chat-panel" id="chat-panel">
-    <summary>文章彙整 <span class="hint">依主題或概念，從語料中比較多篇文章觀點</span></summary>
-    <div class="chat-panel-body">
-      <p class="chat-intro">
-        每次發問獨立（不保留對話）。語料越豐富效果越好。
-      </p>
-      <div class="chat-tabs" role="tablist">
-        <button type="button" class="chat-tab active" data-mode="topic" role="tab">主題彙總</button>
-        <button type="button" class="chat-tab" data-mode="concept" role="tab">概念對比</button>
-      </div>
-      <form id="aggregate-form" class="chat-form">
-        <label>
-          <span class="chat-label" id="chat-input-label">主題</span>
-          <input type="text" name="query" id="chat-query" placeholder="例：勞動、禱告" required>
-          <small class="chat-hint" id="chat-input-hint">挑一個 tag 或關鍵字，從語料中找最相關的文章彙總。</small>
-        </label>
-        <details class="chat-advanced">
-          <summary>進階：排除文章類型</summary>
-          <div id="chat-subtype-filter" class="chat-subtype-filter">
-            <p class="chat-subtype-empty">語料中沒有 subtype 標記。</p>
-          </div>
-        </details>
-        <button type="submit">送出</button>
-      </form>
-      <div id="aggregate-result" class="chat-result" aria-live="polite"></div>
-    </div>
-  </details>
-
-  <script>
-    // Inline minimal JS: spinner toggle on form submit
-    document.getElementById('search-form').addEventListener('submit', function () {
-      document.body.classList.add('searching');
-    });
-  </script>
-  <script src="/static/aggregate.js" defer></script>
-  <script src="/static/ask.js" defer></script>
-</body>
-</html>
+{% block scripts %}
+<script>
+  document.querySelectorAll('form').forEach(f => f.addEventListener('submit', () => document.body.classList.add('searching')));
+</script>
+{% endblock %}

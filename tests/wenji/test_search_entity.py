@@ -89,7 +89,7 @@ def test_check_entity_in_text_alias_match():
 
 
 def test_score_and_rerank_alpha_blends_correctly(scorer):
-    """Logos formula: final = alpha * relevance + (1 - alpha) * entity_coverage."""
+    """Linear hybrid formula: final = alpha * relevance + (1 - alpha) * entity_coverage."""
     articles = [
         {
             "article_id": "a1",
