@@ -297,7 +297,7 @@ def test_strip_control_chars_removes_del():
 
 
 def test_strip_control_chars_preserves_unicode():
-    raw = "趙雲 主公 — 子龍"
+    raw = "中文 內容 — 測試 字符"
     assert strip_control_chars(raw) == raw
 
 
