@@ -13,7 +13,6 @@ Modular pieces are exported for advanced users / tests:
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from typing import Any, Protocol
 
@@ -55,20 +54,38 @@ _BLOCK_BOUNDARY_TOKENS = frozenset(
 
 
 def _strip_markdown_for_snippet(text: str) -> str:
-    """Strip markdown markers for clean search snippets."""
+    """Strip markdown markers for clean search snippets via AST parse.
+
+    Walks markdown-it-py tokens and emits plain text only. Replaces an
+    earlier naive ``.replace('_', '')`` implementation that mangled URLs
+    (``Foo_bar`` → ``Foobar``) and inline code spans
+    (``code_with_underscore`` → ``codewithunderscore``) — underscores not
+    used as emphasis markers must survive into the snippet.
+    """
     if not text:
         return ""
-    # Remove images ![]()
-    s = re.sub(r"!\[.*?\]\(.*?\)", "", text)
-    # Remove links [text](url) -> text
-    s = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", s)
-    # Remove headings
-    s = re.sub(r"^#+\s+", "", s, flags=re.MULTILINE)
-    # Remove bold/italic
-    s = s.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
-    # Remove code blocks
-    s = s.replace("```", "").replace("`", "")
-    return " ".join(s.split())
+    parts: list[str] = []
+    for tok in _MD_SNIPPET.parse(text):
+        if tok.type in _BLOCK_BOUNDARY_TOKENS:
+            parts.append(" ")
+            continue
+        if tok.type in {"fence", "code_block"}:
+            parts.append(tok.content)
+            parts.append(" ")
+            continue
+        if tok.type != "inline" or not tok.children:
+            continue
+        for child in tok.children:
+            if child.type in {"text", "code_inline"}:
+                parts.append(child.content)
+            elif child.type in {"softbreak", "hardbreak"}:
+                parts.append(" ")
+            # image / link_open / link_close / em_open / em_close /
+            # strong_open / strong_close → skip the markers; their visible
+            # text comes through as separate `text` children (or, for
+            # images, is intentionally dropped, matching the previous
+            # regex behaviour).
+    return " ".join("".join(parts).split())
 
 
 def _hydrate_chunk_hits(

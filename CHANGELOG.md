@@ -18,6 +18,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   helper). Inconsistent db → server refuses to bind / CLI exits non-zero
   with a hint to run `wenji doctor`.
 
+### Fixed (vNext)
+
+- Search snippet plain-text strip no longer mangles underscores in URLs
+  or inline code spans (`Foo_bar` / `code_with_underscore` survive).
+  Replaced naive `.replace('_', '')` with markdown-it-py AST traversal.
+
 ### Added (v0.3.7)
 
 - Env-driven branding for fork-friendly deployments: optional
