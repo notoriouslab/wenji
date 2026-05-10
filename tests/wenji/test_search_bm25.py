@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import sqlite3
+from unittest.mock import MagicMock
+
+import pytest
+
+from wenji.core.errors import SearchError
 from wenji.search.bm25 import bm25_search
 
 
@@ -57,3 +64,26 @@ def test_bm25_axis_filter_matches_propagated_rows(populated_db):
 def test_bm25_limit_caps_results(populated_db):
     results = bm25_search(populated_db, "禱告", limit=1)
     assert len(results) <= 1
+
+
+def test_bm25_search_logs_warning_on_operational_error(caplog):
+    """OperationalError must emit WARNING and preserve existing SearchError raise."""
+    fake_conn = MagicMock(spec=sqlite3.Connection)
+    fake_conn.execute = MagicMock(
+        side_effect=sqlite3.OperationalError("simulated lock")
+    )
+
+    caplog.set_level(logging.WARNING, logger="wenji.search.bm25")
+
+    with pytest.raises(SearchError) as excinfo:
+        bm25_search(fake_conn, "test query", limit=10)
+
+    # Existing raise behaviour preserved unchanged (message + cause chain)
+    assert isinstance(excinfo.value.__cause__, sqlite3.OperationalError)
+    assert "FTS5 query failed" in str(excinfo.value)
+
+    # New: warning emitted with table name + stack trace
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) >= 1
+    assert "articles_fts query failed" in warnings[0].getMessage()
+    assert warnings[0].exc_info is not None
