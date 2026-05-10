@@ -13,6 +13,7 @@ import typer
 from wenji.cli import aggregate as _aggregate
 from wenji.cli import classify as _classify
 from wenji.cli import corpus as _corpus
+from wenji.cli import doctor as _doctor
 from wenji.cli import download as _download
 from wenji.cli import eval as _eval
 from wenji.cli import ingest as _ingest
@@ -57,6 +58,10 @@ app.add_typer(_corpus.app, name="corpus")
 app.command(name="stats", help="Print corpus + index stats (mirrors GET /api/stats).")(
     _stats.command
 )
+app.command(
+    name="doctor",
+    help="Check db consistency (row count vs counter, sample FTS MATCH).",
+)(_doctor.command)
 app.command(
     name="segment",
     help="Trace how a query is segmented (jieba tokens, FTS form, LLM rewrite).",
