@@ -158,7 +158,7 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 - 字串內無 `[\x00-\x1f\x7f]` 控制字元
 - hostname 長度 ≤ 253 字元（RFC 1035 上限，防 DOS）
 - IPv6 形式 `[::1]`、`[fe80::1]` 同步走 ipaddress.ip_address 判斷是否在 loopback / link-local / private 範圍
-- 不接受 percent-encoding 的 host 或 path（如 `%6c%6fgos.jacobmei.com`、`%0d%0a` CRLF），urlsplit 後對 raw input 直接 grep `%`
+- 不接受 percent-encoding 的 host 或 path（如 `%65%78ample.com`、`%0d%0a` CRLF），urlsplit 後對 raw input 直接 grep `%`
 
 **Trade-offs：**
 - 拒絕了「我就要部署在內網」的場景；釋放閥：`WENJI_ALLOW_PRIVATE_HOST=1` env override
