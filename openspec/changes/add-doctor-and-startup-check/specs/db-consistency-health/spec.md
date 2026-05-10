@@ -52,6 +52,13 @@ The system SHALL run `check_consistency` against the configured wenji database a
 - **WHEN** `wenji eval migrate-jsonl <input.jsonl> <output.jsonl>` is invoked (no `--db` argument; pure format conversion)
 - **THEN** the subcommand MUST proceed normally without running the consistency check
 
+#### Scenario: WENJI_DISABLE_STARTUP_CHECK env bypasses gate (test escape hatch)
+
+- **WHEN** `WENJI_DISABLE_STARTUP_CHECK=1` is set in the process environment
+- **THEN** both the FastAPI `lifespan` handler and the `_ensure_consistency` CLI helper MUST skip `check_consistency` entirely and proceed as if the database were healthy
+- **AND** this env MUST NOT be set in production deployments (it is an escape hatch for test fixtures that build partial databases for endpoint behaviour testing; production deploy SOP MUST NOT include it)
+- **AND** `tests/wenji/conftest.py` MUST set this env via an `autouse=True` fixture so the default test path skips the gate; tests that explicitly verify the gate's behaviour MUST `monkeypatch.delenv("WENJI_DISABLE_STARTUP_CHECK", raising=False)` to re-enable it
+
 #### Scenario: ingest / rebuild / read-only commands are NOT gated
 
 - **WHEN** `wenji ingest dir <path> --db <bad.db>` or `wenji rebuild --db <bad.db>` is invoked

@@ -52,6 +52,8 @@ Register: `cli/__init__.py` 加 `app.command(name="doctor", help="...")(...)`
 
 `_ensure_consistency(db_path)` helper（放 `wenji.observability.health` 同 module）：open conn → call `check_consistency` → FAIL print issues + sys.exit(1)；OK 靜默繼續。
 
+**Test escape hatch**: 兩個整合點（FastAPI lifespan + `_ensure_consistency` helper）皆檢查 `WENJI_DISABLE_STARTUP_CHECK` env，set 時 skip check。Test fixtures 用 partial dbs（只有 articles_meta + doc_vectors，無 chunks_fts）測試 endpoint 行為，這個 escape hatch 讓 test 不被 gate 阻塞。`tests/wenji/conftest.py` 用 `autouse=True` fixture 預設 setenv；想驗證 startup gate 行為的 test（如 Phase 4 task 4.3）用 `monkeypatch.delenv("WENJI_DISABLE_STARTUP_CHECK", raising=False)` 重新啟用。**Production deploys MUST NOT set this env**（無 doc 不會發現，但是個 anti-pattern）。
+
 ### D — Inconsistency definition (3 layers, L2 has 4 sub-rules)
 
 任一層任一 sub-rule FAIL → `issues` 累積 → `ok = False`：
@@ -148,3 +150,4 @@ Run `wenji doctor --db <db_path>` for full diagnostic, or
 - **2026-05-10 Sub-Agent Review W1 修正**：L2.c / L2.d issue message 字串不明確（test 寫「類似 phrase」會造成 assertion 鬆散）。proposal D' 加 6 個 issue message template 對齊 implementation 與 test。
 - **2026-05-10 Sub-Agent Review W2 修正**：`--sample-keywords` flag 對 `""` / `"   "` / `",,, "` 等 edge case 行為未明。proposal D'' 列 4 個 edge case + 對應行為（全退化用 default，不允許關閉 L3）。
 - **2026-05-10 Sub-Agent Review W3 修正**：startup gate error message format 未明，test 只驗 exit code 不驗 message → implementation 可能寫各種格式。proposal D''' 給 multi-line message template + StartupError args 規範。
+- **2026-05-10 Apply 階段 spec drift 修正**：Phase 3 整合時 19 個 test 因 partial fixture db 被 startup gate 攔下。原 propose 沒料到 test fixture 通常是 partial db（不在乎 retrieval health 完整性、只測 endpoint 行為）。加 `WENJI_DISABLE_STARTUP_CHECK` env escape hatch + conftest autouse fixture default-skip。design.md 加 D9 decision、spec.md 加 scenario、proposal.md C 段加說明。**Production deploys MUST NOT set this env**。
