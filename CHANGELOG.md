@@ -34,6 +34,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `wenji.eval.loader_benchmark_v2`; benchmark snapshot metadata key
   `logos_source_commit` renamed to `source_commit` (no backward compat —
   pre-existing baseline JSONs need an in-place key rename).
+- **BREAKING**: `wenji.search.rrf.chunk_bm25_search` no longer silently
+  returns `{}` on SQLite `OperationalError`; it raises `SearchError`
+  matching `bm25_search`. Both retrieval paths emit a `WARNING` log
+  with stack trace before raising.
 
 ### Documentation (v0.3.7)
 
