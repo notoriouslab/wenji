@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+from unittest.mock import MagicMock
 
+import pytest
+
+from wenji.core.errors import SearchError
 from wenji.search.rrf import DEFAULT_RRF_K, chunk_bm25_search, rrf_merge
 
 
@@ -141,3 +146,35 @@ def test_chunk_bm25_search_dedups_per_article():
     assert "a1" in out
     # best (most negative) bm25 score retained
     assert out["a1"] < 0
+
+
+def test_chunk_bm25_search_raises_on_operational_error():
+    """OperationalError must propagate as SearchError (not silent return {})."""
+    fake_conn = MagicMock(spec=sqlite3.Connection)
+    fake_conn.execute = MagicMock(
+        side_effect=sqlite3.OperationalError("simulated lock")
+    )
+
+    with pytest.raises(SearchError) as excinfo:
+        chunk_bm25_search(fake_conn, "test query", limit=10)
+
+    assert isinstance(excinfo.value.__cause__, sqlite3.OperationalError)
+    assert "chunks_fts query failed" in str(excinfo.value)
+
+
+def test_chunk_bm25_search_logs_warning_on_operational_error(caplog):
+    """OperationalError must emit WARNING with stack trace before raising."""
+    fake_conn = MagicMock(spec=sqlite3.Connection)
+    fake_conn.execute = MagicMock(
+        side_effect=sqlite3.OperationalError("simulated corrupt")
+    )
+
+    caplog.set_level(logging.WARNING, logger="wenji.search.rrf")
+
+    with pytest.raises(SearchError):
+        chunk_bm25_search(fake_conn, "test query", limit=10)
+
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) >= 1
+    assert "chunks_fts query failed" in warnings[0].getMessage()
+    assert warnings[0].exc_info is not None
