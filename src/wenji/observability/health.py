@@ -12,6 +12,7 @@ Used by ``wenji doctor`` (CLI wrapper) and retrieval-entry startup gates
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import sys
 from dataclasses import dataclass, field
@@ -181,7 +182,12 @@ def _ensure_consistency(
     Used by retrieval-entry CLI subcommands as a startup gate (eval run* /
     search). Side-effect: ``sys.exit(1)`` on inconsistency. Caller should
     invoke this before any retrieval work.
+
+    Honours ``WENJI_DISABLE_STARTUP_CHECK`` env to skip the check (test
+    fixtures only; production deploys MUST NOT set this).
     """
+    if os.environ.get("WENJI_DISABLE_STARTUP_CHECK"):
+        return
     from wenji.core.db import connect
 
     conn = connect(db_path)

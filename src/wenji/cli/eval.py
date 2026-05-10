@@ -54,6 +54,7 @@ def run_command(
 ) -> None:
     """Run a multi-path eval against a running ``wenji serve``."""
     from wenji.eval import run_baseline
+    from wenji.observability.health import _ensure_consistency
 
     candidates = _check_in_cwd(candidates, "--candidates")
     api_url = f"http://localhost:{port}/api/search"
@@ -64,6 +65,8 @@ def run_command(
             sys.exit(2)
         db = _check_in_cwd(db, "--db")
         typer.echo(f"clearing query_rewrite_cache in {db}", err=True)
+    if db is not None:
+        _ensure_consistency(db)
 
     result = run_baseline(
         candidates,
@@ -130,12 +133,15 @@ def run_benchmark_command(
     ``rewrite_enabled`` field for A/B comparison. Start the server with the
     matching flag (e.g. ``wenji serve --enable-rewrite``) before running.
     """
+    from wenji.observability.health import _ensure_consistency
+
     if enable_rewrite and no_rewrite:
         typer.echo("--enable-rewrite and --no-rewrite are mutually exclusive", err=True)
         sys.exit(2)
     snapshot = _check_in_cwd(snapshot, "--snapshot")
     db = _check_in_cwd(db, "--db")
     out = _check_in_cwd(out, "--out")
+    _ensure_consistency(db)
     rewrite_enabled = enable_rewrite or (
         not no_rewrite
         and __import__("wenji.config", fromlist=["load_llm_config_from_env"])

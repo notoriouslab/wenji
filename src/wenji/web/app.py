@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import sqlite3
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,8 @@ from wenji.ask import Asker
 from wenji.browse.tag import TagBrowser
 from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
-from wenji.core.errors import ConfigError, WenjiError
+from wenji.core.errors import ConfigError, StartupError, WenjiError
+from wenji.observability.health import check_consistency
 from wenji.search import Searcher
 from wenji.web.branding import load_branding_from_env, load_cors_origins_from_env
 
@@ -197,7 +199,30 @@ def create_app(
 ) -> FastAPI:
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
-    app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup consistency gate: only when db_path is provided (production
+        # path) and not explicitly disabled. Test fixtures often build
+        # partial dbs (only articles_meta + doc_vectors, no chunks_fts) to
+        # exercise specific endpoints; tests set WENJI_DISABLE_STARTUP_CHECK
+        # to bypass. Production deploys MUST NOT set this env.
+        if db_path is not None and not os.environ.get("WENJI_DISABLE_STARTUP_CHECK"):
+            check_conn = sqlite3.connect(str(db_path))
+            try:
+                report = check_consistency(check_conn)
+            finally:
+                check_conn.close()
+            if not report.ok:
+                issue_lines = "\n".join(f"  - {issue}" for issue in report.issues)
+                raise StartupError(
+                    f"wenji db consistency check FAILED at {db_path}\n\n"
+                    f"Issues:\n{issue_lines}\n\n"
+                    f"Run `wenji doctor --db {db_path}` for full diagnostic, or\n"
+                    f"`wenji ingest dir <path> --db {db_path} --rebuild` to rebuild."
+                )
+        yield
+
+    app = FastAPI(title="wenji", docs_url="/docs", redoc_url=None, lifespan=lifespan)
 
     # CORS validator: empty list = CORSMiddleware not installed (deny all).
     # Strict validation (reject `*` / `null` / wildcard subdomain / non-https)

@@ -28,6 +28,19 @@ class DeterministicMockEmbedder:
         return out
 
 
+@pytest.fixture(autouse=True)
+def _disable_startup_check(monkeypatch):
+    """Default-skip the FastAPI lifespan consistency gate for test fixtures.
+
+    Test dbs are partial by design (e.g. only articles_meta + doc_vectors,
+    no chunks_fts) to exercise specific endpoints. Tests that explicitly
+    verify the startup gate (test_web_startup.py) MUST
+    `monkeypatch.delenv("WENJI_DISABLE_STARTUP_CHECK", raising=False)` to
+    re-enable it.
+    """
+    monkeypatch.setenv("WENJI_DISABLE_STARTUP_CHECK", "1")
+
+
 @pytest.fixture
 def mock_embedder():
     return DeterministicMockEmbedder()
