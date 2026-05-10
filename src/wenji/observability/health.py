@@ -2,11 +2,16 @@
 
 Detects two layers of inconsistency:
 
-- **L2 (cross-table derived-from sanity, 2 sub-rules)**:
+- **L2 (cross-table derived-from sanity, 3 sub-rules)**:
     - L2.c: ``articles_meta`` > 0 but ``chunks_fts`` empty (prod bug 範式)
     - L2.d: ``articles_meta`` > 0 but ``doc_vectors`` empty
+    - L2.e: ``chunks_fts`` > 0 but ``articles_meta`` empty (reverse broken
+      state: chunks should be derived from articles)
 - **L3 (sample MATCH validation)**: at least one keyword in the supplied
   set MUST yield ≥1 hit on ``articles_fts`` AND ≥1 hit on ``chunks_fts``.
+  L3 is gated on both FTS indices being non-empty, so a freshly-initialised
+  empty db (no ingest yet) reports OK — the healthy
+  ``wenji ingest && wenji serve`` workflow is not blocked at startup.
 
 Used by ``wenji doctor`` (CLI wrapper) and retrieval-entry startup gates
 (``wenji serve`` lifespan, ``wenji eval run*``, ``wenji search``).
@@ -21,6 +26,7 @@ this module relies purely on cross-table row counts and sample MATCH.
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import sys
@@ -29,9 +35,40 @@ from pathlib import Path
 
 from wenji.search.bm25 import build_fts_query
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_SAMPLE_KEYWORDS: tuple[str, ...] = ("神", "人", "心", "天", "之")
 
 _TABLES: tuple[str, ...] = ("articles_meta", "articles_fts", "chunks_fts", "doc_vectors")
+
+# Whitelist of values that count as "yes, disable the gate". Anything else
+# (including the footgun values "0" / "false" / " ") falls through to
+# *enabled* — Python's default truthy-string coercion would silently disable
+# the gate on those, which is the opposite of operator intent.
+_TRUTHY_DISABLE_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def _is_startup_check_disabled() -> bool:
+    """Return True iff ``WENJI_DISABLE_STARTUP_CHECK`` is set to a truthy value.
+
+    Uses an explicit truthy whitelist so ``=0`` / ``=false`` / ``= `` are
+    treated as "enabled" (which matches operator intent of "I'm trying to
+    turn it off"). When the env IS recognised as disabling, a single
+    WARNING is emitted so incident response has an audit trail —
+    production deploys MUST NOT set this env.
+    """
+    raw = os.environ.get("WENJI_DISABLE_STARTUP_CHECK")
+    if raw is None:
+        return False
+    val = raw.strip().lower()
+    if val not in _TRUTHY_DISABLE_VALUES:
+        return False
+    logger.warning(
+        "WENJI_DISABLE_STARTUP_CHECK=%r — wenji startup consistency gate is "
+        "DISABLED. Production deploys MUST NOT set this env.",
+        raw,
+    )
+    return True
 
 
 @dataclass
@@ -121,8 +158,18 @@ def check_consistency(
             "but doc_vectors is empty (embeddings missing)"
         )
 
-    # L3: sample MATCH all miss on either index
-    if sample_keywords:
+    # L2.e: chunks_fts > 0 but articles_meta empty (reverse broken state)
+    if row_counts["chunks_fts"] > 0 and row_counts["articles_meta"] == 0:
+        issues.append(
+            f"chunks_fts has {row_counts['chunks_fts']} rows "
+            "but articles_meta is empty (chunks should be derived from articles)"
+        )
+
+    # L3: sample MATCH all miss on either index. Only meaningful when both
+    # FTS indices are populated — a freshly-initialised db (or one whose
+    # corpus is intentionally empty) MUST NOT trip L3 just because there
+    # is no content to MATCH against.
+    if sample_keywords and row_counts["articles_fts"] > 0 and row_counts["chunks_fts"] > 0:
         any_articles_hit = any(h["articles_fts"] > 0 for h in sample_hits.values())
         any_chunks_hit = any(h["chunks_fts"] > 0 for h in sample_hits.values())
         if not any_articles_hit or not any_chunks_hit:
@@ -149,10 +196,11 @@ def _ensure_consistency(
     search). Side-effect: ``sys.exit(1)`` on inconsistency. Caller should
     invoke this before any retrieval work.
 
-    Honours ``WENJI_DISABLE_STARTUP_CHECK`` env to skip the check (test
-    fixtures only; production deploys MUST NOT set this).
+    Honours ``WENJI_DISABLE_STARTUP_CHECK`` env (truthy whitelist; see
+    :func:`_is_startup_check_disabled`) to skip the check (test fixtures
+    only; production deploys MUST NOT set this).
     """
-    if os.environ.get("WENJI_DISABLE_STARTUP_CHECK"):
+    if _is_startup_check_disabled():
         return
     from wenji.core.db import connect
 

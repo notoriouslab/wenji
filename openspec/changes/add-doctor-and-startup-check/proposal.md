@@ -55,15 +55,16 @@ Register: `cli/__init__.py` 加 `app.command(name="doctor", help="...")(...)`
 
 **Test escape hatch**: 兩個整合點（FastAPI lifespan + `_ensure_consistency` helper）皆檢查 `WENJI_DISABLE_STARTUP_CHECK` env，set 時 skip check。Test fixtures 用 partial dbs（只有 articles_meta + doc_vectors，無 chunks_fts）測試 endpoint 行為，這個 escape hatch 讓 test 不被 gate 阻塞。`tests/wenji/conftest.py` 用 `autouse=True` fixture 預設 setenv；想驗證 startup gate 行為的 test（如 Phase 4 task 4.3）用 `monkeypatch.delenv("WENJI_DISABLE_STARTUP_CHECK", raising=False)` 重新啟用。**Production deploys MUST NOT set this env**（無 doc 不會發現，但是個 anti-pattern）。
 
-### D — Inconsistency definition (2 layers, L2 has 2 sub-rules)
+### D — Inconsistency definition (2 layers, L2 has 3 sub-rules)
 
 任一層任一 sub-rule FAIL → `issues` 累積 → `ok = False`：
 
 **L2 — cross-table derived-from sanity**（chunks / doc_vectors 應該由 articles 派生）：
 - L2.c: `articles_meta` rows > 0 但 `chunks_fts` rows = 0 → **prod bug 範式**：ingest 寫了 articles 卻沒寫 chunks；cross-table 暴露 chunks 應該由 articles 派生卻缺
 - L2.d: `articles_meta` rows > 0 但 `doc_vectors` rows = 0 → embedding 步驟缺漏
+- L2.e: `chunks_fts` rows > 0 但 `articles_meta` rows = 0 → 反方向 broken state（articles 被誤刪、derived rows 殘留）
 
-**L3 — sample MATCH validation**：所有 keyword 對 `articles_fts` AND 對 `chunks_fts` 都 0 hits（FTS index 壞了 / corpus 純非中文）。
+**L3 — sample MATCH validation**：所有 keyword 對 `articles_fts` AND 對 `chunks_fts` 都 0 hits（FTS index 壞了 / corpus 純非中文）。L3 gated on `articles_fts > 0 AND chunks_fts > 0` —  freshly-init empty db 不會誤 FAIL，`wenji ingest && wenji serve` workflow 不被擋。
 
 L3 FAIL 時 issue 帶 hint `"all sample keywords missed both FTS indices; if your corpus is non-Chinese, override with --sample-keywords"`。
 
@@ -75,6 +76,7 @@ L3 FAIL 時 issue 帶 hint `"all sample keywords missed both FTS indices; if you
 
 - L2.c: `"articles_meta has <N> rows but chunks_fts is empty (chunks should be derived from articles)"`
 - L2.d: `"articles_meta has <N> rows but doc_vectors is empty (embeddings missing)"`
+- L2.e: `"chunks_fts has <N> rows but articles_meta is empty (chunks should be derived from articles)"`
 - L3: `"all sample keywords missed both FTS indices; if your corpus is non-Chinese, override with --sample-keywords"`
 
 ### D'' — `--sample-keywords` flag edge cases
@@ -145,4 +147,5 @@ Run `wenji doctor --db <db_path>` for full diagnostic, or
 - **2026-05-10 Sub-Agent Review W2 修正**：`--sample-keywords` flag 對 `""` / `"   "` / `",,, "` 等 edge case 行為未明。proposal D'' 列 4 個 edge case + 對應行為（全退化用 default，不允許關閉 L3）。
 - **2026-05-10 Sub-Agent Review W3 修正**：startup gate error message format 未明，test 只驗 exit code 不驗 message → implementation 可能寫各種格式。proposal D''' 給 multi-line message template + StartupError args 規範。
 - **2026-05-10 Apply 階段 spec drift 修正**：Phase 3 整合時 19 個 test 因 partial fixture db 被 startup gate 攔下。原 propose 沒料到 test fixture 通常是 partial db（不在乎 retrieval health 完整性、只測 endpoint 行為）。加 `WENJI_DISABLE_STARTUP_CHECK` env escape hatch + conftest autouse fixture default-skip。design.md 加 D9 decision、spec.md 加 scenario、proposal.md C 段加說明。**Production deploys MUST NOT set this env**。
+- **2026-05-10 Apply 階段 spec drift 修正 #3 — Sub-agent review 後三 critical / 高嚴重度修正**：PR #6 開後，三隊獨立 review（中立稽核 / 紅隊資安 / 邊界測試 devil's advocate）找出當前實作仍有的 production-grade 缺陷。整合修正：(a) **CRITICAL — production gate dead**：模組層 `app = create_app()` 無參導致 `db_path=None`、lifespan 條件 `if db_path is not None` 永不滿足、production 實際無 gate。修法：lifespan 加 `resolved_db_path` 從 arg / `WENJI_DB_PATH` env / `data/wenji.db` default 解析，移除 `db_path is not None` 條件，用同一 path 餵 state["db_path"] 確保 gate 跟 query 看同一顆 db。改用 `wenji.core.db.connect`（含 PRAGMA / journal_mode）取代 `sqlite3.connect` 以對齊 SSOT。(b) **HIGH — env truthy footgun**：`os.environ.get("WENJI_DISABLE_STARTUP_CHECK")` truthy 判斷讓 `"0"` / `"false"` / `" "` 全部 disable，operator 想關掉的人寫 `=0` 反而 skip。改用白名單 `{"1","true","yes","on"}` (case-insensitive after strip)；env 被當作 disable 時 emit 一條 `logger.warning` audit trail。(c) **HIGH — 全空 db 永遠 fail**：`wenji ingest dir ... && wenji serve` workflow 在 ingest 前 serve 必死。L3 加 `articles_fts > 0 AND chunks_fts > 0` guard，empty db 通過。(d) **MEDIUM — 反方向 broken state 漏抓**：加 L2.e (`chunks_fts > 0 AND articles_meta = 0`)；spec.md / proposal D / D' 對應更新為 3-rule。(e) **LOW — doctor.py docstring L1 殘渣文字**：drift correction #2 漏改的 module / command docstring，改為「L2 (cross-table sanity) + L3 (sample MATCH)」。新增 17 個 test case（env truthy whitelist parametrize + empty db + L2.e + module-level app via env + doctor db missing exit 2 + sample_keywords 退化路徑），共 35 個 health-related test 全綠。後補（不擋 ship、記 BACKLOG）：F5 sample_keywords dedup / F6 空 tuple ValueError / F7 articles_fts edge-case / F8 partial-crash detection（屬 cleanup-build-telemetry followup 範圍）。
 - **2026-05-10 Apply 階段 spec drift 修正 #2 — L1 + L2.a + L2.b 整層移除**：Phase 4 寫 `test_lifespan_passes_on_healthy_db` / `test_doctor_ok_exits_zero` 第一次在沒 disable env 下用 healthy fixture 跑 startup gate，立刻 FAIL。Grep 確認 codebase 從 v0.1.0 到 v0.3.7 整個 release 史，`wenji_meta` 的 `n_articles` / `n_chunks` / `n_doc_vectors` 三個 build counter **從未被任何 ingest path 寫入**——只在 schema init 設 `'0'` 跟 rebuild path reset 為 `'0'`。`build_started_at` / `build_completed_at` 同樣 dead。意涵：原 propose 的 L1 + L2.a + L2.b 三條 rule 都建立在「counter alive」這個從未存在的事實上 → L1 對任何真實 prod db 都 false-positive；L2.a 觸發條件（counter > 0）永不成立；L2.b 觸發條件（counter = 0 + table > 0）= wenji 的 default state = 永遠 noise。**修正路徑（B 精緻 + 拆 followup）**：(1) `health.py` 移除 L1 + L2.a + L2.b + `ConsistencyReport.counters` field；保留 L2.c / L2.d / L3（純 cross-table + sample MATCH，不依賴 `wenji_meta`）。(2) `schema.sql` 給 5 個 dead column 加 DEPRECATED 註解防未來人重蹈覆轍。(3) 開 followup change scaffold `cleanup-build-telemetry` 評估 drop column vs 補 maintain。對核心 retrieval / RAG 能力 0 影響；對原 propose 想擋的 logos prod「chunks_fts empty 假一致」範式 detection 完整保留（L2.c）。砍掉的全是「永遠 noise」或「永遠靜默」的死層。

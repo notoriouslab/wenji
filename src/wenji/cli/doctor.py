@@ -1,6 +1,6 @@
 """``wenji doctor`` — db consistency health check.
 
-Read-only. Reports L1 (counter↔row count) + L2 (cross-table derived sanity)
+Read-only. Reports L2 (cross-table derived-from sanity, sub-rules c/d/e)
 + L3 (sample MATCH validation) inconsistencies. Exit 0 if OK, 1 if any
 issue detected. Optional ``--sample-keywords`` CSV overrides the default
 Chinese keyword set for non-Chinese corpora.
@@ -30,7 +30,7 @@ def command(
         ),
     ),
 ) -> None:
-    """Check wenji db consistency (counter vs row count + sample MATCH)."""
+    """Check wenji db consistency (cross-table sanity + sample MATCH)."""
     from wenji.core.db import connect
     from wenji.observability.health import DEFAULT_SAMPLE_KEYWORDS, check_consistency
 

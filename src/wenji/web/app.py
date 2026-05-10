@@ -42,7 +42,7 @@ from wenji.browse.tag import TagBrowser
 from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
 from wenji.core.errors import ConfigError, StartupError, WenjiError
-from wenji.observability.health import check_consistency
+from wenji.observability.health import _is_startup_check_disabled, check_consistency
 from wenji.search import Searcher
 from wenji.web.branding import load_branding_from_env, load_cors_origins_from_env
 
@@ -199,15 +199,25 @@ def create_app(
 ) -> FastAPI:
     """Build a FastAPI app. ``searcher`` injection skips lazy load (test path)."""
 
+    # Resolve db_path once from constructor arg → WENJI_DB_PATH → default.
+    # The same resolved path drives the startup consistency gate AND the
+    # request-time state below; keep them aligned to avoid the failure mode
+    # where the gate checks one db while requests query another.
+    resolved_db_path = (
+        Path(db_path) if db_path else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db"))
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Startup consistency gate: only when db_path is provided (production
-        # path) and not explicitly disabled. Test fixtures often build
-        # partial dbs (only articles_meta + doc_vectors, no chunks_fts) to
-        # exercise specific endpoints; tests set WENJI_DISABLE_STARTUP_CHECK
-        # to bypass. Production deploys MUST NOT set this env.
-        if db_path is not None and not os.environ.get("WENJI_DISABLE_STARTUP_CHECK"):
-            check_conn = sqlite3.connect(str(db_path))
+        # Startup consistency gate. Always runs unless explicitly disabled by
+        # a recognised truthy env value (see _is_startup_check_disabled —
+        # uses a whitelist so '0' / 'false' do NOT silently bypass).
+        # Test fixtures often build partial dbs (only articles_meta +
+        # doc_vectors, no chunks_fts) to exercise specific endpoints; tests
+        # set WENJI_DISABLE_STARTUP_CHECK=1 via conftest autouse fixture.
+        # Production deploys MUST NOT set this env.
+        if not _is_startup_check_disabled():
+            check_conn = connect(resolved_db_path)
             try:
                 report = check_consistency(check_conn)
             finally:
@@ -215,10 +225,10 @@ def create_app(
             if not report.ok:
                 issue_lines = "\n".join(f"  - {issue}" for issue in report.issues)
                 raise StartupError(
-                    f"wenji db consistency check FAILED at {db_path}\n\n"
+                    f"wenji db consistency check FAILED at {resolved_db_path}\n\n"
                     f"Issues:\n{issue_lines}\n\n"
-                    f"Run `wenji doctor --db {db_path}` for full diagnostic, or\n"
-                    f"`wenji ingest dir <path> --db {db_path} --rebuild` to rebuild."
+                    f"Run `wenji doctor --db {resolved_db_path}` for full diagnostic, or\n"
+                    f"`wenji ingest dir <path> --db {resolved_db_path} --rebuild` to rebuild."
                 )
         yield
 
@@ -267,9 +277,7 @@ def create_app(
     templates.env.globals["og_image_url"] = branding.og_image_url
 
     state: dict[str, Any] = {
-        "db_path": Path(db_path)
-        if db_path
-        else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db")),
+        "db_path": resolved_db_path,
         "searcher": searcher,
         "llm_client": llm_client if llm_client is not None else _llm_client_from_env(),
         "axes_config": axes_config if axes_config is not None else _axes_config_from_env(),
