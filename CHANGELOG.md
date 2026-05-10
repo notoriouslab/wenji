@@ -7,6 +7,17 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (vNext)
+
+- `wenji doctor` CLI: read-only db consistency health check (cross-table
+  sanity between `articles_meta` / `chunks_fts` / `doc_vectors`, plus
+  sample FTS `MATCH` validation). Exits 0 if OK, 1 if inconsistent.
+  Optional `--sample-keywords k1,k2,k3` for non-Chinese corpora.
+- Startup consistency gate on retrieval entries (`wenji serve` via
+  FastAPI lifespan; `wenji eval run*` and `wenji search` via per-command
+  helper). Inconsistent db → server refuses to bind / CLI exits non-zero
+  with a hint to run `wenji doctor`.
+
 ### Added (v0.3.7)
 
 - Env-driven branding for fork-friendly deployments: optional
