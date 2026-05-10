@@ -244,6 +244,8 @@ URL host 啟動時做白名單驗證：拒 userinfo（`https://a@b.com`）、私
 
 > Local dev SPA：跑 `localhost:5173` 連 `/api/*` 會被預設 CORS 擋下；開發時設 `WENJI_CORS_ORIGINS=http://localhost:5173 WENJI_ALLOW_HTTP_CORS=1`。
 
+部署前用 `wenji doctor --db wenji.db` 驗 db 一致性（cross-table sanity + sample FTS MATCH）；exit 1 代表 db 不一致、`wenji serve` 啟動會拒絕 bind port。非中文 corpus 加 `--sample-keywords k1,k2,k3` override。
+
 #### 升級指南
 
 wenji 用 markdown 為 SSOT，舊 db 升級沒有 migration script —— 直接重建：
@@ -282,6 +284,7 @@ rm wenji.db && wenji ingest dir <markdown-dir> --db wenji.db
 | `wenji eval run-benchmark` | 跑 80q 基準 |
 | `wenji eval sanity-eyeball` | 人工雙閘門驗收 |
 | `wenji eval migrate-jsonl` | 舊版 eval JSONL 轉換 |
+| `wenji doctor` | db consistency 健康檢查（部署前驗 db） |
 | `wenji inspect-chunks <file>` | 預覽單檔切塊結果 |
 | `wenji set-chunk-strategy` | 寫 frontmatter `chunk_strategy` |
 | `wenji corpus trim` | 按 article_id / content_hash 刪除 |

@@ -25,3 +25,7 @@ class ClassifyError(WenjiError):
 
 class SearchError(WenjiError):
     """Search engine failure (FTS query parse error, missing index)."""
+
+
+class StartupError(WenjiError):
+    """Retrieval entry point startup gate failure (db consistency check failed)."""

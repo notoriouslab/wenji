@@ -75,8 +75,10 @@ def _in_process_search(
 ) -> dict:
     from wenji.core.db import connect
     from wenji.ingest.embed import Embedder
+    from wenji.observability.health import _ensure_consistency
     from wenji.search import Searcher
 
+    _ensure_consistency(db)
     conn = connect(db)
     rewriter, err = _build_rewriter(
         conn, force_enable=force_enable_rewrite, force_disable=force_no_rewrite
