@@ -69,9 +69,7 @@ def test_bm25_limit_caps_results(populated_db):
 def test_bm25_search_logs_warning_on_operational_error(caplog):
     """OperationalError must emit WARNING and preserve existing SearchError raise."""
     fake_conn = MagicMock(spec=sqlite3.Connection)
-    fake_conn.execute = MagicMock(
-        side_effect=sqlite3.OperationalError("simulated lock")
-    )
+    fake_conn.execute = MagicMock(side_effect=sqlite3.OperationalError("simulated lock"))
 
     caplog.set_level(logging.WARNING, logger="wenji.search.bm25")
 

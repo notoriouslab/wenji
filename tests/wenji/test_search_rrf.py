@@ -151,9 +151,7 @@ def test_chunk_bm25_search_dedups_per_article():
 def test_chunk_bm25_search_raises_on_operational_error():
     """OperationalError must propagate as SearchError (not silent return {})."""
     fake_conn = MagicMock(spec=sqlite3.Connection)
-    fake_conn.execute = MagicMock(
-        side_effect=sqlite3.OperationalError("simulated lock")
-    )
+    fake_conn.execute = MagicMock(side_effect=sqlite3.OperationalError("simulated lock"))
 
     with pytest.raises(SearchError) as excinfo:
         chunk_bm25_search(fake_conn, "test query", limit=10)
@@ -165,9 +163,7 @@ def test_chunk_bm25_search_raises_on_operational_error():
 def test_chunk_bm25_search_logs_warning_on_operational_error(caplog):
     """OperationalError must emit WARNING with stack trace before raising."""
     fake_conn = MagicMock(spec=sqlite3.Connection)
-    fake_conn.execute = MagicMock(
-        side_effect=sqlite3.OperationalError("simulated corrupt")
-    )
+    fake_conn.execute = MagicMock(side_effect=sqlite3.OperationalError("simulated corrupt"))
 
     caplog.set_level(logging.WARNING, logger="wenji.search.rrf")
 
