@@ -95,3 +95,72 @@ def populated_db(tiny_corpus: Path, mock_embedder):
     conn.commit()
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def populated_db_file(tiny_corpus: Path, mock_embedder, tmp_path: Path) -> Path:
+    """File-backed populated DB for CLI / FastAPI lifespan tests.
+
+    Same shape as ``populated_db`` but persisted to ``tmp_path/wenji.db`` so
+    callers that take a path (typer commands, FastAPI ``create_app``) can use
+    it directly.
+    """
+    db_path = tmp_path / "wenji.db"
+    conn = connect(db_path)
+    initialise_schema(conn)
+    ingest_dir(
+        tiny_corpus,
+        conn,
+        mock_embedder,
+        directory_map={"sermons": "sermon"},
+    )
+    aid = conn.execute("SELECT article_id FROM articles_meta WHERE title LIKE '%因信%'").fetchone()[
+        0
+    ]
+    conn.execute(
+        "INSERT INTO article_axes (article_id, axis_id, is_primary) VALUES (?, ?, 1)",
+        (aid, "theology"),
+    )
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+@pytest.fixture
+def healthy_db(tiny_corpus: Path, mock_embedder):
+    """Fully-derived db: articles_meta + articles_fts + chunks_fts + doc_vectors all populated.
+
+    Distinct from ``populated_db`` (partial — chunks_fts intentionally
+    empty because no ``chunk_strategies`` is passed). Health-check tests
+    that exercise the L2 / L3 gates against a *passing* state use this.
+    """
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    ingest_dir(
+        tiny_corpus,
+        conn,
+        mock_embedder,
+        directory_map={"sermons": "sermon"},
+        chunk_strategies={"sermon": {"strategy": "paragraph", "min_chars": 1, "max_chars": 1500}},
+    )
+    conn.commit()
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def healthy_db_file(tiny_corpus: Path, mock_embedder, tmp_path: Path) -> Path:
+    """File-backed healthy DB. See ``healthy_db`` docstring."""
+    db_path = tmp_path / "wenji.db"
+    conn = connect(db_path)
+    initialise_schema(conn)
+    ingest_dir(
+        tiny_corpus,
+        conn,
+        mock_embedder,
+        directory_map={"sermons": "sermon"},
+        chunk_strategies={"sermon": {"strategy": "paragraph", "min_chars": 1, "max_chars": 1500}},
+    )
+    conn.commit()
+    conn.close()
+    return db_path

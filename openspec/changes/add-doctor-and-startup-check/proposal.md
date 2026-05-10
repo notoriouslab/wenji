@@ -19,8 +19,7 @@ Mode 3 拍板（2026-05-10）後 wenji = OSS SSOT，prod logos sandbox 暴露的
 
 - `ConsistencyReport` dataclass：
   - `schema_version: int`
-  - `counters: dict[str, int]`（`n_articles` / `n_chunks` / `n_doc_vectors`）
-  - `row_counts: dict[str, int]`（`articles_meta` / `chunks_fts` / `doc_vectors`）
+  - `row_counts: dict[str, int]`（`articles_meta` / `articles_fts` / `chunks_fts` / `doc_vectors`）
   - `sample_match_hits: dict[str, dict[str, int]]`（keyword → {`articles_fts`: hit_count, `chunks_fts`: hit_count}）
   - `issues: list[str]`（human-readable issues; empty = OK）
   - `@property ok -> bool`（`not issues`）
@@ -28,6 +27,8 @@ Mode 3 拍板（2026-05-10）後 wenji = OSS SSOT，prod logos sandbox 暴露的
 - `check_consistency(conn, sample_keywords) -> ConsistencyReport`：純函式，read-only
 - `DEFAULT_SAMPLE_KEYWORDS = ("神", "人", "心", "天", "之")`
 - `class StartupError(WenjiError)` in `wenji.core.errors`（新 exception）
+
+> **Note**: 原 propose 含 `counters: dict[str, int]` field 對應 L1 counter check。Apply 階段發現 `wenji_meta` build counters 從 v0.1.0 起未被任何 ingest path 維護（dead schema columns）→ L1 layer 整個移除（見 G1 drift correction #2）。`ConsistencyReport.counters` field 也一併移除以避免在 doctor 報告中暴露 zombie state。
 
 ### B — New CLI: `wenji doctor`
 
@@ -54,30 +55,24 @@ Register: `cli/__init__.py` 加 `app.command(name="doctor", help="...")(...)`
 
 **Test escape hatch**: 兩個整合點（FastAPI lifespan + `_ensure_consistency` helper）皆檢查 `WENJI_DISABLE_STARTUP_CHECK` env，set 時 skip check。Test fixtures 用 partial dbs（只有 articles_meta + doc_vectors，無 chunks_fts）測試 endpoint 行為，這個 escape hatch 讓 test 不被 gate 阻塞。`tests/wenji/conftest.py` 用 `autouse=True` fixture 預設 setenv；想驗證 startup gate 行為的 test（如 Phase 4 task 4.3）用 `monkeypatch.delenv("WENJI_DISABLE_STARTUP_CHECK", raising=False)` 重新啟用。**Production deploys MUST NOT set this env**（無 doc 不會發現，但是個 anti-pattern）。
 
-### D — Inconsistency definition (3 layers, L2 has 4 sub-rules)
+### D — Inconsistency definition (2 layers, L2 has 2 sub-rules)
 
 任一層任一 sub-rule FAIL → `issues` 累積 → `ok = False`：
 
-**L1 — counter ↔ matching table row count**：
-- `n_articles` ↔ `articles_meta`、`n_chunks` ↔ `chunks_fts`、`n_doc_vectors` ↔ `doc_vectors`，數值不等即 FAIL
-
 **L2 — cross-table derived-from sanity**（chunks / doc_vectors 應該由 articles 派生）：
-- L2.a: counter > 0 但對應 table empty（counter not zeroed after manual truncate）
-- L2.b: 對應 table 非 empty 但 counter = 0（counter not updated after ingest）
-- L2.c: `articles_meta` rows > 0 但 `chunks_fts` rows = 0 → **prod bug 範式**：ingest 寫了 articles 卻沒寫 chunks；L1 看 `n_chunks=0 == chunks_fts=0` 假一致，但 cross-table 暴露 chunks 應該由 articles 派生卻缺
+- L2.c: `articles_meta` rows > 0 但 `chunks_fts` rows = 0 → **prod bug 範式**：ingest 寫了 articles 卻沒寫 chunks；cross-table 暴露 chunks 應該由 articles 派生卻缺
 - L2.d: `articles_meta` rows > 0 但 `doc_vectors` rows = 0 → embedding 步驟缺漏
 
 **L3 — sample MATCH validation**：所有 keyword 對 `articles_fts` AND 對 `chunks_fts` 都 0 hits（FTS index 壞了 / corpus 純非中文）。
 
 L3 FAIL 時 issue 帶 hint `"all sample keywords missed both FTS indices; if your corpus is non-Chinese, override with --sample-keywords"`。
 
+> **Note (L1 + L2.a / L2.b removed during apply)**：原 propose 含 L1（counter ↔ row count）+ L2.a / L2.b（counter 跟 table 對映 sanity）。Apply 階段確認 `wenji_meta` 三個 build counter 從 v0.1.0 起無任何 ingest path 寫入（dead schema columns），三條依賴 counter alive 假設的 rule 移除。詳見 G1 drift correction #2 + spec.md「Note on wenji_meta build counters」。
+
 ### D' — Issue message templates
 
 每個 layer 失敗時的 issue 字串範本（讓 test assertion 與 implementation 對齊）：
 
-- L1 mismatch: `"counter <key> = <counter_val>, but SELECT COUNT(*) FROM <table> = <row_count>"`
-- L2.a: `"counter <key> = <counter_val> > 0 but <table> is empty"`
-- L2.b: `"<table> has <row_count> rows but counter <key> = 0"`
 - L2.c: `"articles_meta has <N> rows but chunks_fts is empty (chunks should be derived from articles)"`
 - L2.d: `"articles_meta has <N> rows but doc_vectors is empty (embeddings missing)"`
 - L3: `"all sample keywords missed both FTS indices; if your corpus is non-Chinese, override with --sample-keywords"`
@@ -111,8 +106,7 @@ Run `wenji doctor --db <db_path>` for full diagnostic, or
 
 - Unit: `tests/wenji/test_observability_health.py`
   - `test_check_consistency_ok_state`
-  - `test_check_consistency_counter_mismatch`（L1）
-  - `test_check_consistency_table_empty_counter_zero`（L2 prod-bug-style）
+  - `test_check_consistency_chunks_empty_articles_present`（L2.c prod-bug-style）
   - `test_check_consistency_sample_match_all_miss`（L3）
 - Integration:
   - `tests/wenji/test_cli_doctor.py`：doctor exit 0 / exit 1 + output format
@@ -151,3 +145,4 @@ Run `wenji doctor --db <db_path>` for full diagnostic, or
 - **2026-05-10 Sub-Agent Review W2 修正**：`--sample-keywords` flag 對 `""` / `"   "` / `",,, "` 等 edge case 行為未明。proposal D'' 列 4 個 edge case + 對應行為（全退化用 default，不允許關閉 L3）。
 - **2026-05-10 Sub-Agent Review W3 修正**：startup gate error message format 未明，test 只驗 exit code 不驗 message → implementation 可能寫各種格式。proposal D''' 給 multi-line message template + StartupError args 規範。
 - **2026-05-10 Apply 階段 spec drift 修正**：Phase 3 整合時 19 個 test 因 partial fixture db 被 startup gate 攔下。原 propose 沒料到 test fixture 通常是 partial db（不在乎 retrieval health 完整性、只測 endpoint 行為）。加 `WENJI_DISABLE_STARTUP_CHECK` env escape hatch + conftest autouse fixture default-skip。design.md 加 D9 decision、spec.md 加 scenario、proposal.md C 段加說明。**Production deploys MUST NOT set this env**。
+- **2026-05-10 Apply 階段 spec drift 修正 #2 — L1 + L2.a + L2.b 整層移除**：Phase 4 寫 `test_lifespan_passes_on_healthy_db` / `test_doctor_ok_exits_zero` 第一次在沒 disable env 下用 healthy fixture 跑 startup gate，立刻 FAIL。Grep 確認 codebase 從 v0.1.0 到 v0.3.7 整個 release 史，`wenji_meta` 的 `n_articles` / `n_chunks` / `n_doc_vectors` 三個 build counter **從未被任何 ingest path 寫入**——只在 schema init 設 `'0'` 跟 rebuild path reset 為 `'0'`。`build_started_at` / `build_completed_at` 同樣 dead。意涵：原 propose 的 L1 + L2.a + L2.b 三條 rule 都建立在「counter alive」這個從未存在的事實上 → L1 對任何真實 prod db 都 false-positive；L2.a 觸發條件（counter > 0）永不成立；L2.b 觸發條件（counter = 0 + table > 0）= wenji 的 default state = 永遠 noise。**修正路徑（B 精緻 + 拆 followup）**：(1) `health.py` 移除 L1 + L2.a + L2.b + `ConsistencyReport.counters` field；保留 L2.c / L2.d / L3（純 cross-table + sample MATCH，不依賴 `wenji_meta`）。(2) `schema.sql` 給 5 個 dead column 加 DEPRECATED 註解防未來人重蹈覆轍。(3) 開 followup change scaffold `cleanup-build-telemetry` 評估 drop column vs 補 maintain。對核心 retrieval / RAG 能力 0 影響；對原 propose 想擋的 logos prod「chunks_fts empty 假一致」範式 detection 完整保留（L2.c）。砍掉的全是「永遠 noise」或「永遠靜默」的死層。

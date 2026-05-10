@@ -1,13 +1,22 @@
 """DB consistency health check + retrieval-entry startup gate.
 
-Detects three layers of inconsistency:
+Detects two layers of inconsistency:
 
-- L1: counter ↔ matching table row count (n_articles ↔ articles_meta etc.)
-- L2: cross-table derived-from sanity (4 sub-rules a/b/c/d)
-- L3: sample MATCH validation against articles_fts / chunks_fts
+- **L2 (cross-table derived-from sanity, 2 sub-rules)**:
+    - L2.c: ``articles_meta`` > 0 but ``chunks_fts`` empty (prod bug 範式)
+    - L2.d: ``articles_meta`` > 0 but ``doc_vectors`` empty
+- **L3 (sample MATCH validation)**: at least one keyword in the supplied
+  set MUST yield ≥1 hit on ``articles_fts`` AND ≥1 hit on ``chunks_fts``.
 
 Used by ``wenji doctor`` (CLI wrapper) and retrieval-entry startup gates
 (``wenji serve`` lifespan, ``wenji eval run*``, ``wenji search``).
+
+Note on ``wenji_meta`` counters: ``n_articles`` / ``n_chunks`` /
+``n_doc_vectors`` are NOT consulted. They were specced as build telemetry
+in v0.1.0 but no ingest path has ever maintained them (see schema.sql
+DEPRECATED notes). The ``cleanup-build-telemetry`` followup change will
+decide whether to drop the columns or wire up maintenance; until then
+this module relies purely on cross-table row counts and sample MATCH.
 """
 
 from __future__ import annotations
@@ -22,12 +31,7 @@ from wenji.search.bm25 import build_fts_query
 
 DEFAULT_SAMPLE_KEYWORDS: tuple[str, ...] = ("神", "人", "心", "天", "之")
 
-# Counter ↔ matching table mapping (counter key in wenji_meta, table to COUNT(*) from)
-_COUNTER_TABLE_MAP: tuple[tuple[str, str], ...] = (
-    ("n_articles", "articles_meta"),
-    ("n_chunks", "chunks_fts"),
-    ("n_doc_vectors", "doc_vectors"),
-)
+_TABLES: tuple[str, ...] = ("articles_meta", "articles_fts", "chunks_fts", "doc_vectors")
 
 
 @dataclass
@@ -35,7 +39,6 @@ class ConsistencyReport:
     """Structured result of :func:`check_consistency`. Read-only."""
 
     schema_version: int
-    counters: dict[str, int]
     row_counts: dict[str, int]
     sample_match_hits: dict[str, dict[str, int]]
     issues: list[str] = field(default_factory=list)
@@ -47,7 +50,6 @@ class ConsistencyReport:
     def format(self) -> str:
         lines = [
             f"schema_version = {self.schema_version}",
-            f"counters       = {self.counters}",
             f"row_counts     = {self.row_counts}",
             f"sample MATCH   = {self.sample_match_hits}",
         ]
@@ -69,16 +71,6 @@ def _scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
-def _read_counter(conn: sqlite3.Connection, key: str) -> int:
-    row = conn.execute("SELECT value FROM wenji_meta WHERE key = ?", (key,)).fetchone()
-    if not row:
-        return 0
-    try:
-        return int(row[0])
-    except (ValueError, TypeError):
-        return 0
-
-
 def _sample_match_count(conn: sqlite3.Connection, table: str, keyword: str) -> int:
     """Return number of rows matching keyword via FTS5 MATCH; 0 on parse failure."""
     fts_query = build_fts_query(keyword)
@@ -95,18 +87,16 @@ def check_consistency(
     conn: sqlite3.Connection,
     sample_keywords: tuple[str, ...] = DEFAULT_SAMPLE_KEYWORDS,
 ) -> ConsistencyReport:
-    """Run L1 + L2(a-d) + L3 inconsistency detection.
+    """Run L2 cross-table sanity + L3 sample MATCH checks.
 
     Read-only. Returns a structured report regardless of OK/FAIL so callers
-    (CLI doctor, startup gate) can present full picture.
+    (CLI doctor, startup gate) can present the full picture.
     """
-    schema_version = _read_counter(conn, "schema_version")
-    counters = {key: _read_counter(conn, key) for key, _ in _COUNTER_TABLE_MAP}
-    row_counts = {
-        table: _scalar(conn, f"SELECT COUNT(*) FROM {table}") for _, table in _COUNTER_TABLE_MAP
-    }
-    # articles_fts is the L3 validation target; not paired with a counter
-    row_counts["articles_fts"] = _scalar(conn, "SELECT COUNT(*) FROM articles_fts")
+    schema_version = _scalar(
+        conn,
+        "SELECT CAST(value AS INTEGER) FROM wenji_meta WHERE key = 'schema_version'",
+    )
+    row_counts = {table: _scalar(conn, f"SELECT COUNT(*) FROM {table}") for table in _TABLES}
 
     sample_hits: dict[str, dict[str, int]] = {}
     for kw in sample_keywords:
@@ -116,29 +106,6 @@ def check_consistency(
         }
 
     issues: list[str] = []
-
-    # L1: counter ↔ matching table row count
-    for counter_key, table_name in _COUNTER_TABLE_MAP:
-        c = counters[counter_key]
-        r = row_counts[table_name]
-        if c != r:
-            issues.append(
-                f"counter {counter_key} = {c}, but SELECT COUNT(*) FROM {table_name} = {r}"
-            )
-
-    # L2.a: counter > 0 but matching table empty
-    for counter_key, table_name in _COUNTER_TABLE_MAP:
-        if counters[counter_key] > 0 and row_counts[table_name] == 0:
-            issues.append(
-                f"counter {counter_key} = {counters[counter_key]} > 0 but {table_name} is empty"
-            )
-
-    # L2.b: matching table > 0 but counter = 0
-    for counter_key, table_name in _COUNTER_TABLE_MAP:
-        if counters[counter_key] == 0 and row_counts[table_name] > 0:
-            issues.append(
-                f"{table_name} has {row_counts[table_name]} rows but counter {counter_key} = 0"
-            )
 
     # L2.c: articles_meta > 0 but chunks_fts empty (prod bug 假一致 範式)
     if row_counts["articles_meta"] > 0 and row_counts["chunks_fts"] == 0:
@@ -166,7 +133,6 @@ def check_consistency(
 
     return ConsistencyReport(
         schema_version=schema_version,
-        counters=counters,
         row_counts=row_counts,
         sample_match_hits=sample_hits,
         issues=issues,
