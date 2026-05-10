@@ -122,9 +122,7 @@ def load_benchmark_v2_snapshot(
         version=str(data.get("version", "")),
     )
     if not metadata.source_commit:
-        raise IngestError(
-            "snapshot missing required field 'source_commit' (provenance metadata)"
-        )
+        raise IngestError("snapshot missing required field 'source_commit' (provenance metadata)")
 
     categories = data.get("categories")
     if not isinstance(categories, list) or not categories:

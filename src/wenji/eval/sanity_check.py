@@ -40,9 +40,7 @@ def strip_control_chars(value: str) -> str:
 def _check_no_oversized_string(node: object, path: str = "$") -> None:
     if isinstance(node, str):
         if len(node.encode("utf-8")) > MAX_STRING_BYTES:
-            raise ValueError(
-                f"baseline-output string at {path} exceeds {MAX_STRING_BYTES} bytes"
-            )
+            raise ValueError(f"baseline-output string at {path} exceeds {MAX_STRING_BYTES} bytes")
         return
     if isinstance(node, dict):
         for k, v in node.items():

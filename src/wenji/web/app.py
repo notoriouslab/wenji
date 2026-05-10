@@ -87,6 +87,7 @@ def _markdown_renderer():
     global _MD_RENDERER
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
+
         try:
             from mdit_py_plugins.footnote import footnote_plugin
             from mdit_py_plugins.front_matter import front_matter_plugin
@@ -865,8 +866,7 @@ def create_app(
         browser = _get_tag_browser()
         tags = browser.list_tags()
         return templates.TemplateResponse(
-            "tags_index.html",
-            {"request": request, "tags": tags, "title": "所有標籤"}
+            "tags_index.html", {"request": request, "tags": tags, "title": "所有標籤"}
         )
 
     @app.get("/tag/{name}", response_class=HTMLResponse)
@@ -877,8 +877,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Tag not found")
         related = browser.get_related_tags(name)
         return templates.TemplateResponse(
-            "tag_detail.html",
-            {"request": request, "tag": detail, "related_tags": related}
+            "tag_detail.html", {"request": request, "tag": detail, "related_tags": related}
         )
 
     @app.get("/api/tags")

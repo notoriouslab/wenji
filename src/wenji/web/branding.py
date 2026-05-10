@@ -59,9 +59,7 @@ def _has_control_char(s: str) -> bool:
     return any(ord(c) < 0x20 or ord(c) == 0x7F for c in s)
 
 
-def _validate_https_url_host(
-    env_name: str, raw: str, *, relax_port_check: bool = False
-) -> str:
+def _validate_https_url_host(env_name: str, raw: str, *, relax_port_check: bool = False) -> str:
     """Parse and whitelist-check an HTTPS URL env value; return normalised URL.
 
     Implements spec D8 "Site URL host whitelist rejects unsafe forms":
@@ -77,8 +75,7 @@ def _validate_https_url_host(
     """
     if _has_control_char(raw):
         raise RuntimeError(
-            f"{env_name} contains control characters (\\x00-\\x1f or \\x7f); "
-            "refusing to start"
+            f"{env_name} contains control characters (\\x00-\\x1f or \\x7f); refusing to start"
         )
     if "%" in raw:
         raise RuntimeError(
@@ -87,8 +84,7 @@ def _validate_https_url_host(
         )
     if not raw.startswith("https://"):
         raise RuntimeError(
-            f"{env_name} must start with https:// (got prefix={raw[:10]!r}); "
-            "refusing to start"
+            f"{env_name} must start with https:// (got prefix={raw[:10]!r}); refusing to start"
         )
 
     try:
@@ -114,8 +110,7 @@ def _validate_https_url_host(
 
     if len(hostname) > _HOSTNAME_MAX_LEN:
         raise RuntimeError(
-            f"{env_name} hostname is {len(hostname)} chars; RFC 1035 caps at "
-            f"{_HOSTNAME_MAX_LEN}"
+            f"{env_name} hostname is {len(hostname)} chars; RFC 1035 caps at {_HOSTNAME_MAX_LEN}"
         )
 
     allow_private = os.environ.get("WENJI_ALLOW_PRIVATE_HOST", "").strip() == "1"
@@ -132,8 +127,7 @@ def _validate_https_url_host(
             pass
 
     allow_nonstandard_port = (
-        relax_port_check
-        or os.environ.get("WENJI_ALLOW_NONSTANDARD_PORT", "").strip() == "1"
+        relax_port_check or os.environ.get("WENJI_ALLOW_NONSTANDARD_PORT", "").strip() == "1"
     )
     port = parts.port
     if port not in _DEFAULT_HTTPS_PORTS:

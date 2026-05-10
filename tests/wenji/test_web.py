@@ -553,7 +553,9 @@ def test_robots_txt_unset_returns_conservative_deny(populated_db, tmp_path, monk
 
 def test_robots_txt_with_site_url_contains_sitemap_line(populated_db, tmp_path, monkeypatch):
     c = _make_branded_client(
-        populated_db, tmp_path, monkeypatch,
+        populated_db,
+        tmp_path,
+        monkeypatch,
         {"WENJI_SITE_URL": "https://wenji.example.com/"},
     )
     r = c.get("/robots.txt")
@@ -571,7 +573,9 @@ def test_sitemap_xml_unset_returns_404(populated_db, tmp_path, monkeypatch):
 
 def test_sitemap_xml_with_site_url_uses_that_url(populated_db, tmp_path, monkeypatch):
     c = _make_branded_client(
-        populated_db, tmp_path, monkeypatch,
+        populated_db,
+        tmp_path,
+        monkeypatch,
         {"WENJI_SITE_URL": "https://wenji.example.com"},
     )
     r = c.get("/sitemap.xml")
@@ -588,7 +592,9 @@ def test_llms_txt_unset_returns_404(populated_db, tmp_path, monkeypatch):
 
 def test_llms_txt_with_site_url_uses_branded_name(populated_db, tmp_path, monkeypatch):
     c = _make_branded_client(
-        populated_db, tmp_path, monkeypatch,
+        populated_db,
+        tmp_path,
+        monkeypatch,
         {
             "WENJI_SITE_URL": "https://wenji.example.com",
             "WENJI_SITE_NAME": "My Wenji",

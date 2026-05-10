@@ -6,6 +6,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class TagBrowser:
     def __init__(self, db_path: str, source_filter: str | None = None):
         self.db_path = db_path
@@ -50,7 +51,7 @@ class TagBrowser:
                     "title": title,
                     "pub_date": pdate,
                     "source_type": stype,
-                    "tags": tags
+                    "tags": tags,
                 }
 
                 for t in tags:
@@ -92,7 +93,7 @@ class TagBrowser:
             "name": name,
             "article_count": len(article_ids),
             "articles": articles,
-            "source_type_distribution": dict(stype_counts.most_common())
+            "source_type_distribution": dict(stype_counts.most_common()),
         }
 
     def get_related_tags(self, name: str, k: int = 10) -> list[tuple[str, float]]:
