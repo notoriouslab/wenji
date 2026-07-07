@@ -2,24 +2,24 @@
 
 ## Phase 0 — Pre-flight
 
-- [ ] 0.1 確認 `pwd` + `git remote -v` 是 wenji repo、working tree clean、main HEAD 含 PR #8（`5c6a4bc`）
-- [ ] 0.2 從 origin/main 切出 branch `release-v0-4-0`
+- [x] 0.1 確認 `pwd` + `git remote -v` 是 wenji repo、working tree clean、main HEAD 含 PR #8（`5c6a4bc`）
+- [x] 0.2 從 origin/main 切出 branch `release-v0-4-0`
 
 ## Phase 1 — C-3：`wenji_meta` dead keys 清理（D2/D3）
 
-- [ ] 1.1 `src/wenji/core/schema.sql`：seed INSERT 移除 5 個 keys（`build_started_at` / `build_completed_at` / `n_articles` / `n_chunks` / `n_doc_vectors`）；刪除 header 的 DEPRECATED 註解區塊（現行約 line 18-24）與 INSERT 內的 DEPRECATED inline 註解；Live keys 註解保留 `schema_version` + `embedder` 兩行
-- [ ] 1.2 `src/wenji/core/db.py` `initialise_schema`：緊接 `executescript` 的下一個 statement（即 schema_version 的 SELECT 驗證之前），加 stale-key DELETE：
+- [x] 1.1 `src/wenji/core/schema.sql`：seed INSERT 移除 5 個 keys（`build_started_at` / `build_completed_at` / `n_articles` / `n_chunks` / `n_doc_vectors`）；刪除 header 的 DEPRECATED 註解區塊（現行約 line 18-24）與 INSERT 內的 DEPRECATED inline 註解；Live keys 註解保留 `schema_version` + `embedder` 兩行
+- [x] 1.2 `src/wenji/core/db.py` `initialise_schema`：緊接 `executescript` 的下一個 statement（即 schema_version 的 SELECT 驗證之前），加 stale-key DELETE：
   `conn.execute("DELETE FROM wenji_meta WHERE key IN ('build_started_at','build_completed_at','n_articles','n_chunks','n_doc_vectors')")`
   docstring 補一句說明（清除 v0.4.0 前 schema 的殘留 keys，idempotent）
-- [ ] 1.3 `src/wenji/ingest/__init__.py` `rebuild_from_disk`：移除 counter reset UPDATE 整段（現行 line 439-441）；確認 `rg -n "n_articles|n_chunks|n_doc_vectors|build_started_at|build_completed_at" src/` 僅剩 `db.py` 的 DELETE 一處
-- [ ] 1.4 `src/wenji/observability/health.py` module docstring：counter 說明段改寫為歷史註記（keys 已於 v0.4.0 移除），刪除指向 `cleanup-build-telemetry` backlog 的句子
-- [ ] 1.5 tests：
+- [x] 1.3 `src/wenji/ingest/__init__.py` `rebuild_from_disk`：移除 counter reset UPDATE 整段（現行 line 439-441）；確認 `rg -n "n_articles|n_chunks|n_doc_vectors|build_started_at|build_completed_at" src/` 僅剩 `db.py` 的 DELETE 一處
+- [x] 1.4 `src/wenji/observability/health.py` module docstring：counter 說明段改寫為歷史註記（keys 已於 v0.4.0 移除），刪除指向 `cleanup-build-telemetry` backlog 的句子
+- [x] 1.5 tests：
   - `tests/wenji/test_core_db.py` 新增：fresh db init 後 `wenji_meta` 恰好 2 keys（`schema_version` / `embedder`）
   - 新增：先手動 INSERT 5 個舊 keys 模擬 pre-0.4.0 db，跑 `initialise_schema` 後斷言舊 keys 已被 DELETE、`schema_version` / `embedder` 保留
   - 掃既有 fixture：`rg -n "n_articles|n_chunks|n_doc_vectors|build_" tests/wenji/` 逐一確認無 test 依賴 dead keys（test_ingest_pipeline.py 的 `n_chunks` 是 local 變數名、非 db key，不動）
-- [ ] 1.6 `ruff check` + `ruff format --check` + `pytest tests/wenji/`（全綠；G3 驗證證據附輸出）
-- [ ] 1.7 `git rm -r openspec/changes/cleanup-build-telemetry/`（backlog 決策已在本 change 落地；commit message 註明 D1 拍板 = drop、落地於 release-v0-4-0）
-- [ ] 1.8 commit boundary：`feat(schema): drop dead wenji_meta build-telemetry keys`（G3 通過後）
+- [x] 1.6 `ruff check` + `ruff format --check` + `pytest tests/wenji/`（全綠；G3 驗證證據附輸出）
+- [x] 1.7 `git rm -r openspec/changes/cleanup-build-telemetry/`（backlog 決策已在本 change 落地；commit message 註明 D1 拍板 = drop、落地於 release-v0-4-0）
+- [x] 1.8 commit boundary：`feat(schema): drop dead wenji_meta build-telemetry keys`（G3 通過後）
 
 ## Phase 2 — CHANGELOG 全量回填（D6）
 

@@ -48,6 +48,36 @@ def test_initialise_schema_seeds_version():
     assert row[0] == SCHEMA_VERSION
 
 
+def test_initialise_schema_seeds_exactly_live_keys():
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    keys = {row[0] for row in conn.execute("SELECT key FROM wenji_meta")}
+    assert keys == {"schema_version", "embedder"}
+
+
+def test_initialise_schema_deletes_pre_0_4_0_stale_keys():
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    # Simulate a db created before v0.4.0, whose seed included the dead
+    # build-telemetry keys (dropped in v0.4.0; see release-v0-4-0 D2/D3).
+    conn.executemany(
+        "INSERT INTO wenji_meta (key, value) VALUES (?, ?)",
+        [
+            ("build_started_at", ""),
+            ("build_completed_at", ""),
+            ("n_articles", "0"),
+            ("n_chunks", "0"),
+            ("n_doc_vectors", "0"),
+        ],
+    )
+    conn.commit()
+    initialise_schema(conn)
+    keys = {row[0] for row in conn.execute("SELECT key FROM wenji_meta")}
+    assert keys == {"schema_version", "embedder"}
+    row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'embedder'").fetchone()
+    assert row[0] == "BGE-M3-INT8-ONNX"
+
+
 def test_initialise_schema_idempotent():
     conn = connect(":memory:")
     initialise_schema(conn)
