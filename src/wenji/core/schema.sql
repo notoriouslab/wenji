@@ -14,14 +14,6 @@
 -- Live keys (read by code):
 --   * schema_version — verified at connect time (core/db.py)
 --   * embedder       — init-only constant (no update path; informational)
---
--- DEPRECATED keys (specced in v0.1.0 but never maintained by any code path
--- since; ingest never writes, observability never reads). Kept for v2
--- schema compatibility. The `cleanup-build-telemetry` followup change will
--- decide whether to drop these columns (schema_version bump) or wire up
--- maintenance. DO NOT add new readers that assume these are alive.
---   * build_started_at, build_completed_at  — DEAD: build telemetry stub
---   * n_articles, n_chunks, n_doc_vectors   — DEAD: row-count counters
 -- ============================================================
 CREATE TABLE IF NOT EXISTS wenji_meta (
     key TEXT PRIMARY KEY,
@@ -29,14 +21,7 @@ CREATE TABLE IF NOT EXISTS wenji_meta (
 );
 INSERT OR IGNORE INTO wenji_meta (key, value) VALUES
     ('schema_version', '2'),
-    ('embedder', 'BGE-M3-INT8-ONNX'),
-    -- DEPRECATED below: see header note. Will be revisited by
-    -- `cleanup-build-telemetry` change; do not add readers.
-    ('build_started_at', ''),
-    ('build_completed_at', ''),
-    ('n_articles', '0'),
-    ('n_chunks', '0'),
-    ('n_doc_vectors', '0');
+    ('embedder', 'BGE-M3-INT8-ONNX');
 
 -- ============================================================
 -- 2. articles_meta: 一筆一篇 metadata

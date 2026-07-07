@@ -61,9 +61,17 @@ def initialise_schema(conn: sqlite3.Connection) -> None:
 
     Verifies ``wenji_meta.schema_version`` matches code ``SCHEMA_VERSION`` after
     application; mismatch raises :class:`SchemaError`.
+
+    Also deletes the dead build-telemetry keys seeded by pre-v0.4.0 schemas
+    (dropped without a version bump — same table shape, no readers); the
+    DELETE is a no-op on fresh databases.
     """
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
+    conn.execute(
+        "DELETE FROM wenji_meta WHERE key IN ("
+        "'build_started_at','build_completed_at','n_articles','n_chunks','n_doc_vectors')"
+    )
     conn.commit()
 
     row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()

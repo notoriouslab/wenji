@@ -436,9 +436,6 @@ def rebuild_from_disk(
     conn.execute("DELETE FROM chunks_fts")
     conn.execute("DELETE FROM doc_vectors")
     conn.execute("DELETE FROM article_axes")
-    conn.execute(
-        "UPDATE wenji_meta SET value = '0' WHERE key IN ('n_articles', 'n_chunks', 'n_doc_vectors')"
-    )
     conn.commit()
 
     # Re-run schema init (idempotent — tables already exist with IF NOT EXISTS guard)

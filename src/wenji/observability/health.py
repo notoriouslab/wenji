@@ -16,12 +16,11 @@ Detects two layers of inconsistency:
 Used by ``wenji doctor`` (CLI wrapper) and retrieval-entry startup gates
 (``wenji serve`` lifespan, ``wenji eval run*``, ``wenji search``).
 
-Note on ``wenji_meta`` counters: ``n_articles`` / ``n_chunks`` /
-``n_doc_vectors`` are NOT consulted. They were specced as build telemetry
-in v0.1.0 but no ingest path has ever maintained them (see schema.sql
-DEPRECATED notes). The ``cleanup-build-telemetry`` followup change will
-decide whether to drop the columns or wire up maintenance; until then
-this module relies purely on cross-table row counts and sample MATCH.
+Note on ``wenji_meta`` build-telemetry keys: ``n_articles`` / ``n_chunks``
+/ ``n_doc_vectors`` (plus the ``build_*_at`` timestamps) were specced in
+v0.1.0 but never maintained by any code path, and were removed from the
+schema seed in v0.4.0. This module relies purely on cross-table row counts
+and sample MATCH.
 """
 
 from __future__ import annotations

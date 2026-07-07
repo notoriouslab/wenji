@@ -12,7 +12,7 @@
 
 </div>
 
-> ⚠️ **Pre-1.0 — API 可能在 minor 版本間變更。** 尚未上 PyPI；請從 source 安裝。
+> ⚠️ **Pre-1.0 — API 可能在 minor 版本間變更。**
 
 ---
 
@@ -44,12 +44,12 @@ wenji 走相反路線 — **LLM-essential, not LLM-default**：建索引零 LLM 
 
 ### 三行快速上手
 
-> ⚠️ PyPI 尚未發行，先從 source 安裝：
+> 示範語料 `examples/articles/` 只隨 source checkout 提供；有自己的 markdown 目錄可直接 ingest。
 
 ```bash
-git clone https://github.com/notoriouslab/wenji && cd wenji
-pip install -e .
-wenji ingest dir examples/articles/ --db wenji.db
+pip install wenji
+git clone https://github.com/notoriouslab/wenji   # 只為了拿示範語料
+wenji ingest dir wenji/examples/articles/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
 
@@ -369,12 +369,12 @@ The result: LLM cost scales with `unique queries × cache miss rate`, not with c
 
 ### Quickstart (4 commands)
 
-> ⚠️ Not yet on PyPI — install from source. The `examples/` corpus ships only with the source checkout.
+> The demo corpus in `examples/articles/` ships only with the source checkout; point `ingest` at your own markdown directory otherwise.
 
 ```bash
-git clone https://github.com/notoriouslab/wenji && cd wenji
-pip install -e .
-wenji ingest dir examples/articles/ --db wenji.db
+pip install wenji
+git clone https://github.com/notoriouslab/wenji   # demo corpus only
+wenji ingest dir wenji/examples/articles/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
 
