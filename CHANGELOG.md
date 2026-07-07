@@ -7,7 +7,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added (vNext)
+## [0.4.0] — 2026-07-07
+
+### Added
+- First PyPI release: `pip install wenji`. Publishing is automated via
+  GitHub Actions trusted publishing on version tags.
 
 - `wenji doctor` CLI: read-only db consistency health check (cross-table
   sanity between `articles_meta` / `chunks_fts` / `doc_vectors`, plus
@@ -17,14 +21,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   FastAPI lifespan; `wenji eval run*` and `wenji search` via per-command
   helper). Inconsistent db → server refuses to bind / CLI exits non-zero
   with a hint to run `wenji doctor`.
-
-### Fixed (vNext)
-
-- Search snippet plain-text strip no longer mangles underscores in URLs
-  or inline code spans (`Foo_bar` / `code_with_underscore` survive).
-  Replaced naive `.replace('_', '')` with markdown-it-py AST traversal.
-
-### Added (v0.3.7)
 
 - Env-driven branding for fork-friendly deployments: optional
   `WENJI_SITE_URL`, `WENJI_SITE_NAME`, `WENJI_OG_IMAGE_URL` control SEO
@@ -40,7 +36,16 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   --baseline-output` (10 MB file cap, 64 KB per-string cap,
   control-character strip on stdout).
 
-### Changed / BREAKING (v0.3.7)
+### Fixed
+
+- Search snippet plain-text strip no longer mangles underscores in URLs
+  or inline code spans (`Foo_bar` / `code_with_underscore` survive).
+  Replaced naive `.replace('_', '')` with markdown-it-py AST traversal.
+
+- `wenji.search.__init__` missing `import re` — `_strip_markdown_for_snippet`
+  was raising `NameError` at runtime.
+
+### Changed / BREAKING
 
 - **BREAKING**: CORS default is now empty (deny all). Production
   deployments must set `WENJI_CORS_ORIGINS=https://your-frontend`.
@@ -56,17 +61,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   matching `bm25_search`. Both retrieval paths emit a `WARNING` log
   with stack trace before raising.
 
-### Documentation (v0.3.7)
+- `wenji_meta` no longer carries the never-maintained build-telemetry
+  keys (`build_started_at`, `build_completed_at`, `n_articles`,
+  `n_chunks`, `n_doc_vectors`); existing databases are cleaned up
+  automatically on the next ingest/rebuild. No schema version bump.
+
+### Documentation
 
 - README.md rewritten — 繁中 first / English fallback, fork-friendly
   quickstart, `axes.yaml` example aligned with `examples/axes.yaml`.
 
-### Fixed (v0.3.7)
+## [0.3.6.1] — 2026-05-04
 
-- `wenji.search.__init__` missing `import re` — `_strip_markdown_for_snippet`
-  was raising `NameError` at runtime.
-
-### Fixed (v0.3.6.1)
+### Fixed
 
 - **`QueryRewriter` prompt aligned with logos production** — the
   v0.3.6 prompt asked the LLM for a "vector-friendly single-line
@@ -85,7 +92,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   weaker pre-port). Default remains rewrite-off; v0.3.7 logos
   migration will revisit how rewrite is wired in production.
 
-### Added / Changed (v0.3.6)
+## [0.3.6] — 2026-05-04
+
+### Added / Changed
 
 - **`wenji.search.rrf`** — 2-way boost-style RRF merge ports
   ``logos/scripts/rag/ranking.py:rrf_merge`` (logos production v1.1
@@ -168,7 +177,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `test_searcher_response_hydrates_content_full_for_all_hits`
   forces the vector-only path with `alpha=0.0`.
 
-### Added (v0.3.3)
+## [0.3.3] — 2026-05-04
+
+### Added
 
 - **Observability endpoints** — read-only `GET /api/stats` and
   `GET /api/segment?q=` for surfacing corpus state and query-pipeline
@@ -202,7 +213,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   accessor that returns a cached rewrite without making an LLM call. Used
   by segment trace to label `rewrite.source` as `"cache"` vs `"llm"`.
 
-### Added (v0.3.2)
+## [0.3.2] — 2026-05-04
+
+### Added
 
 - **LLM query rewrite wiring** — `QueryRewriter` (v0.3.0) now wired into
   `wenji serve` / `wenji search` / `/api/search` / `wenji eval run-benchmark`.
@@ -223,13 +236,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   output metadata + `_rewrite_on` / `_rewrite_off` suffix on `run_id` for
   A/B baseline comparison.
 
-### Backward compat (v0.3.2)
+### Backward compat
 
 - Default behaviour unchanged from v0.3.1: if `WENJI_LLM_API_KEY` is unset,
   no rewriter is instantiated and Searcher runs identically to v0.3.1.
 - No BREAKING changes from v0.3.1 → v0.3.2.
 
-### Added (v0.3.1)
+## [0.3.1] — 2026-05-03
+
+> v0.3.0 was never tagged; its changes shipped with the v0.3.1 tag
+> and are folded into this section.
+
+### Added
 
 - **Multi-path eval schema** — `Candidate` upgraded to `gold_paths: tuple[GoldPath, ...]`
   where each `GoldPath` is one independently-valid answer trajectory
@@ -266,23 +284,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (6 sections: metadata / summary / sanity / per-question / overlap histogram /
   classical poetry schema migration appendix; r1 reports add a 7th trim manifest
   section).
-
-### Changed (v0.3.1, BREAKING)
-
-- **`wenji.eval.jsonl.Candidate`** — removed `expected_keywords` /
-  `expected_article_hints`. JSONL eval files using legacy schema raise
-  `IngestError` with a migration hint; run `wenji eval migrate-jsonl`.
-- **`wenji.eval.metrics`** — removed `kw1` / `kw3` / `fuzzy` / `pass` predicate
-  family; replaced with multi-path `gold_path_match` + per-path `rank_*` /
-  `hit1_*` / `hit3_*` / `hit5_*` / `rr_*` metrics.
-- **`wenji ingest <dir>`** → `wenji ingest dir <dir>` (subapp form). Legacy
-  positional form removed.
-- **`wenji eval --candidates ...`** → `wenji eval run --candidates ...` (subapp
-  form). Legacy positional form removed.
-- **`examples/eval.jsonl`** 10 classical poetry questions migrated to multi-path
-  schema (`path_tag="default"`, single-path wrap; demo path preserved).
-
-### Added (v0.3.0)
 
 - **`wenji.ask` module** — query-time RAG question answering on top of an
   existing wenji DB:
@@ -363,7 +364,20 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `WENJI_LLM_TIMEOUT`** environment variables wire an LLM into
   `wenji serve` for the chat panel.
 
-### Changed (BREAKING)
+### Changed / BREAKING
+
+- **`wenji.eval.jsonl.Candidate`** — removed `expected_keywords` /
+  `expected_article_hints`. JSONL eval files using legacy schema raise
+  `IngestError` with a migration hint; run `wenji eval migrate-jsonl`.
+- **`wenji.eval.metrics`** — removed `kw1` / `kw3` / `fuzzy` / `pass` predicate
+  family; replaced with multi-path `gold_path_match` + per-path `rank_*` /
+  `hit1_*` / `hit3_*` / `hit5_*` / `rr_*` metrics.
+- **`wenji ingest <dir>`** → `wenji ingest dir <dir>` (subapp form). Legacy
+  positional form removed.
+- **`wenji eval --candidates ...`** → `wenji eval run --candidates ...` (subapp
+  form). Legacy positional form removed.
+- **`examples/eval.jsonl`** 10 classical poetry questions migrated to multi-path
+  schema (`path_tag="default"`, single-path wrap; demo path preserved).
 
 - **Schema bumped to version 2.** v0.1.0 databases must be rebuilt from disk
   (`wenji rebuild --db <path>`); migration is not provided since v0.1.0 had no
@@ -398,7 +412,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "+N 段內容命中" / "內容命中 N 段" to clarify that the count reports
   content-level matches (not title-only).
 
-## [0.1.0] — 2026-05-XX
+## [0.1.0] — 2026-05-02
 
 Initial public release.
 

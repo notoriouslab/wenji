@@ -23,14 +23,14 @@
 
 ## Phase 2 — CHANGELOG 全量回填（D6）
 
-- [ ] 2.1 取 tag 日期：`git tag -l 'v*' --format='%(refname:short) %(creatordate:short)'`，列出 0.2.x–0.3.6.1 全部對照表
-- [ ] 2.2 重排 `CHANGELOG.md`：
+- [x] 2.1 取 tag 日期：`git tag -l 'v*' --format='%(refname:short) %(creatordate:short)'`，列出 0.2.x–0.3.6.1 全部對照表
+- [x] 2.2 重排 `CHANGELOG.md`：
   - `(vNext)` + `(v0.3.7)` 標註的所有內容併入新 `## [0.4.0] — <本 phase commit 當日日期>`（P5 tag 時若跨日，5.4 前更新此 date 為 tag 日）
   - Phase 1 的 wenji_meta 清理補入 0.4.0 section（Changed 一條，1-2 句，公開 CHANGELOG 精簡原則）
   - `(v0.3.6.1)` 以下各 h3 群組升為 `## [x.y.z] — <tag date>`；h3 標註若出現無對應 tag 的版本，內容併入其後最近的有 tag 版本 section 並以一行註記標明
   - `[Unreleased]` 清空、heading 保留
-- [ ] 2.3 零遺漏驗證：重排前先 `git show HEAD:CHANGELOG.md > "$SCRATCHPAD/changelog_before.md"`（session scratchpad 目錄）；重排後以 script 比對（正規化 heading 行後 diff 內容行集合），輸出「遺漏行 = 0」證據
-- [ ] 2.4 commit boundary：`docs(changelog): backfill per-version sections + collect 0.4.0`
+- [x] 2.3 零遺漏驗證：重排前先 `git show HEAD:CHANGELOG.md > "$SCRATCHPAD/changelog_before.md"`（session scratchpad 目錄）；重排後以 script 比對（正規化 heading 行後 diff 內容行集合），輸出「遺漏行 = 0」證據
+- [x] 2.4 commit boundary：`docs(changelog): backfill per-version sections + collect 0.4.0`
 
 ## Phase 3 — Packaging + CI build 驗證（D5/D7）
 
