@@ -53,7 +53,7 @@
   - 全 workflow 無任何 secret 引用
 - [x] 4.2 驗證：`actionlint`（若本機無則 `brew install actionlint`）0 error；人工比對 4.1 結構逐項符合
 - [x] 4.3 寫主公 manual step 說明（本 tasks.md 此處即說明，不另開檔）：PyPI 登入 → Account → Publishing → Add pending publisher：PyPI project name=`wenji`、owner=`notoriouslab`、repository=`wenji`、workflow=`release.yml`、environment=`pypi`。完成後主公回報，5.3 gate 才放行
-- [ ] 4.4 commit boundary：`ci(release): PyPI trusted publishing workflow` → 開 PR、CI 全綠、merge main
+- [x] 4.4 commit boundary：`ci(release): PyPI trusted publishing workflow` → 開 PR、CI 全綠、merge main
 
 ## Phase 5 — Release 執行（依賴 Phase 1-4 全部 merged）
 
