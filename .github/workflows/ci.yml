@@ -40,6 +40,45 @@ jobs:
       - name: Run cleanup audit
         run: bash scripts/audit_release.sh
 
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Validate metadata
+        run: twine check dist/*
+
+      # Asserted paths come from a local `python -m build` + `unzip -l`
+      # inspection (release-v0-4-0 task 3.2). Guards against package-data
+      # regressions — a wheel missing any of these is broken at runtime.
+      - name: Assert wheel package-data completeness
+        run: |
+          listing=$(unzip -l dist/*.whl)
+          missing=0
+          for path in \
+            "wenji/core/schema.sql" \
+            "wenji/web/templates/base.html" \
+            "wenji/examples/corpus_christian/entity_concepts.json" \
+            "wenji/examples/corpus_christian/intent_keywords.json"; do
+            if ! grep -q "$path" <<< "$listing"; then
+              echo "::error::wheel is missing $path"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
   integration:
     runs-on: ubuntu-latest
     # Single Python version for integration; download is the bottleneck.

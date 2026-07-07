@@ -34,15 +34,15 @@
 
 ## Phase 3 — Packaging + CI build 驗證（D5/D7）
 
-- [ ] 3.1 `pyproject.toml`：`version = "0.4.0"`；classifier `Development Status :: 3 - Alpha` → `4 - Beta`；`requires-python` 不動
-- [ ] 3.2 本機 build 實測：`python -m build` + `twine check dist/*` + `unzip -l dist/*.whl`，人工核對 package-data 完整（`core/schema.sql`、web templates、examples corpus），記下 wheel 內的實際路徑清單供 3.3 斷言使用
-- [ ] 3.3 `.github/workflows/ci.yml` 新增 `build` job（滿足 spec requirement: CI validates package build and wheel completeness on every PR）：
+- [x] 3.1 `pyproject.toml`：`version = "0.4.0"`；classifier `Development Status :: 3 - Alpha` → `4 - Beta`；`requires-python` 不動
+- [x] 3.2（發現+修復：wheel 缺 examples JSON，package-data 補 `examples/**/*.json`；wheel user 呼叫 load_example 原會 FileNotFoundError）本機 build 實測：`python -m build` + `twine check dist/*` + `unzip -l dist/*.whl`，人工核對 package-data 完整（`core/schema.sql`、web templates、examples corpus），記下 wheel 內的實際路徑清單供 3.3 斷言使用
+- [x] 3.3 `.github/workflows/ci.yml` 新增 `build` job（滿足 spec requirement: CI validates package build and wheel completeness on every PR）：
   - `python -m build`
   - `twine check dist/*`
   - wheel 內容斷言：`unzip -l dist/*.whl` 後 grep 斷言 `wenji/core/schema.sql`、`wenji/web/templates/`（至少 1 檔）、examples corpus（至少 1 檔；路徑用 3.2 記下的實際清單，workflow 內以註解標明來源為本機 build 實測）皆存在，缺任一 → exit 1 並印出缺檔名
   - 不 upload artifact（publish 是 release.yml 專責）
-- [ ] 3.4 `README.md` 安裝指引：line 15 disclaimer 移除「尚未上 PyPI；請從 source 安裝」、保留 API 變動警語；line 47-51 與 375-376 的 git clone + `pip install -e .` 改 `pip install wenji`；line 330 / 469 的 dev setup（`pip install -e ".[dev]"`）保留並確認上下文標明「開發者從 source」
-- [ ] 3.5 `pytest` 全綠 + commit boundary：`chore(release): bump 0.4.0 + Beta classifier + CI build job + README pip install`
+- [x] 3.4 `README.md` 安裝指引：line 15 disclaimer 移除「尚未上 PyPI；請從 source 安裝」、保留 API 變動警語；line 47-51 與 375-376 的 git clone + `pip install -e .` 改 `pip install wenji`；line 330 / 469 的 dev setup（`pip install -e ".[dev]"`）保留並確認上下文標明「開發者從 source」
+- [x] 3.5 `pytest` 全綠 + commit boundary：`chore(release): bump 0.4.0 + Beta classifier + CI build job + README pip install`
 
 ## Phase 4 — Publish pipeline（D4）
 
