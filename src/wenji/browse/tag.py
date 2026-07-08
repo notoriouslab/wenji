@@ -1,10 +1,16 @@
 import json
 import logging
 import sqlite3
+import threading
+import time
 from collections import Counter, defaultdict
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Cache lifetime: articles ingested while `wenji serve` keeps running become
+# visible on /tags within this window (previously the cache never refreshed).
+REFRESH_TTL_SECONDS = 300
 
 
 class TagBrowser:
@@ -14,15 +20,18 @@ class TagBrowser:
         self._tag_to_articles: dict[str, set[str]] = {}
         self._article_to_meta: dict[str, dict[str, Any]] = {}
         self._tag_counts: list[tuple[str, int]] = []
-        self._last_load = 0
+        self._last_load = 0.0
+        self._lock = threading.Lock()
 
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
 
     def _refresh_if_needed(self):
-        # In a real app, we might check file mtime. For now, we load once or cache for 5 min.
-        # But since this is a transient instance in FastAPI, we'll just load it.
-        if self._tag_to_articles:
+        # TagBrowser is a process-lifetime singleton (web/app.py state), hit
+        # concurrently by threadpool threads. Reload when the TTL expires;
+        # build into locals and swap all three maps atomically under the lock
+        # so readers never observe a mixed pair.
+        if self._tag_to_articles and time.monotonic() - self._last_load < REFRESH_TTL_SECONDS:
             return
 
         conn = self._get_conn()
@@ -58,14 +67,16 @@ class TagBrowser:
                     if t:
                         tag_to_articles[t].add(aid)
 
-            self._tag_to_articles = dict(tag_to_articles)
-            self._article_to_meta = article_to_meta
-
-            # Pre-calculate counts
+            # Pre-calculate counts from the local build (not self.*)
             counts = Counter()
-            for t, aids in self._tag_to_articles.items():
+            for t, aids in tag_to_articles.items():
                 counts[t] = len(aids)
-            self._tag_counts = counts.most_common()
+
+            with self._lock:
+                self._tag_to_articles = dict(tag_to_articles)
+                self._article_to_meta = article_to_meta
+                self._tag_counts = counts.most_common()
+                self._last_load = time.monotonic()
 
         finally:
             conn.close()
@@ -78,11 +89,16 @@ class TagBrowser:
     def get_tag_detail(self, name: str) -> dict[str, Any]:
         """Return articles and stats for a specific tag."""
         self._refresh_if_needed()
-        if name not in self._tag_to_articles:
+        # Snapshot both maps as a consistent pair — a TTL swap between the two
+        # attribute reads must not mix generations (KeyError otherwise).
+        with self._lock:
+            tag_map = self._tag_to_articles
+            meta_map = self._article_to_meta
+        if name not in tag_map:
             return None
 
-        article_ids = self._tag_to_articles[name]
-        articles = [self._article_to_meta[aid] for aid in article_ids]
+        article_ids = tag_map[name]
+        articles = [meta_map[aid] for aid in article_ids]
         # Sort articles by date desc
         articles.sort(key=lambda x: x["pub_date"] or "", reverse=True)
 
@@ -99,13 +115,15 @@ class TagBrowser:
     def get_related_tags(self, name: str, k: int = 10) -> list[tuple[str, float]]:
         """Calculate related tags using Jaccard similarity."""
         self._refresh_if_needed()
-        if name not in self._tag_to_articles:
+        with self._lock:
+            tag_map = self._tag_to_articles
+        if name not in tag_map:
             return []
 
-        target_articles = self._tag_to_articles[name]
+        target_articles = tag_map[name]
         results = []
 
-        for other_tag, other_articles in self._tag_to_articles.items():
+        for other_tag, other_articles in tag_map.items():
             if other_tag == name:
                 continue
 
