@@ -31,5 +31,5 @@
 
 - [x] 5.1 `ruff check` + `ruff format --check` + `pytest tests/wenji/` 全綠（G3 證據附輸出）
 - [x] 5.2 CHANGELOG `[Unreleased]` Fixed 條目（1-2 句，公開精簡原則）
-- [ ] 5.3 commit + PR + CI 全綠（**等 checks 完成才 merge** — 記取 logos PR #3 搶跑教訓）+ merge
-- [ ] 5.4 spectra archive + memory 更新（健檢三包進度：1/3 done）
+- [x] 5.3 commit + PR + CI 全綠（**等 checks 完成才 merge** — 記取 logos PR #3 搶跑教訓）+ merge
+- [x] 5.4 spectra archive + memory 更新（健檢三包進度：1/3 done）
