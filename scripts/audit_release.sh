@@ -29,6 +29,7 @@ HITS=$(grep -irnE \
     --include='*.py' --include='*.md' --include='*.html' --include='*.css' \
     --include='*.yaml' --include='*.yml' --include='*.sql' --include='*.toml' \
     --include='*.txt' --include='*.jsonl' --include='*.json' --include='*.sh' \
+    --exclude='settings.local.json' \
     "$PATTERN" "${DIRS[@]}" "${FILES[@]}" 2>/dev/null || true)
 
 if [ -z "$HITS" ]; then
