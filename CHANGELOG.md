@@ -7,6 +7,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Web layer concurrency hardening: lazy singletons (Searcher, TagBrowser)
+  now initialize exactly once under concurrent requests; calls touching the
+  shared search connection are serialized; `/tags` data refreshes within
+  5 minutes of new ingests (previously frozen until restart); non-numeric
+  `?year=` no longer 500s.
+
 ## [0.4.0] — 2026-07-07
 
 ### Added

@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -289,18 +290,31 @@ def create_app(
         "demo_source": os.environ.get("WENJI_DEMO_SOURCE", "").strip() or None,
     }
 
+    # FastAPI dispatches sync routes via a thread pool, so lazy singletons and
+    # the shared Searcher connection see genuine concurrency:
+    # - _init_lock guards one-time construction (double-checked below)
+    # - _query_lock serialises every call touching the Searcher's shared
+    #   sqlite3.Connection (search + rewrite-cache writes). Python's sqlite3
+    #   requires the caller to serialise concurrent calls on the SAME
+    #   connection object; the file lock only arbitrates across connections.
+    _init_lock = threading.Lock()
+    _query_lock = threading.Lock()
+
     def _get_tag_browser() -> TagBrowser:
-        if state["tag_browser"] is None:
-            sfilter = state["demo_source"]
-            state["tag_browser"] = TagBrowser(str(state["db_path"]), source_filter=sfilter)
-        return state["tag_browser"]
+        if state["tag_browser"] is not None:
+            return state["tag_browser"]
+        with _init_lock:
+            if state["tag_browser"] is None:
+                sfilter = state["demo_source"]
+                state["tag_browser"] = TagBrowser(str(state["db_path"]), source_filter=sfilter)
+            return state["tag_browser"]
 
     def _get_conn() -> sqlite3.Connection:
-        # FastAPI dispatches sync routes via a thread pool, so the lazy
-        # Searcher connection (and any per-request connection) must accept
-        # cross-thread access. SQLite still serialises writes via its file
-        # lock, and the web app only writes to query_rewrite_cache /
-        # aggregate_cache (low contention).
+        # check_same_thread=False because threadpool threads share the lazy
+        # Searcher connection. Concurrent calls on that shared Connection are
+        # serialised by _query_lock (SQLite's file lock does NOT cover
+        # same-connection concurrency). Per-request connections opened here
+        # are used and closed within a single request thread.
         return connect(state["db_path"], check_same_thread=False)
 
     def _get_searcher() -> Searcher | None:
@@ -325,6 +339,13 @@ def create_app(
         """
         if state["searcher"] is not None:
             return state["searcher"]
+        with _init_lock:
+            if state["searcher"] is not None:
+                return state["searcher"]
+            return _build_searcher()
+
+    def _build_searcher() -> Searcher | None:
+        """One-time Searcher construction; caller holds ``_init_lock``."""
         try:
             from wenji.config import load_llm_config_from_env
             from wenji.ingest.embed import Embedder
@@ -422,6 +443,13 @@ def create_app(
             raise HTTPException(status_code=504, detail="search engine not ready")
         return Asker(_get_conn(), llm_client=state["llm_client"], searcher=searcher)
 
+    def _parse_year(value: str | None) -> int | None:
+        """Parse a year query param; non-numeric input drops the filter (no 500)."""
+        if value is None:
+            return None
+        value = value.strip()
+        return int(value) if value.isdigit() else None
+
     def _build_filter(filter_dict: dict | None, demo_src: str | None = None) -> Filter | None:
         """Build a Filter from request body dict, merging demo_source constraint.
 
@@ -450,15 +478,17 @@ def create_app(
         if not results or (tag is None and source_type is None and year is None):
             return results
         f_kwargs = {"tag": tag, "source_type": source_type}
-        if year:
-            f_kwargs["pub_year"] = int(year)
+        year_int = _parse_year(year)
+        if year_int is not None:
+            f_kwargs["pub_year"] = year_int
         f = Filter(**f_kwargs)
         clause, params = f.to_sql_where(table_alias="m")
         if not clause:
             return results
         f_kwargs = {"tag": tag, "source_type": source_type}
-        if year:
-            f_kwargs["pub_year"] = int(year)
+        year_int = _parse_year(year)
+        if year_int is not None:
+            f_kwargs["pub_year"] = year_int
         f = Filter(**f_kwargs)
         clause, params = f.to_sql_where(table_alias="m")
         if not clause:
@@ -722,14 +752,16 @@ def create_app(
             rewriter = getattr(searcher, "rewriter", None)
             entity_scorer = getattr(searcher, "entity_scorer", None)
             intent_classifier = getattr(searcher, "intent_classifier", None)
-        return JSONResponse(
-            compute_segment_trace(
+        # compute_segment_trace may call rewriter.rewrite (cache write on the
+        # shared Searcher connection) — same lock as the search paths.
+        with _query_lock:
+            trace = compute_segment_trace(
                 q,
                 rewriter=rewriter,
                 entity_scorer=entity_scorer,
                 intent_classifier=intent_classifier,
             )
-        )
+        return JSONResponse(trace)
 
     @app.get("/api/search")
     def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
@@ -755,13 +787,15 @@ def create_app(
             rewritten_query: str | None = None
             if getattr(s, "rewriter", None) is not None:
                 try:
-                    effective = s.rewriter.rewrite(q)
+                    with _query_lock:
+                        effective = s.rewriter.rewrite(q)
                     if effective and effective != q:
                         rewritten_query = effective
                 except Exception:
                     # Rewriter has its own timeout/fallback; ignore here.
                     pass
-            results = s.search(q, axis=axis, limit=limit)
+            with _query_lock:
+                results = s.search(q, axis=axis, limit=limit)
             if demo_src:
                 filter_conn = _get_conn()
                 try:
@@ -851,7 +885,12 @@ def create_app(
         filter_obj = _build_filter(body.get("filter"), demo_src=state["demo_source"])
         asker = _get_asker()
         try:
-            result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj)
+            # Asker retrieves via the shared Searcher (same connection), so the
+            # whole ask runs under the query lock. LLM latency inside the lock
+            # is acceptable for this deployment (single-tenant, /api/ask is
+            # low-traffic); revisit if ask traffic grows.
+            with _query_lock:
+                result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj)
         finally:
             asker.db.close()
         payload = asdict(result)
@@ -942,8 +981,9 @@ def create_app(
             browse_conn = _get_conn()
             try:
                 f_kwargs = {"tag": tag, "source_type": source_type}
-                if year:
-                    f_kwargs["pub_year"] = int(year)
+                year_int = _parse_year(year)
+                if year_int is not None:
+                    f_kwargs["pub_year"] = year_int
                 f = Filter(**f_kwargs)
                 clause, params = f.to_sql_where(table_alias="m")
                 sql = (
@@ -983,7 +1023,8 @@ def create_app(
                     # after clicking, and (b) tag/source_type post-filter
                     # has enough headroom for rare facets.
                     fetch_limit = 50
-                    results = s.search(q, axis=axis, limit=fetch_limit)
+                    with _query_lock:
+                        results = s.search(q, axis=axis, limit=fetch_limit)
                     candidate_ids = {r["article_id"] for r in results}
                     if tag or source_type or year:
                         filter_conn = _get_conn()
@@ -1000,22 +1041,24 @@ def create_app(
         # axes for filter sidebar
         try:
             conn = _get_conn()
-            if demo_src:
-                sql = (
-                    "SELECT a.axis_id, COUNT(*) FROM article_axes a "
-                    "JOIN articles_meta m ON a.article_id = m.article_id "
-                    "WHERE a.axis_id != ? AND m.source_type = ? "
-                    "GROUP BY a.axis_id ORDER BY 2 DESC"
-                )
-                params = (UNCLASSIFIED, demo_src)
-            else:
-                sql = (
-                    "SELECT axis_id, COUNT(*) FROM article_axes "
-                    "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC"
-                )
-                params = (UNCLASSIFIED,)
-            axis_rows = conn.execute(sql, params).fetchall()
-            conn.close()
+            try:
+                if demo_src:
+                    sql = (
+                        "SELECT a.axis_id, COUNT(*) FROM article_axes a "
+                        "JOIN articles_meta m ON a.article_id = m.article_id "
+                        "WHERE a.axis_id != ? AND m.source_type = ? "
+                        "GROUP BY a.axis_id ORDER BY 2 DESC"
+                    )
+                    params = (UNCLASSIFIED, demo_src)
+                else:
+                    sql = (
+                        "SELECT axis_id, COUNT(*) FROM article_axes "
+                        "WHERE axis_id != ? GROUP BY axis_id ORDER BY 2 DESC"
+                    )
+                    params = (UNCLASSIFIED,)
+                axis_rows = conn.execute(sql, params).fetchall()
+            finally:
+                conn.close()
             cfg: AxesConfig | None = state.get("axes_config")
             axes = []
             for r in axis_rows:

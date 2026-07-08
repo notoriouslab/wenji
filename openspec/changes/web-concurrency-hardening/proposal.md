@@ -37,3 +37,9 @@
 - Self-Review：S1 placeholder 0 hits；S2-S5 過（D1-D4 各 2-3 方案）。spectra analyze 4 維度 Clean（1 SUGGEST → 已補 TTL scenario 具體例）。
 - Sub-Agent Review（haiku + sequential-thinking）：PASS，0 critical / 0 warning / 2 info（性能假設註記，設計已不依賴）；獨立核實 8/8（行號、無鎖現況、CPU-bound 論證、rewrite cache 寫入路徑）。
 - G2 Coverage：D1→1.1-1.2、D2→2.1-2.3、D3→3.1-3.3、D4→4.1-4.3、驗證策略→Phase 5，零缺口。
+
+## Apply 階段 drift corrections（2026-07-08）
+
+1. **鎖覆蓋範圍擴大**：propose 只列 `s.search` 兩個呼叫點；apply 掃描發現另兩條共享 conn 路徑 — `/api/ask`（Asker 持共享 searcher 檢索）與 `/api/segment`（`compute_segment_trace._rewrite` 會寫 rewrite cache）— 均已納入 `_query_lock`。/api/ask 的 LLM 延遲在鎖內：單租戶低流量可接受，註解標記流量成長時重訪。
+2. **讀端配對快照**：D3 的原子 swap 只保證寫端；`get_tag_detail` / `get_related_tags` 兩次屬性讀取可跨代 — 補鎖內配對快照。
+3. 測試發現 fake embedder 需 DIM=1024（vector 層驗維度），非任意值。
