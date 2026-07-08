@@ -22,7 +22,7 @@
 
 ## Phase 2 — Tests
 
-- [ ] 2.1 Grep `tests/wenji/test_search_rrf.py` + `test_search_bm25.py`，確認**無**既有「OperationalError → return `{}`」silent-return assertion（如有 → 列出後與主公確認改 / 刪）
+- [ ] 2.1 Grep `tests/wenji/test_search_rrf.py` + `test_search_bm25.py`，確認**無**既有「OperationalError → return `{}`」silent-return assertion（如有 → 列出後與維護者確認改 / 刪）
 - [ ] 2.2 `tests/wenji/test_search_rrf.py`：新增 `test_chunk_bm25_search_raises_on_operational_error`
   - 用 `unittest.mock.MagicMock` 造 fake conn：`fake_conn.execute = MagicMock(side_effect=sqlite3.OperationalError("simulated lock"))`
   - `with pytest.raises(SearchError) as excinfo: chunk_bm25_search(fake_conn, "test", limit=10)`
@@ -65,7 +65,7 @@
 - [ ] 4.4 Atomic commits（建議分 Phase 1 / 2 / 3 三個 commit）
 - [ ] 4.5 Push branch + 開 PR：title `fix(search): fail-loud OperationalError + warning logs`
 - [ ] 4.6 PR description 引用 spec change directory `openspec/changes/fail-loud-runtime/`
-- [ ] 4.7 主公 review + merge
+- [ ] 4.7 維護者 review + merge
 
 ## Phase 5 — Archive
 
@@ -74,4 +74,4 @@
 
 ## Effort estimate
 
-~30 分鐘 apply（依主公 chunking 偏好「還可以一下」≈ 30 min 區間）。Phase 1 ~10 min、Phase 2 ~10 min、Phase 3-5 ~10 min。
+~30 分鐘 apply（依維護者 chunking 偏好「還可以一下」≈ 30 min 區間）。Phase 1 ~10 min、Phase 2 ~10 min、Phase 3-5 ~10 min。

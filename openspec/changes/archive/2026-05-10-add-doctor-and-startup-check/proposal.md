@@ -124,16 +124,16 @@ Run `wenji doctor --db <db_path>` for full diagnostic, or
 
 ## Out of scope
 
-- 不修 prod logos `chunks_fts` 0-rows state（doctor 上線後主公自己決定要不要 ssh oracle 重 ingest）
+- 不修 prod logos `chunks_fts` 0-rows state（doctor 上線後維護者自己決定要不要 ssh oracle 重 ingest）
 - 不加 `wenji doctor --repair` mode（將來 spec；本 spec doctor read-only）
 - 不改 `observability/stats.py` 既有 logic（reuse not refactor）
 - 不影響 wenji serve route handler 行為（startup gate 失敗時 server 沒起來，handler 不需要 defensive code）
 - 不引入新 RetrievalError 階層（沿用既有 `WenjiError` / `SearchError`，加 `StartupError`）
-- 不對齊 prod Mode 2 / Mode 3：prod logos 仍在 Mode 2，下次手動 deploy 才會吃到 startup gate；如果 prod 不一致 startup 會 fail，主公要先重 ingest 才能起 server（這是想要的行為）
+- 不對齊 prod Mode 2 / Mode 3：prod logos 仍在 Mode 2，下次手動 deploy 才會吃到 startup gate；如果 prod 不一致 startup 會 fail，維護者要先重 ingest 才能起 server（這是想要的行為）
 
 ## Impact assessment
 
-- **Logos prod 影響**：startup gate 起來後，prod 下次 deploy 會發現 chunks_fts 0-rows，server 不 bind port。主公要先 `wenji ingest dir articles/ --rebuild` 才能起。這是 fail-loud 設計目標、不是 regression。
+- **Logos prod 影響**：startup gate 起來後，prod 下次 deploy 會發現 chunks_fts 0-rows，server 不 bind port。維護者要先 `wenji ingest dir articles/ --rebuild` 才能起。這是 fail-loud 設計目標、不是 regression。
 - **OSS user**：build db 不完整 → startup fail，error message 指向 `wenji doctor` 拿 detail。
 - **CLI startup latency**：每個 retrieval CLI 多跑 ~5-10 SQL count + 5 sample MATCH，約 +50-100ms（local SSD）。可接受。
 - **新 dep**：無，純 stdlib + sqlite3。

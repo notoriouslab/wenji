@@ -39,7 +39,7 @@ PyPI package name `wenji` 已確認可用（2026-07-07 實測 `pypi.org/pypi/wen
 - **Code**: `src/wenji/core/schema.sql`、`src/wenji/core/db.py`（initialise_schema）、`src/wenji/ingest/__init__.py`（rebuild_from_disk）、`src/wenji/observability/health.py`（docstring only）
 - **Packaging / CI**: `pyproject.toml`、`.github/workflows/ci.yml`、新增 `.github/workflows/release.yml`
 - **Docs**: `CHANGELOG.md`（全量重排）、`README.md`（安裝指引）
-- **External（主公 manual step）**: PyPI 帳號網頁設定 pending trusted publisher（project=`wenji`, owner=`notoriouslab`, repo=`wenji`, workflow=`release.yml`, environment=`pypi`）— 趙雲無法代辦
+- **External（維護者 manual step）**: PyPI 帳號網頁設定 pending trusted publisher（project=`wenji`, owner=`notoriouslab`, repo=`wenji`, workflow=`release.yml`, environment=`pypi`）— agent無法代辦
 - **下游**: logos Mode 3 Phase B（pip 消費）在本 change 完成後解鎖，屬後續獨立工作，不在本 scope
 
 ---

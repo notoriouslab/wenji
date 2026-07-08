@@ -11,7 +11,10 @@ cd "$(dirname "$0")/.."
 # attribution to breadoflife.taipei, which is licensed/permitted for the demo.
 PATTERN='PAIOP|主公|趙雲|梅大|paiop_secrets|/home/ubuntu|/Users/jacobmei|logos\.jacobmei|jacob\.mei@|mjdeimac'
 
-DIRS=(src/wenji tests/wenji examples .github)
+# openspec + .claude added 2026-07-08: spec/skill docs are public too — persona
+# terms and personal metadata leaked into archived changes for two months
+# because they were outside the scan scope.
+DIRS=(src/wenji tests/wenji examples .github openspec .claude)
 FILES=(README.md LICENSE CHANGELOG.md CONTRIBUTING.md pyproject.toml)
 # NOTE: logos repo `docs/` not scanned — those files belong to the logos
 # consumer, not wenji-public. The wenji-specific top-level docs added in

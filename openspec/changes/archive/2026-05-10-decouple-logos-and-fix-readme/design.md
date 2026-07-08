@@ -6,11 +6,11 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 
 **約束**：
 - wenji 尚未發行至 PyPI，BREAKING change 影響面極小
-- 主公自己的 logos 部署將受 CORS 預設改 empty 影響，需 .env 顯式設定
+- 維護者自己的 logos 部署將受 CORS 預設改 empty 影響，需 .env 顯式設定
 - 80q baseline snapshot 是 frozen 資產，內容不可改，僅 metadata key rename
 
 **利害關係人**：
-- 主公（wenji 唯一 maintainer + logos 唯一使用者）
+- 維護者（wenji 唯一 maintainer + logos 唯一使用者）
 - 未來 fork / 部署 wenji 的開源使用者
 
 ## Goals / Non-Goals
@@ -19,7 +19,7 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 - 對外開源 surface（CLI、API、模板、文件）零 logos 識別字
 - 預設行為對 fork 友善：unset 任何品牌 env → 模板省略 SEO，CORS 拒絕全部 origin（fail-safe）
 - README 三行 quickstart 真的能跑、不誤導
-- BREAKING change 控制在主公自己的 logos 部署範圍內
+- BREAKING change 控制在維護者自己的 logos 部署範圍內
 
 **Non-Goals:**
 - 不修補 code 層其他 P0/P1（path traversal / SSRF / XSS / cost-DoS）— 另案
@@ -89,10 +89,10 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 
 **理由：**
 - wenji 未發行至 PyPI，沒有外部使用者需要 deprecation period
-- 主公本人是唯一使用者，自己拷貝到私 repo 即可
+- 維護者本人是唯一使用者，自己拷貝到私 repo 即可
 - 留在 repo 即是技術債，違反「對外開源無價值」原則
 
-**Trade-off：** 主公需在動手前先 `cp src/wenji/ingest/loader_logos_db.py ~/private-tools/`。
+**Trade-off：** 維護者需在動手前先 `cp src/wenji/ingest/loader_logos_db.py ~/private-tools/`。
 
 ### D5: baseline flag naming
 
@@ -118,7 +118,7 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 - `src/wenji/cli/eval.py` — log/output 字串 `loaded {len(cands)} candidates from snapshot (commit={meta.logos_source_commit[:8]})`、metadata block `logos_source_commit`
 - `src/wenji/eval/report.py` — 報表渲染欄位
 - `tests/wenji/test_loader_logos_v2.py` — 整個檔名 + 測試 assertion
-- 既有 `wenji_r0_*.json` 輸出 — 主公私人輸出，逐檔 in-place migrate
+- 既有 `wenji_r0_*.json` 輸出 — 維護者私人輸出，逐檔 in-place migrate
 
 **選項：**
 1. **直接 rename + 無 backward-compat（in-place migrate）**：所有檔案一次改完，loader 只認新 key，舊 frozen JSON 同步改
@@ -128,12 +128,12 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 **決策：採 1（直接 rename + 無 backward-compat）**
 
 **理由：**
-- 主公是 wenji 唯一使用者 + logos 是唯一既存 frozen JSON 來源 → 沒有外部 frozen 資料需要相容
+- 維護者是 wenji 唯一使用者 + logos 是唯一既存 frozen JSON 來源 → 沒有外部 frozen 資料需要相容
 - 違反 CLAUDE.md「不混搭新舊」全域規則：保留 fallback 等於同時維護兩條讀取路徑，是技術債
 - 紅隊 G1 審查指出 backward-compat 是新增 attack surface（log injection via warning、`source_commit` vs `logos_source_commit` 衝突優先序未定義）
 - 同時處理 `loader_logos_v2.py` 檔名（含 logos）、`SnapshotMetadata` dataclass field、`snapshot_source_path` 描述字串，避免分批殘留
 
-**Trade-off：** 主公需 一次性 in-place migrate 所有 frozen `wenji_r0_*.json`（grep 估計 ≤ 5 檔，逐檔 jq 改 key 即可）；無 deprecation period 但本來也沒有外部使用者。
+**Trade-off：** 維護者需 一次性 in-place migrate 所有 frozen `wenji_r0_*.json`（grep 估計 ≤ 5 檔，逐檔 jq 改 key 即可）；無 deprecation period 但本來也沒有外部使用者。
 
 ### D8: URL host whitelist + IDN normalisation
 
@@ -243,31 +243,31 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
 
 ## Risks / Trade-offs
 
-- **[Risk] 主公自己的 logos 部署 CORS 在 deploy 後拒絕請求** → Mitigation：在 logos 部署的 `.env` 顯式設 `WENJI_CORS_ORIGINS=https://your-deployment.example.com`。建議 apply 期間同步更新主公 logos production 的 env（或寫一段「主公部署 checklist」備註）
+- **[Risk] 維護者自己的 logos 部署 CORS 在 deploy 後拒絕請求** → Mitigation：在 logos 部署的 `.env` 顯式設 `WENJI_CORS_ORIGINS=https://your-deployment.example.com`。建議 apply 期間同步更新維護者 logos production 的 env（或寫一段「維護者部署 checklist」備註）
 - **[Risk] B3 metadata key 改名後既有 r0 JSON load 失敗** → Mitigation：D6 的 backward-compat 讀取分支
-- **[Risk] B2 `--logos-r13` flag 改名後既有 shell history / 文件失效** → Mitigation：CHANGELOG BREAKING 說明，主公個人 workflow 同步更新
+- **[Risk] B2 `--logos-r13` flag 改名後既有 shell history / 文件失效** → Mitigation：CHANGELOG BREAKING 說明，維護者個人 workflow 同步更新
 - **[Risk] 模板條件 block 寫錯導致 SEO meta 殘留** → Mitigation：在 G3 加上 grep 檢查（`rg "logos\.jacobmei" src/ tests/`）回 0 為通過條件
-- **[Trade-off] 對外乾淨 vs 開發便利** → 主公自己使用 wenji 時需多設 env，但這是符合 fork-friendly 的正確代價
+- **[Trade-off] 對外乾淨 vs 開發便利** → 維護者自己使用 wenji 時需多設 env，但這是符合 fork-friendly 的正確代價
 
 ## Migration Plan
 
 **Production 實況（已實機驗證 2026-05-09）：**
-- Oracle VPS，`/home/ubuntu/logos`，nohup uvicorn :8001
+- Oracle VPS，`<prod>/logos`，nohup uvicorn :8001
 - 沒有 systemd 自啟（`rag-server.service` 存在但 disabled）、沒有 cron / webhook / GitHub Actions auto-deploy
-- Deploy 觸發：主公手動跑一段 bash command（`git pull origin main && sudo fuser -k 8001/tcp && nohup ... uvicorn ...`）
+- Deploy 觸發：維護者手動跑一段 bash command（`git pull origin main && sudo fuser -k 8001/tcp && nohup ... uvicorn ...`）
 - Env 配置方式：**inline command line**（不是 `.env` 檔）——env vars 直接寫在 nohup 前
 - 既有 env：`WENJI_CORS_ORIGINS=https://your-deployment.example.com` 已顯式設
 
 意味著：
-- **無 auto-deploy hook 需要暫停** — 主公自己決定何時 pull + restart
+- **無 auto-deploy hook 需要暫停** — 維護者自己決定何時 pull + restart
 - **無 `.env` 檔需要預先部署** — env 走 inline command line
 - **CORS 預設改 empty 對 production 無影響** — 已顯式設 `WENJI_CORS_ORIGINS`
-- **新 SEO env vars（`WENJI_SITE_URL` 等）** — 等 Phase 1 commit 後，主公下次手動 deploy 時把新 env 加進 nohup 那段 bash command
+- **新 SEO env vars（`WENJI_SITE_URL` 等）** — 等 Phase 1 commit 後，維護者下次手動 deploy 時把新 env 加進 nohup 那段 bash command
 
 **部署順序（簡化）：**
 
 1. **Pre-flight：**
-   1.1 主公 backup `loader_logos_db.py` 到私人 repo（B1 刪除前置）— ✅ 主公已完成 2026-05-09
+   1.1 維護者 backup `loader_logos_db.py` 到私人 repo（B1 刪除前置）— ✅ 維護者已完成 2026-05-09
    1.2 wenji repo `.gitignore` 加 `.env.*`、`.envrc`、`!.env.example` — ✅ 已完成（task 1.5）
 
 2. **Apply：** 套用本 change（按 D11 phase commit boundary）
@@ -278,8 +278,8 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
    3.3 smoke-test `wenji serve` 三組 env 組合（無 env / SITE_URL only / 完整 env）→ 模板輸出符合 spec
    3.4 Adversarial smoke：14 種惡意 env 輸入 hard-fail at startup
 
-4. **主公 logos production 切換（主公自行決定時機，本 change 不阻擋）：**
-   4.1 主公更新自己慣用的 deploy bash command，加上新 SEO env vars：
+4. **維護者 logos production 切換（維護者自行決定時機，本 change 不阻擋）：**
+   4.1 維護者更新自己慣用的 deploy bash command，加上新 SEO env vars：
        ```bash
        ... WENJI_CORS_ORIGINS=https://your-deployment.example.com \
            WENJI_SITE_URL=https://your-deployment.example.com \
@@ -287,18 +287,18 @@ wenji 目前有 11 處對外暴露的 `your-deployment.example.com` URL（templa
            WENJI_OG_IMAGE_URL=https://your-deployment.example.com/static/og-image.png \
            uvicorn wenji.web.app:app --host 0.0.0.0 --port 8001
        ```
-   4.2 主公手動跑 deploy command（git pull + fuser -k + nohup uvicorn）
+   4.2 維護者手動跑 deploy command（git pull + fuser -k + nohup uvicorn）
    4.3 curl 驗證：搜尋頁 canonical/og/JSON-LD 仍正確、CORS 仍允許 your-deployment.example.com、`/robots.txt` 含 sitemap line、`/sitemap.xml` 仍 200
 
 **Rollback：**
 - Phase 內失敗 → `git revert` 該 phase commit（D11 列出每 phase commit 訊息）
 - 80q baseline 退步 > 1.5pp（jitter 容忍範圍外）→ 觸發 D11 retreat protocol（依 phase 4 → 3 → 2 順序 revert）
-- 主公 step 4.3 驗證失敗 → 主公手動跑舊版 deploy command（git checkout 上一個 working commit + 重啟 nohup）
+- 維護者 step 4.3 驗證失敗 → 維護者手動跑舊版 deploy command（git checkout 上一個 working commit + 重啟 nohup）
 
 ## Open Questions
 
 - **OPEN-1**：~~B3 backward-compat 退場時程~~ —— **已關閉**：D6 改採 in-place migrate，無 backward-compat。
-- **OPEN-2**：主公 logos production 的 `.env` 範本是否寫進 `docs/private/`？建議 ESTABLISHED：**不放 repo**，僅在 Migration Plan step 1.3 與 commit message 提及；避免私人 production 細節污染 open-source repo。
+- **OPEN-2**：維護者 logos production 的 `.env` 範本是否寫進 `docs/private/`？建議 ESTABLISHED：**不放 repo**，僅在 Migration Plan step 1.3 與 commit message 提及；避免私人 production 細節污染 open-source repo。
 - **OPEN-3**：BGE-M3 ONNX 模型 URL 是否算品牌洩漏？ESTABLISHED：**不處理**，HuggingFace 上是 public model，無 jacobmei 字眼，與 logos 解耦無關。
 - **OPEN-4**：`WENJI_ALLOW_PRIVATE_HOST` / `WENJI_ALLOW_HTTP_CORS` / `WENJI_ALLOW_NONSTANDARD_PORT` 三個 dev override env var 是否文檔化？**ESTABLISHED：不文檔化**，僅在 source code（`web/app.py` 各 validator 函式 docstring）標明用途與安全 implications；防止部署者複製貼上 README 而誤用降低安全性。後續若有強烈需求再補 `docs/internals.md`，但本 change 不處理。
 - **OPEN-5**：D11 mini-baseline 用前 10 題 smoke 是否代表性夠？**ESTABLISHED：採前 10 題 + 5pp 容忍**作為「快速明顯 regression 偵測」用途，不取代 8.5 的全 80q gate（jitter 容忍 1.5pp）。若 apply 期實機發現 10q 變異 >5pp 但 80q 符合 1.5pp，則僅 mini-baseline 取消、不阻擋 phase commit。

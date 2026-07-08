@@ -24,7 +24,7 @@
 | A | 只 `raise SearchError`，不 log | 最少 code | uvicorn traceback 才看得到，運維不便 |
 | C | 條件式：`no such table` 仍 return `{}`、其他 raise | 對手動半成品 db graceful | 字串比對 brittle、違反 fail-loud 精神、schema_version=2 已守住唯一合理 case |
 
-主公 2026-05-10 偏好 B：個人偏好留 warning trace；對稱性勝過行數。
+維護者 2026-05-10 偏好 B：個人偏好留 warning trace；對稱性勝過行數。
 
 ## D3 — Logger 命名 convention
 

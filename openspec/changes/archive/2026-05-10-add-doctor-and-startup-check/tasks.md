@@ -95,7 +95,7 @@
 - [ ] 6.7 Atomic commits（建議分：health module / doctor CLI / startup gate / tests / docs / total ~5 commits）
 - [ ] 6.8 Push branch + 開 PR base=main
 - [ ] 6.9 PR title: `feat: add wenji doctor + startup consistency gate (Phase C-2)`
-- [ ] 6.10 主公 review + merge
+- [ ] 6.10 維護者 review + merge
 - [ ] 6.11 開 archive PR `chore(spectra): archive add-doctor-and-startup-check`，mv 到 `openspec/changes/archive/2026-XX-XX-add-doctor-and-startup-check/`
 - [ ] 6.12 更新 `~/.claude/projects/.../memory/project_mode3_migration.md`：標 C-2 shipped、Phase C 整體完成（C-3 留將來）
 

@@ -111,6 +111,6 @@ Pick 方案 1。escape hatch 在 spec 文件、conftest fixture、lifespan / hel
 
 ## Migration risk
 
-- **Logos prod**：startup gate 上線後，prod 下次 deploy 會 fail 啟動（chunks_fts 0 rows）。主公要先 `wenji ingest dir articles/ --rebuild` 修狀態。這是 fail-loud 設計目標。
+- **Logos prod**：startup gate 上線後，prod 下次 deploy 會 fail 啟動（chunks_fts 0 rows）。維護者要先 `wenji ingest dir articles/ --rebuild` 修狀態。這是 fail-loud 設計目標。
 - **OSS user**：build 不完整 db → startup 拒絕；error 指向 `wenji doctor` 拿 detail。可接受 + 對 user 友善。
 - **CHANGELOG** 標 Added，不算 BREAKING（新功能 + 新 gate；既有正常 db 不受影響）。

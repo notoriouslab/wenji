@@ -52,14 +52,14 @@
   - job `publish`：`needs: build`、`environment: pypi`、`permissions: id-token: write`、`actions/download-artifact` → `pypa/gh-action-pypi-publish@release/v1`
   - 全 workflow 無任何 secret 引用
 - [x] 4.2 驗證：`actionlint`（若本機無則 `brew install actionlint`）0 error；人工比對 4.1 結構逐項符合
-- [x] 4.3 寫主公 manual step 說明（本 tasks.md 此處即說明，不另開檔）：PyPI 登入 → Account → Publishing → Add pending publisher：PyPI project name=`wenji`、owner=`notoriouslab`、repository=`wenji`、workflow=`release.yml`、environment=`pypi`。完成後主公回報，5.3 gate 才放行
+- [x] 4.3 寫維護者 manual step 說明（本 tasks.md 此處即說明，不另開檔）：PyPI 登入 → Account → Publishing → Add pending publisher：PyPI project name=`wenji`、owner=`notoriouslab`、repository=`wenji`、workflow=`release.yml`、environment=`pypi`。完成後維護者回報，5.3 gate 才放行
 - [x] 4.4 commit boundary：`ci(release): PyPI trusted publishing workflow` → 開 PR、CI 全綠、merge main
 
 ## Phase 5 — Release 執行（依賴 Phase 1-4 全部 merged）
 
 - [x] 5.1 main 上跑 `scripts/audit_release.sh` → 0 hits（有 hit → 修完重跑，不 tag）（5.1-5.2 滿足 spec requirement: Release gate precedes tagging）
 - [x] 5.2 `pytest tests/wenji/` 全綠 + `pytest -m integration` 全綠（G3 證據附輸出）
-- [x] 5.3 Gate：主公確認 4.3 pending publisher 已設定
+- [x] 5.3 Gate：維護者確認 4.3 pending publisher 已設定
 - [x] 5.4 確認 CHANGELOG `## [0.4.0]` date = 今日（跨日則改）、`pyproject.toml` version 與 tag 一致 → `git tag v0.4.0` → `git push origin v0.4.0`（與 2.2 / 3.1 共同滿足 spec requirement: Released version metadata is consistent across pyproject, tag, and CHANGELOG）
 - [x] 5.5 監看 release.yml run 至 publish 成功；失敗 → 依錯誤修正（publisher 設定錯 → 修 PyPI 後 re-run job；build 錯 → delete tag、修復、重 tag）
 - [x] 5.6 冒煙驗證：新建乾淨 venv → `pip install wenji==0.4.0` → `wenji --help` 正常 → `python -c "import wenji"` 正常 → 附輸出證據
