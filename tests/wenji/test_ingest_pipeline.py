@@ -589,3 +589,65 @@ def test_ingest_same_path_changed_content_replaces_row_and_cleans_derived(fresh_
         ).fetchone()[0]
         == 0
     )
+
+
+# --- fresh-insert FTS DELETE skip (ingest-throughput-and-operability D2) ---
+
+
+def _traced_sql(conn):
+    """Attach a trace collector; returns the list that accumulates statements."""
+    stmts: list[str] = []
+    conn.set_trace_callback(lambda s: stmts.append(s))
+    return stmts
+
+
+def test_fresh_insert_executes_no_fts_deletes(fresh_conn, corpus):
+    stmts = _traced_sql(fresh_conn)
+    ingest_one(
+        corpus / "sermons" / "s1.md",
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    deletes = [s for s in stmts if "DELETE FROM articles_fts" in s or "DELETE FROM chunks_fts" in s]
+    assert deletes == []
+
+
+def test_unchanged_reingest_executes_no_fts_deletes(fresh_conn, corpus):
+    path = corpus / "sermons" / "s1.md"
+    ingest_one(path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"})
+    stmts = _traced_sql(fresh_conn)
+    ingest_one(path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"})
+    deletes = [s for s in stmts if "DELETE FROM" in s]
+    assert deletes == []
+
+
+def test_changed_content_still_cleans_old_rows(fresh_conn, corpus):
+    path = corpus / "sermons" / "s1.md"
+    old_id = ingest_one(
+        path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+    )
+    path.write_text(
+        "---\ntitle: 講道一\ntags: [禱告, 信心]\npubDate: 2024-01-15\n---\n完全不同的新內容。",
+        encoding="utf-8",
+    )
+    new_id = ingest_one(
+        path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+    )
+    assert new_id != old_id
+    for table in ("articles_fts", "chunks_fts", "doc_vectors", "articles_meta"):
+        col = "path" if table == "articles_meta" else "article_id"
+        key = str(path) if table == "articles_meta" else old_id
+        # old rows fully gone; exactly the new row(s) remain keyed by new_id
+        stale = fresh_conn.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE {col} = ?",
+            (key if table == "articles_meta" else old_id,),
+        ).fetchone()[0]
+        if table == "articles_meta":
+            # path row exists but must carry the new article_id
+            row = fresh_conn.execute(
+                "SELECT article_id FROM articles_meta WHERE path = ?", (str(path),)
+            ).fetchone()
+            assert row[0] == new_id
+        else:
+            assert stale == 0, f"{table} still has rows for old article_id"

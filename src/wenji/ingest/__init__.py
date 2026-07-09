@@ -262,6 +262,17 @@ def ingest_one(
     # Prior row (if any) was already DELETE'd above when content changed.
     # ON CONFLICT(article_id) is retained as a safety net for callers that
     # bypass the path-based path (e.g. tests inserting fixtures directly).
+    # Cheap PK probe: FTS DELETE below runs only when a row already exists
+    # under this article_id. article_id embeds the content hash, so in the
+    # normal path this is always False (unchanged returns early; changed
+    # content mints a new id whose old rows were cleaned above) — the probe
+    # exists for the same fixture-bypass safety net. Skipping the DELETEs
+    # matters: FTS5 `article_id` is UNINDEXED, so each DELETE is a full
+    # table scan — O(N²) over a rebuild (measured 1.1→2.9s/article on prod).
+    had_prior_row = (
+        conn.execute("SELECT 1 FROM articles_meta WHERE article_id = ?", (article_id,)).fetchone()
+        is not None
+    )
     conn.execute(
         """
         INSERT INTO articles_meta (
@@ -309,8 +320,9 @@ def ingest_one(
         ),
     )
 
-    # FTS: delete + re-insert (FTS5 has no ON CONFLICT)
-    conn.execute("DELETE FROM articles_fts WHERE article_id = ?", (article_id,))
+    # FTS: delete + re-insert (FTS5 has no ON CONFLICT); see probe above.
+    if had_prior_row:
+        conn.execute("DELETE FROM articles_fts WHERE article_id = ?", (article_id,))
     conn.execute(
         """
         INSERT INTO articles_fts (
@@ -333,7 +345,8 @@ def ingest_one(
         ),
     )
 
-    conn.execute("DELETE FROM chunks_fts WHERE article_id = ?", (article_id,))
+    if had_prior_row:
+        conn.execute("DELETE FROM chunks_fts WHERE article_id = ?", (article_id,))
     for idx, ch in enumerate(chunks):
         ch_tok = tokenize_for_fts(ch)
         conn.execute(
