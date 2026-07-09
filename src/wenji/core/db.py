@@ -44,6 +44,10 @@ def connect(
     conn.execute("PRAGMA foreign_keys = ON")
     if str(db_path) != ":memory:":
         conn.execute("PRAGMA journal_mode = WAL")
+        # WAL + NORMAL keeps the database consistent on crash (an OS crash
+        # can lose the last transaction, never corrupt); FULL fsyncs every
+        # commit — a measurable tax on ingest's per-article commits.
+        conn.execute("PRAGMA synchronous = NORMAL")
 
     if libsimple_path is not None:
         try:
