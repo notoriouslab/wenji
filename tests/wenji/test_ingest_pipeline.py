@@ -651,3 +651,67 @@ def test_changed_content_still_cleans_old_rows(fresh_conn, corpus):
             assert row[0] == new_id
         else:
             assert stale == 0, f"{table} still has rows for old article_id"
+
+
+# --- skip-bad + progress log (ingest-throughput-and-operability D3/D4) ---
+
+
+def _mixed_corpus(tmp_path):
+    d = tmp_path / "sermons"
+    d.mkdir()
+    (d / "good1.md").write_text("---\ntitle: 好一\n---\n正文一。", encoding="utf-8")
+    # bad: unescaped inner double quotes (the 2026-07-08 prod scar shape)
+    (d / "bad1.md").write_text('---\ntitle: "a "b" c"\n---\n正文。', encoding="utf-8")
+    (d / "good2.md").write_text("---\ntitle: 好二\n---\n正文二。", encoding="utf-8")
+    (d / "bad2.md").write_text(
+        '---\ndescription: "【{\\Section:x}】"\n---\n正文。', encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_default_fail_fast_on_bad_frontmatter(fresh_conn, tmp_path):
+    from wenji.core.errors import IngestError
+
+    corpus = _mixed_corpus(tmp_path)
+    with pytest.raises(IngestError):
+        ingest_dir(
+            corpus, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+        )
+
+
+def test_skip_bad_collects_and_continues(fresh_conn, tmp_path, caplog):
+    corpus = _mixed_corpus(tmp_path)
+    bad: list[tuple[str, str]] = []
+    with caplog.at_level("WARNING"):
+        ids = ingest_dir(
+            corpus,
+            fresh_conn,
+            DeterministicMockEmbedder(),
+            directory_map={"sermons": "sermon"},
+            skip_bad=True,
+            bad_files_out=bad,
+        )
+    assert len(ids) == 2
+    assert len(bad) == 2
+    assert all("frontmatter" in err for _, err in bad)
+    assert fresh_conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0] == 2
+    # end-of-run ERROR listing present
+    assert sum("bad file skipped" in r.message for r in caplog.records) == 2
+
+
+def test_progress_log_emits_rate_and_eta(fresh_conn, tmp_path, caplog, monkeypatch):
+    import wenji.ingest as ingest_mod
+
+    monkeypatch.setattr(ingest_mod, "PROGRESS_LOG_EVERY", 2)
+    d = tmp_path / "sermons"
+    d.mkdir()
+    for i in range(4):
+        (d / f"p{i}.md").write_text(f"---\ntitle: P{i}\n---\n內容 {i}。", encoding="utf-8")
+    with caplog.at_level("INFO"):
+        ingest_dir(
+            tmp_path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+        )
+    progress = [r.message for r in caplog.records if r.message.startswith("ingest: ")]
+    assert any("2/4 (50.0%)" in m for m in progress)
+    assert any("4/4 (100.0%)" in m for m in progress)
+    assert all("rate=" in m and "eta=" in m for m in progress)

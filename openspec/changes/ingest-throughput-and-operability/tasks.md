@@ -11,12 +11,10 @@
 - [ ] 1.2 tests：三態（fresh insert 無 DELETE 執行——用 sqlite trace 或 mock 斷言、unchanged fast path 不動、changed 仍清舊列）
 - [ ] 1.3 `ruff` + `pytest` 全綠 → commit boundary
 
-## Phase 2 — D1 batch embedding
+## Phase 2 — D1 batch embedding【G4 DISCARD，2026-07-09】
 
-- [ ] 2.1 `ingest/__init__.py`：`ingest_dir` 重構為「收集 →字元預算打包（BUDGET=32000，單篇超限獨行）→ `encode_batch` → 逐篇寫入」；批次例外 → 該批逐篇重試；打包順序 = 檔案迭代順序（確定性）（滿足 spec requirement: Batched embedding preserves vector equivalence）
-- [ ] 2.2 等價 gate test：10 篇樣本（含最長）batch vs single 逐元素相等；斷言失敗則改 cosine>0.99999 + CHANGELOG 記載後重跑
-- [ ] 2.3 打包器單元測試：預算邊界、超限獨行、空 buffer、確定性
-- [ ] 2.4 `ruff` + `pytest` → commit boundary
+- [x] 2.x G4 實驗執行完畢：等價 gate cosine 0.98 FAIL + 吞吐 benchmark 0.97x（無加速）→ 主公核准撤案；refactor 已 revert（Phase 1 獨立 commit 不受影響）
+- [x] 2.y `ingest/embed.py` docstring 加警告：batch>1 路徑實測有 INT8 量化漂移（cosine ~0.98）且無吞吐收益，勿在未重驗前使用
 
 ## Phase 3 — D3/D4/D5 可運維
 

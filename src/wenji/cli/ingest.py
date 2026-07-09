@@ -35,8 +35,18 @@ def dir_command(
         "{directory_map: {<dirname>: <source_type>}, chunk_strategies: {<source_type>: {strategy: paragraph, min_chars: 200}}}",
     ),
     recursive: bool = typer.Option(True, help="Recurse into subdirectories."),
+    skip_bad: bool = typer.Option(
+        False,
+        "--skip-bad",
+        help="Skip files whose frontmatter fails to parse (listed at the end, "
+        "exit code 1) instead of aborting on the first bad file.",
+    ),
 ) -> None:
-    """Ingest a markdown corpus directory into a wenji DB."""
+    """Ingest a markdown corpus directory into a wenji DB.
+
+    Interrupted runs resume by re-running the same command: unchanged
+    articles take the content-hash fast path without re-embedding.
+    """
     from wenji.core.db import connect, initialise_schema
     from wenji.ingest import ingest_dir
     from wenji.ingest.embed import Embedder
@@ -54,6 +64,7 @@ def dir_command(
 
     embedder = Embedder()
     typer.echo(f"ingesting {corpus_dir} → {db}", err=True)
+    bad_files: list[tuple[str, str]] = []
     article_ids = ingest_dir(
         corpus_dir,
         conn,
@@ -61,10 +72,15 @@ def dir_command(
         recursive=recursive,
         directory_map=directory_map,
         chunk_strategies=chunk_strategies,
+        skip_bad=skip_bad,
+        bad_files_out=bad_files,
     )
     conn.close()
-    typer.echo(json.dumps({"ingested": len(article_ids)}, ensure_ascii=False), err=False)
-    sys.exit(0)
+    payload: dict = {"ingested": len(article_ids)}
+    if bad_files:
+        payload["skipped_bad"] = [{"path": p, "error": e} for p, e in bad_files]
+    typer.echo(json.dumps(payload, ensure_ascii=False), err=False)
+    sys.exit(1 if bad_files else 0)
 
 
 # Backward-compat shim for callers expecting a single ``command`` symbol.

@@ -33,6 +33,15 @@
 1. **Run-to-run byte-identity（無條件）**：打包是 `sorted(root.glob())` 迭代順序（`ingest/__init__.py:394` 既有）的純函數 → 同語料兩次 rebuild 批次組成完全相同 → docstring 的 byte-identical 承諾**不管下一條結果如何都成立**。
 2. **Batch-vs-single 等價（品質 gate）**：同一 10 篇樣本（含最長篇）batch vs 單篇 encode，斷言逐元素相等；若 onnxruntime 批次化引入浮點差異 → 降級斷言 cosine > 0.99999，且 CHANGELOG 明載「向量與 v0.4.0 單篇計算值有微小差異」（一次性、有記錄的轉變，非承諾破壞）+ 80q baseline 不動。
 
+### D1 G4 判定：DISCARD（2026-07-09 實驗，主公核准撤案）
+
+等價 gate + 吞吐 benchmark（M2、真 BGE-M3 INT8）雙殺：
+
+- **吞吐 0.97x**（32 篇逐篇 15.35s vs 一批 15.89s）— CPU INT8 推論 compute-bound，batch 紅利屬 GPU，健檢預估的 2-4x 不適用本棧
+- **向量漂移 cosine floor 0.98**（gate 門檻 0.99999）— INT8 量化 + padding 改變數值路徑，模型層現實非 code bug
+
+零收益 + 實質漂移 → 撤案。附帶發現：`Embedder.encode_batch` 內建 batch 機制從未被 >1 使用、且有漂移 — embed.py 加 docstring 警告。速度真槓桿確認為 D2（DELETE O(N²)）。
+
 ## D2 — Fresh-insert 跳過 FTS DELETE
 
 選 **`existing` 判斷內縮 DELETE**：兩個 DELETE 移入「content 變更」分支（fast path 與 fresh insert 都不執行）。

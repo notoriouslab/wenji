@@ -2,29 +2,6 @@
 
 ## ADDED Requirements
 
-### Requirement: Batched embedding preserves vector equivalence
-
-`ingest_dir` SHALL embed articles in character-budget batches (oversized articles run alone; a failed batch retries its members individually). Two distinct guarantees apply:
-
-1. **Run-to-run byte-identity (unconditional)**: batch composition MUST be a pure function of the sorted file iteration order (the existing `sorted(root.glob(...))` at `ingest/__init__.py:394`), so two rebuilds of the same corpus remain byte-identical — the `rebuild_from_disk` docstring promise is preserved regardless of item 2's outcome.
-2. **Batch-vs-single equivalence (quality gate)**: batched vectors are expected element-wise equal to singly-computed vectors; if onnxruntime batching introduces float variance, the gate falls back to cosine similarity > 0.99999 AND the CHANGELOG MUST note that vectors differ from v0.4.0 single-call vectors (a one-time documented shift, not a broken promise — run-to-run identity still holds).
-
-#### Scenario: batch and single vectors agree
-
-- **WHEN** the same 10-article sample (including the longest article in the corpus) is embedded via the batched path and via one-at-a-time calls
-- **THEN** the resulting vectors MUST be element-wise equal (or meet the documented cosine fallback)
-
-#### Scenario: oversized article does not blow the batch
-
-- **WHEN** an article's text alone exceeds the batch character budget
-- **THEN** it MUST be embedded in its own single-item call and ingest MUST proceed
-
-##### Example: 40k-char commentary chapter
-
-- **GIVEN** budget 32,000 chars and a queue of [3k, 5k, 40k, 2k] char articles
-- **WHEN** the packer runs
-- **THEN** batches are [3k, 5k] + [40k alone] + [2k...] — the 40k article never shares a batch
-
 ### Requirement: Fresh inserts skip derived-table deletes
 
 `ingest_one` MUST NOT execute `DELETE FROM articles_fts` / `DELETE FROM chunks_fts` when no prior row exists for the article's path; the deletes run only on the content-changed path.

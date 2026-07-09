@@ -48,3 +48,5 @@
 **Round 2：PASS（0 critical / 0 warning）** — 五項逐一覆核 RESOLVED（C2 的兩層保證拆分獲 reviewer 認可為正解；W2 由 reviewer 核實撤回）。Info 一則：spec 引用的行號會隨 Phase 2 重構漂移，apply 時順手更新。
 
 **G2 Coverage**：D1→2.1-2.4、D2→1.1-1.3、D3→3.1、D4→3.2-3.3、D5→3.4、D6→4.1、D7→4.2-4.3、G4 實驗→0.2+5.1-5.3，零缺口；孤立 task 皆為 pre-flight/commit boundary。
+
+**G4 紀錄（2026-07-09）**：D1 batch embedding 實驗判 DISCARD — 吞吐 0.97x（CPU INT8 無 batch 紅利）+ 向量 cosine floor 0.98（INT8+padding 數值漂移，遠低於 0.99999 gate）。主公核准撤案；spec 對應 requirement 移除、速度主槓桿確認為 D2。健檢 B1 finding 的 2-4x 預估據此修正為不成立。
