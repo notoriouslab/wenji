@@ -589,3 +589,129 @@ def test_ingest_same_path_changed_content_replaces_row_and_cleans_derived(fresh_
         ).fetchone()[0]
         == 0
     )
+
+
+# --- fresh-insert FTS DELETE skip (ingest-throughput-and-operability D2) ---
+
+
+def _traced_sql(conn):
+    """Attach a trace collector; returns the list that accumulates statements."""
+    stmts: list[str] = []
+    conn.set_trace_callback(lambda s: stmts.append(s))
+    return stmts
+
+
+def test_fresh_insert_executes_no_fts_deletes(fresh_conn, corpus):
+    stmts = _traced_sql(fresh_conn)
+    ingest_one(
+        corpus / "sermons" / "s1.md",
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    deletes = [s for s in stmts if "DELETE FROM articles_fts" in s or "DELETE FROM chunks_fts" in s]
+    assert deletes == []
+
+
+def test_unchanged_reingest_executes_no_fts_deletes(fresh_conn, corpus):
+    path = corpus / "sermons" / "s1.md"
+    ingest_one(path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"})
+    stmts = _traced_sql(fresh_conn)
+    ingest_one(path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"})
+    deletes = [s for s in stmts if "DELETE FROM" in s]
+    assert deletes == []
+
+
+def test_changed_content_still_cleans_old_rows(fresh_conn, corpus):
+    path = corpus / "sermons" / "s1.md"
+    old_id = ingest_one(
+        path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+    )
+    path.write_text(
+        "---\ntitle: 講道一\ntags: [禱告, 信心]\npubDate: 2024-01-15\n---\n完全不同的新內容。",
+        encoding="utf-8",
+    )
+    new_id = ingest_one(
+        path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+    )
+    assert new_id != old_id
+    for table in ("articles_fts", "chunks_fts", "doc_vectors", "articles_meta"):
+        col = "path" if table == "articles_meta" else "article_id"
+        key = str(path) if table == "articles_meta" else old_id
+        # old rows fully gone; exactly the new row(s) remain keyed by new_id
+        stale = fresh_conn.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE {col} = ?",
+            (key if table == "articles_meta" else old_id,),
+        ).fetchone()[0]
+        if table == "articles_meta":
+            # path row exists but must carry the new article_id
+            row = fresh_conn.execute(
+                "SELECT article_id FROM articles_meta WHERE path = ?", (str(path),)
+            ).fetchone()
+            assert row[0] == new_id
+        else:
+            assert stale == 0, f"{table} still has rows for old article_id"
+
+
+# --- skip-bad + progress log (ingest-throughput-and-operability D3/D4) ---
+
+
+def _mixed_corpus(tmp_path):
+    d = tmp_path / "sermons"
+    d.mkdir()
+    (d / "good1.md").write_text("---\ntitle: 好一\n---\n正文一。", encoding="utf-8")
+    # bad: unescaped inner double quotes (the 2026-07-08 prod scar shape)
+    (d / "bad1.md").write_text('---\ntitle: "a "b" c"\n---\n正文。', encoding="utf-8")
+    (d / "good2.md").write_text("---\ntitle: 好二\n---\n正文二。", encoding="utf-8")
+    (d / "bad2.md").write_text(
+        '---\ndescription: "【{\\Section:x}】"\n---\n正文。', encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_default_fail_fast_on_bad_frontmatter(fresh_conn, tmp_path):
+    from wenji.core.errors import IngestError
+
+    corpus = _mixed_corpus(tmp_path)
+    with pytest.raises(IngestError):
+        ingest_dir(
+            corpus, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+        )
+
+
+def test_skip_bad_collects_and_continues(fresh_conn, tmp_path, caplog):
+    corpus = _mixed_corpus(tmp_path)
+    bad: list[tuple[str, str]] = []
+    with caplog.at_level("WARNING"):
+        ids = ingest_dir(
+            corpus,
+            fresh_conn,
+            DeterministicMockEmbedder(),
+            directory_map={"sermons": "sermon"},
+            skip_bad=True,
+            bad_files_out=bad,
+        )
+    assert len(ids) == 2
+    assert len(bad) == 2
+    assert all("frontmatter" in err for _, err in bad)
+    assert fresh_conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0] == 2
+    # end-of-run ERROR listing present
+    assert sum("bad file skipped" in r.message for r in caplog.records) == 2
+
+
+def test_progress_log_emits_rate_and_eta(fresh_conn, tmp_path, caplog, monkeypatch):
+    import wenji.ingest as ingest_mod
+
+    monkeypatch.setattr(ingest_mod, "PROGRESS_LOG_EVERY", 2)
+    d = tmp_path / "sermons"
+    d.mkdir()
+    for i in range(4):
+        (d / f"p{i}.md").write_text(f"---\ntitle: P{i}\n---\n內容 {i}。", encoding="utf-8")
+    with caplog.at_level("INFO"):
+        ingest_dir(
+            tmp_path, fresh_conn, DeterministicMockEmbedder(), directory_map={"sermons": "sermon"}
+        )
+    progress = [r.message for r in caplog.records if r.message.startswith("ingest: ")]
+    assert any("2/4 (50.0%)" in m for m in progress)
+    assert any("4/4 (100.0%)" in m for m in progress)
+    assert all("rate=" in m and "eta=" in m for m in progress)

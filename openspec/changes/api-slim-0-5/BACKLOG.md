@@ -23,3 +23,4 @@
 ## 觸發
 
 `spectra new change api-slim-0-5` 時以本檔 + 健檢報告（session 2026-07-08）為輸入。
+- **記錄建庫環境版本**（2026-07-10 新增）：wenji_meta 記 onnxruntime/numpy 版本 + doctor 比對告警 — 起因：實測跨 ort 版本向量 cosine 僅 ~0.98（見 memory reference_embedder_env_sensitivity），「升級 runtime 不重建 db」是靜默檢索劣化源

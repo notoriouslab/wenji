@@ -262,6 +262,17 @@ def ingest_one(
     # Prior row (if any) was already DELETE'd above when content changed.
     # ON CONFLICT(article_id) is retained as a safety net for callers that
     # bypass the path-based path (e.g. tests inserting fixtures directly).
+    # Cheap PK probe: FTS DELETE below runs only when a row already exists
+    # under this article_id. article_id embeds the content hash, so in the
+    # normal path this is always False (unchanged returns early; changed
+    # content mints a new id whose old rows were cleaned above) — the probe
+    # exists for the same fixture-bypass safety net. Skipping the DELETEs
+    # matters: FTS5 `article_id` is UNINDEXED, so each DELETE is a full
+    # table scan — O(N²) over a rebuild (measured 1.1→2.9s/article on prod).
+    had_prior_row = (
+        conn.execute("SELECT 1 FROM articles_meta WHERE article_id = ?", (article_id,)).fetchone()
+        is not None
+    )
     conn.execute(
         """
         INSERT INTO articles_meta (
@@ -309,8 +320,9 @@ def ingest_one(
         ),
     )
 
-    # FTS: delete + re-insert (FTS5 has no ON CONFLICT)
-    conn.execute("DELETE FROM articles_fts WHERE article_id = ?", (article_id,))
+    # FTS: delete + re-insert (FTS5 has no ON CONFLICT); see probe above.
+    if had_prior_row:
+        conn.execute("DELETE FROM articles_fts WHERE article_id = ?", (article_id,))
     conn.execute(
         """
         INSERT INTO articles_fts (
@@ -333,7 +345,8 @@ def ingest_one(
         ),
     )
 
-    conn.execute("DELETE FROM chunks_fts WHERE article_id = ?", (article_id,))
+    if had_prior_row:
+        conn.execute("DELETE FROM chunks_fts WHERE article_id = ?", (article_id,))
     for idx, ch in enumerate(chunks):
         ch_tok = tokenize_for_fts(ch)
         conn.execute(
@@ -375,6 +388,10 @@ def ingest_one(
     return article_id
 
 
+# Progress log cadence for ingest_dir (articles between log lines).
+PROGRESS_LOG_EVERY = 200
+
+
 def ingest_dir(
     dir_path: str | Path,
     conn: sqlite3.Connection,
@@ -383,23 +400,56 @@ def ingest_dir(
     recursive: bool = True,
     directory_map: Mapping[str, str] | None = None,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
+    skip_bad: bool = False,
+    bad_files_out: list[tuple[str, str]] | None = None,
 ) -> list[str]:
-    """Ingest all ``.md`` files under ``dir_path``. Returns list of article_ids."""
+    """Ingest all ``.md`` files under ``dir_path``. Returns list of article_ids.
+
+    Emits a progress line (count / total / rate / ETA) every
+    :data:`PROGRESS_LOG_EVERY` articles — a 12k-article run under nohup is
+    otherwise a multi-hour black box.
+
+    Resume: an interrupted run is resumed by simply re-running with the same
+    arguments — completed articles take the content-hash fast path (no
+    re-embedding); each article commits individually so at most the article
+    in flight is lost.
+
+    Args:
+        skip_bad: When True, a file whose frontmatter fails to parse is
+            recorded and skipped instead of aborting the run (default False =
+            fail-fast). Skipped files are logged at ERROR level at the end.
+        bad_files_out: Optional list that receives ``(path, error)`` tuples
+            for files skipped under ``skip_bad`` (CLI uses this for the
+            machine-readable summary + non-zero exit).
+    """
+    import time as _time
+
     root = Path(dir_path)
     if not root.is_dir():
         raise IngestError(f"not a directory: {root}")
     pattern = "**/*.md" if recursive else "*.md"
+    files = sorted(root.glob(pattern))
+    total = len(files)
+    started = _time.monotonic()
     article_ids: list[str] = []
     skipped = 0
-    for md in sorted(root.glob(pattern)):
-        article_id = ingest_one(
-            md,
-            conn,
-            embedder,
-            directory_map=directory_map,
-            chunk_strategies=chunk_strategies,
-            corpus_root=root,
-        )
+    skipped_bad: list[tuple[str, str]] = []
+    for i, md in enumerate(files, start=1):
+        try:
+            article_id = ingest_one(
+                md,
+                conn,
+                embedder,
+                directory_map=directory_map,
+                chunk_strategies=chunk_strategies,
+                corpus_root=root,
+            )
+        except IngestError as exc:
+            if not skip_bad:
+                raise
+            logger.warning("ingest_dir: skipping bad file %s: %s", md, exc)
+            skipped_bad.append((str(md), str(exc)))
+            continue
         if article_id is None:
             skipped += 1
         else:
@@ -409,8 +459,25 @@ def ingest_dir(
             # interruption (ingest_one's path-based fast path requires the
             # prior row to be committed before SELECT can see it).
             conn.commit()
+        if i % PROGRESS_LOG_EVERY == 0:
+            elapsed = _time.monotonic() - started
+            rate = i / elapsed if elapsed > 0 else 0.0
+            eta_min = int((total - i) / rate / 60) if rate > 0 else 0
+            logger.info(
+                "ingest: %d/%d (%.1f%%) rate=%.1f/s eta=%dmin",
+                i,
+                total,
+                i / total * 100,
+                rate,
+                eta_min,
+            )
     if skipped:
         logger.info("ingest_dir: skipped %d empty-body article(s) under %s", skipped, root)
+    if skipped_bad:
+        for bad_path, err in skipped_bad:
+            logger.error("ingest_dir: bad file skipped: %s: %s", bad_path, err)
+        if bad_files_out is not None:
+            bad_files_out.extend(skipped_bad)
     conn.commit()
     return article_ids
 
@@ -422,12 +489,18 @@ def rebuild_from_disk(
     *,
     directory_map: Mapping[str, str] | None = None,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
+    skip_bad: bool = False,
+    bad_files_out: list[tuple[str, str]] | None = None,
 ) -> list[str]:
     """Drop derived tables, re-init schema, re-ingest entire corpus.
 
     Idempotent + byte-identical: two consecutive runs on the same disk produce
     identical ``articles_fts.content`` and ``doc_vectors.vec`` (subject to
     deterministic embedder).
+
+    Resume note: rebuild always starts from a wipe (that IS its semantic).
+    To resume an interrupted bulk run instead, use :func:`ingest_dir` with
+    the same arguments — completed articles take the content-hash fast path.
     """
     from wenji.core.db import initialise_schema
 
@@ -448,6 +521,8 @@ def rebuild_from_disk(
         recursive=True,
         directory_map=directory_map,
         chunk_strategies=chunk_strategies,
+        skip_bad=skip_bad,
+        bad_files_out=bad_files_out,
     )
 
 

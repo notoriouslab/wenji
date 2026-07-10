@@ -4,6 +4,15 @@ doc_vectors stores L2-normalised float32 1024d vectors. We load the candidate
 set into a numpy matrix and compute dot product (= cosine because both sides
 are L2-normalised).
 
+The candidate matrix is memoized per (db file, axis): rebuilding a
+(12k, 1024) matrix from 12k ``np.frombuffer`` calls on every query was the
+largest corpus-size-proportional latency term. All entries for a db share
+one corpus fingerprint (``COUNT(*)`` + ``MAX(indexed_at)`` of
+``articles_meta``); any change invalidates every axis entry (accepted
+over-invalidation — corpus changes are rare relative to queries).
+In-memory databases are never cached (each ``:memory:`` conn is a distinct
+db; tests rely on exact per-conn state).
+
 For corpus sizes ≤ ~200K this is sub-second; v0.2 may add ANN if needed.
 """
 
@@ -17,6 +26,46 @@ import numpy as np
 from wenji.core.errors import SearchError
 
 VECTOR_DIM = 1024
+
+# (db_file_path) → {"fingerprint": tuple, "entries": {axis_key: (ids, matrix)}}
+_CANDIDATE_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def clear_candidate_cache() -> None:
+    """Drop all memoized candidate matrices (test/maintenance hook)."""
+    _CANDIDATE_CACHE.clear()
+
+
+def _db_file(conn: sqlite3.Connection) -> str:
+    """Main database file path, or '' for in-memory/temporary databases."""
+    row = conn.execute("PRAGMA database_list").fetchone()
+    return row[2] or ""
+
+
+def _corpus_fingerprint(conn: sqlite3.Connection) -> tuple[int, str]:
+    n, max_indexed = conn.execute(
+        "SELECT COUNT(*), IFNULL(MAX(indexed_at), '') FROM articles_meta"
+    ).fetchone()
+    return (n, max_indexed)
+
+
+def _load_candidates_cached(
+    conn: sqlite3.Connection,
+    axis: str | None,
+) -> tuple[list[str], np.ndarray]:
+    db_file = _db_file(conn)
+    if not db_file:
+        return _load_candidates(conn, axis)
+
+    fingerprint = _corpus_fingerprint(conn)
+    cached = _CANDIDATE_CACHE.get(db_file)
+    if cached is None or cached["fingerprint"] != fingerprint:
+        cached = {"fingerprint": fingerprint, "entries": {}}
+        _CANDIDATE_CACHE[db_file] = cached
+    axis_key = axis if axis is not None else ""
+    if axis_key not in cached["entries"]:
+        cached["entries"][axis_key] = _load_candidates(conn, axis)
+    return cached["entries"][axis_key]
 
 
 def _load_candidates(
@@ -73,7 +122,7 @@ def vector_search(
     qv_norm = float(np.linalg.norm(qv)) or 1.0
     qv = qv / qv_norm
 
-    article_ids, matrix = _load_candidates(conn, axis)
+    article_ids, matrix = _load_candidates_cached(conn, axis)
     if not article_ids:
         return []
 

@@ -4,6 +4,16 @@ Loads tokenizer + ONNX session lazily on first encode. CLS-pooled output is
 L2-normalised so cosine similarity = dot product. Deterministic on a single
 CPU thread (intra/inter op = 1) — required for byte-identical rebuild.
 
+.. warning::
+   Calling ``encode_batch`` with more than one text is measured (2026-07-09,
+   M2 + this INT8 model) to (a) give NO throughput benefit over one-at-a-time
+   calls (0.97x — CPU INT8 inference is compute-bound; batching pays off on
+   GPUs, not here) and (b) DRIFT the vectors: padding changes the quantized
+   numeric path, cosine vs single-text encoding floors around 0.98. The
+   ingest pipeline therefore always passes a single text. Do not batch
+   without re-running the equivalence experiment (see the
+   ingest-throughput-and-operability change's G4 record).
+
 Real ONNX wiring lands here in Group 9. For tests, inject a duck-typed mock
 exposing ``DIM`` + ``encode_batch(list[str]) -> ndarray``.
 """

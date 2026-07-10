@@ -55,6 +55,8 @@ wenji serve --db wenji.db --port 8000
 
 打開瀏覽器 `http://127.0.0.1:8000`，得到完整 Web UI（搜尋 + tag 瀏覽 + 文章閱讀器）。
 
+大語料運維：中斷的批次匯入直接**重跑同一個 `wenji ingest dir` 命令**即可續跑（未變更的文章走 content-hash 快路徑、不重算 embedding；`rebuild` 永遠從 wipe 開始，不用它續跑）；語料含少數壞 frontmatter 檔時加 `--skip-bad`（結尾列清單、exit 1）。
+
 支援 Python 3.10–3.12（3.13 尚未支援）。第一次跑 `wenji ingest` 或 `wenji search` 會自動下載 ONNX BGE-M3 INT8 embed model（~600 MB）至 user cache。macOS arm64 / Linux x86_64 內建 `libsimple` binary；其他平台用 `wenji download-model` 手動抓。
 
 ---
@@ -377,6 +379,8 @@ git clone https://github.com/notoriouslab/wenji   # demo corpus only
 wenji ingest dir wenji/examples/articles/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
+
+Bulk-ingest operations: resume an interrupted run by **re-running the same `wenji ingest dir` command** (unchanged articles take the content-hash fast path, no re-embedding; `rebuild` always starts from a wipe — don't use it to resume). Add `--skip-bad` to skip files with broken frontmatter (listed at the end, exit 1).
 
 Then open `http://127.0.0.1:8000` — full Web UI with search, tag browsing, and article viewer.
 

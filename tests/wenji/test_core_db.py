@@ -111,3 +111,11 @@ def test_article_axes_primary_uniqueness():
 def test_libsimple_load_failure_raises_wenji_error():
     with pytest.raises(WenjiError, match="libsimple"):
         connect(":memory:", libsimple_path="/nonexistent/path/libsimple.so")
+
+
+def test_file_db_uses_wal_normal(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    # synchronous: 1 = NORMAL
+    assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1
+    conn.close()
