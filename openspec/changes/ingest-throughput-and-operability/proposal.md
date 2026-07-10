@@ -49,7 +49,7 @@
 
 **G2 Coverage**：D1→2.1-2.4、D2→1.1-1.3、D3→3.1、D4→3.2-3.3、D5→3.4、D6→4.1、D7→4.2-4.3、G4 實驗→0.2+5.1-5.3，零缺口；孤立 task 皆為 pre-flight/commit boundary。
 
-**G4 紀錄（2026-07-09）**：D1 batch embedding 實驗判 DISCARD — 吞吐 0.97x（CPU INT8 無 batch 紅利）+ 向量 cosine floor 0.98（INT8+padding 數值漂移，遠低於 0.99999 gate）。主公核准撤案；spec 對應 requirement 移除、速度主槓桿確認為 D2。健檢 B1 finding 的 2-4x 預估據此修正為不成立。
+**G4 紀錄（2026-07-09）**：D1 batch embedding 實驗判 DISCARD — 吞吐 0.97x（CPU INT8 無 batch 紅利）+ 向量 cosine floor 0.98（INT8+padding 數值漂移，遠低於 0.99999 gate）。維護者核准撤案；spec 對應 requirement 移除、速度主槓桿確認為 D2。健檢 B1 finding 的 2-4x 預估據此修正為不成立。
 
 **G4/eval 證據（2026-07-10 完成）**：
 - 速率曲線（M2、12,100 語料、睡眠感知分段）：before（v0.4.0）隨規模劣化 1.38→2.61s/篇；after（本 change）全程平坦 ~1.7s/篇，8k 段 1.89x 且差距持續擴大 — O(N²) 消除實證

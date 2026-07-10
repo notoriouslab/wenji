@@ -7,6 +7,23 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Performance
+
+- Bulk ingest no longer degrades with corpus size: per-article FTS
+  deletes (full-table scans on fresh inserts) are skipped via a PK
+  probe — a 12k rebuild's per-article rate stays flat instead of
+  doubling. WAL databases now use `synchronous=NORMAL`; the query-time
+  vector candidate matrix is cached per database with ingest-aware
+  invalidation.
+
+### Added
+
+- `--skip-bad` on `wenji ingest dir` / `wenji rebuild`: skip files with
+  unparseable frontmatter, list them at the end, exit non-zero.
+- Ingest progress logging (count/rate/ETA every 200 articles), and
+  documented crash-resume: re-run `ingest dir`, unchanged articles take
+  the content-hash fast path.
+
 ### Fixed
 
 - Web layer concurrency hardening: lazy singletons (Searcher, TagBrowser)
