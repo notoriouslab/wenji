@@ -50,3 +50,9 @@
 **G2 Coverage**：D1→2.1-2.4、D2→1.1-1.3、D3→3.1、D4→3.2-3.3、D5→3.4、D6→4.1、D7→4.2-4.3、G4 實驗→0.2+5.1-5.3，零缺口；孤立 task 皆為 pre-flight/commit boundary。
 
 **G4 紀錄（2026-07-09）**：D1 batch embedding 實驗判 DISCARD — 吞吐 0.97x（CPU INT8 無 batch 紅利）+ 向量 cosine floor 0.98（INT8+padding 數值漂移，遠低於 0.99999 gate）。主公核准撤案；spec 對應 requirement 移除、速度主槓桿確認為 D2。健檢 B1 finding 的 2-4x 預估據此修正為不成立。
+
+**G4/eval 證據（2026-07-10 完成）**：
+- 速率曲線（M2、12,100 語料、睡眠感知分段）：before（v0.4.0）隨規模劣化 1.38→2.61s/篇；after（本 change）全程平坦 ~1.7s/篇，8k 段 1.89x 且差距持續擴大 — O(N²) 消除實證
+- FTS 內容 byte 全等（8,768 交集全查）；向量 byte 差異證實為環境假影（embed code diff 純 docstring；onnxruntime 1.26 vs 1.27 cosine ~0.98 — 新傷疤已入 memory `reference_embedder_env_sensitivity` + backlog 候選「建庫環境版本記錄」）
+- **同環境同 db 對照**（worktree v0.4.0 碼 + 同 .venv + 同 parity db）：pass@3 partial+ **61/80 vs 61/80，通過題集合完全相同** — code 對檢索零影響；與歷史 77.5% 的 1.3pp 差距為環境/語料漂移，雙側等同
+- 本機新基準立檔：76.2% pass@3 partial+（parity db 12,100 + ort 1.26），**19 題 fail = error analysis 目標集**
