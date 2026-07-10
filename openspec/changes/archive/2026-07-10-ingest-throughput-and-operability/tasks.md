@@ -36,5 +36,5 @@
 - [x] 5.1 after 計時：branch 版全量 rebuild `/tmp/parity_after.db`，記 before/after 總時長與 rate 曲線（前 2k vs 後 2k 篇）
 - [x] 5.2 向量等價抽查：兩顆 db 隨機 20 篇 `doc_vectors` bytes 比對
 - [x] 5.3 eval guard：80q baseline 對兩顆 db 各跑一次（`wenji serve` + `eval run-benchmark`），分數與 miss 清單不得劣化（eval-regression-guard 流程）
-- [ ] 5.4 CHANGELOG Fixed/Changed 條目（1-2 句）+ commit + PR + **audit_release.sh 存 exit code 判斷**（不接 pipe）+ CI 全綠才 merge
-- [ ] 5.5 spectra archive + memory 更新（健檢三包 2/3；prod 下次 rebuild 可望 2-4hr）+ 建議維護者：prod 重啟命令 THREADS 改 2
+- [x] 5.4 CHANGELOG Fixed/Changed 條目（1-2 句）+ commit + PR + **audit_release.sh 存 exit code 判斷**（不接 pipe）+ CI 全綠才 merge
+- [x] 5.5 spectra archive + memory 更新（健檢三包 2/3；prod 下次 rebuild 可望 2-4hr）+ 建議維護者：prod 重啟命令 THREADS 改 2
