@@ -24,3 +24,6 @@
 
 `spectra new change api-slim-0-5` 時以本檔 + 健檢報告（session 2026-07-08）為輸入。
 - **記錄建庫環境版本**（2026-07-10 新增）：wenji_meta 記 onnxruntime/numpy 版本 + doctor 比對告警 — 起因：實測跨 ort 版本向量 cosine 僅 ~0.98（見 memory reference_embedder_env_sensitivity），「升級 runtime 不重建 db」是靜默檢索劣化源
+
+
+- **A' — directory_map 優先權開關（2026-07-10 排入，維護者核准）**：wenji config 加 `directory_map_overrides_frontmatter` 選項（deployment 得以宣告「目錄結構是 source_type 的真理」）。起因：tgc/christianitytoday 5,343 篇 frontmatter 自帶 `teaching` 蓋掉 directory_map 細分 → axes taxonomy 壓扁（theology 巨桶 59%、practice/public-discourse 空殼）。配套：prod 三表 source_type UPDATE（articles_meta / articles_fts / chunks_fts 皆 denormalized）或重 rebuild，之後重跑 classify。C 快修（logos axes.yaml fallback 規則，commit 7f8a5ab）已同日先行，unclassified 2,132 → 預期 ~100。
