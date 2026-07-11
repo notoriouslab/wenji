@@ -8,7 +8,7 @@
 
 ### ① 搜尋 API 減肥（BREAKING）
 
-- **rewrite 整路刪除**：`search/rewrite.py`、`Searcher(rewriter=)` 參數、`cli/search.py` 與 `cli/serve.py`/`web/app.py` 的 rewrite 接線與 `WENJI_REWRITE_OVERRIDE` env、`/api/search` response 的 `rewritten_query` 欄位（web API BREAKING，logos 前端若有讀取需同步）、`wenji segment` 的 rewrite trace 欄位與 `--enable-rewrite`/`--no-rewrite` flags（`observability/segment.py` + `cli/segment.py` + `cli/_format.py` human 輸出段）、**eval 側 rewrite 工具面**（`eval/__init__.py` 的 `clear_rewrite_cache` + `cli/eval.py` 的 `--clear-cache`/`--enable-rewrite`/`--no-rewrite` flags 與 run 檔 rewrite 標記 — v3 drop 表後 `--clear-cache` 是 crash 路徑，必須同刪）、`SearchConfig.rewrite` 子欄、`config/llm.py` 的 rewriter-only 部分（`rewrite_cache_ttl_days` + `WENJI_LLM_REWRITE_CACHE_TTL_DAYS`；`LLMClient` 本體保留 — ask/aggregate 仍用）
+- **rewrite 整路刪除**：`search/rewrite.py`、`Searcher(rewriter=)` 參數、`cli/search.py` 與 `cli/serve.py` 的 rewrite 接線含各自的 `--enable-rewrite`/`--no-rewrite` typer flags、`web/app.py` 接線與 `WENJI_REWRITE_OVERRIDE` env、`/api/search` response 的 `rewritten_query` 欄位（web API BREAKING，logos 前端若有讀取需同步）、`wenji segment` 的 rewrite trace 欄位與 `--enable-rewrite`/`--no-rewrite` flags（`observability/segment.py` + `cli/segment.py` + `cli/_format.py` human 輸出段）、**eval 側 rewrite 工具面**（`eval/__init__.py` 的 `clear_rewrite_cache` + `cli/eval.py` 的 `--clear-cache`/`--enable-rewrite`/`--no-rewrite` flags 與 run 檔 rewrite 標記 — v3 drop 表後 `--clear-cache` 是 crash 路徑，必須同刪）、`SearchConfig.rewrite` 子欄、`config/llm.py` 的 rewriter-only 部分（`rewrite_cache_ttl_days` + `WENJI_LLM_REWRITE_CACHE_TTL_DAYS`；`LLMClient` 本體保留 — ask/aggregate 仍用）
 - **BREAKING（schema v2→v3）**：DROP `query_rewrite_cache` 表（schema.sql 表 7），`initialise_schema` 做冪等 in-place migration（先例：db.py:76 dead-keys 清理），既有 db 不需 rebuild
 - **reranker 整路刪除**：`search/rerank.py`（144 行）、`Searcher(reranker=)` 參數、`core/model_download.py` rerank 模型分支（embedder 主模型分支保留）、`cli/download.py` rerank 選項、`SearchConfig.rerank` 子欄。判決依據：07-10 error analysis 純 ranking miss ≈ 0（memory `project_search_quality_roadmap`）
 - **ranker_hooks 刪除**：`search/ranker.py` 全檔（`RankerHook` Protocol + `ChunkHitBooster`，零生產呼叫端）、`Searcher(ranker_hooks=)` 參數、pipeline step 9
@@ -66,11 +66,12 @@
 
 **Round 2：FAIL（新 2 critical / 1 warning，reviewer 全樹模擬 audit 揭露）→ 修正**
 
-- C2（audit 字根掃描撞保留路徑 `score_and_rerank`/branding URL-rewrite 註解，驗收式不可滿足）→ 已修：改 17 個精確 symbol 清單（spec scenario + task 2.5 全集 + 1.7 子集三處一致），保留識別符 spec 明文列出
+- C2（audit 字根掃描撞保留路徑 `score_and_rerank`/branding URL-rewrite 註解，驗收式不可滿足）→ 已修：改精確 symbol 清單（最終 18 個，含後補的 rewritten_query）（spec scenario + task 2.5 全集 + 1.7 子集三處一致），保留識別符 spec 明文列出
 - C3（eval 側 rewrite 面完全未列舉，`--clear-cache` 在 v3 db 是 crash 路徑）→ 已修：proposal ①/Impact、design D1、spec requirement+scenario、新 task 1.3b 四層補齊；明文 eval guard 對比口徑不受影響
 - W3（`cli/_format.py` Rewrite 段漏列，會 KeyError）→ 已修：task 1.3 補 _format.py 與 observability re-export
 - 作者自查追加：`/api/search` response `rewritten_query` 欄位（web/app.py:808 實證）為未列舉 web API BREAKING → proposal/spec scenario/task 1.2/audit 清單四處補齊
 
-**Round 3：維護者中止外部覆核，以作者當日實證收尾** — 新 audit 式對現樹實跑：命中 27 檔全數 ⊆ 計畫刪除/修改面、`score_and_rerank`/branding 零誤中；`spectra analyze` 四維（Coverage/Consistency/Ambiguity/Gaps）全綠。
+**Round 3：PASS（fresh reviewer，Critical 0 / Warning 1）** — 五項修正全數獨立實證 RESOLVED（三份 symbol 清單逐字一致、audit 實跑 30 檔全在 Impact 面內、`score_and_rerank`/branding 零誤中）；判語「可進 apply」。
+- W4（serve/search 的 `--enable-rewrite`/`--no-rewrite` typer flags 四層未明文列舉，半刪殘留風險）→ 已修：task 1.2 明列兩命令 flags+互斥檢查+docstring 刪除項與 stale-flag exit 2 驗證、spec 補「serve and search reject stale rewrite flags symmetrically」scenario、design contract#3 與 proposal ① 同步。`spectra analyze` 四維全綠。
 
 **G2 Coverage**：D1→Phase 1(1.1-1.7)+Phase 2(2.1-2.5)、D2→3.1-3.3、D3→4.4、D4→4.1-4.2、D5→3.4、D6→4.3；六 Risk 全數有 mitigation task（WENJI_CONFIG 污染→0.3/5.1 unset、from_sources 差異→3.4 先 diff 停、logos env 殘留→5.2 點名）；孤立 task 皆為 pre-flight/commit boundary/收尾 infra。Type Check：開關名/env keys/協定路徑/版本字串/6 參數清單跨檔一致。零缺口。

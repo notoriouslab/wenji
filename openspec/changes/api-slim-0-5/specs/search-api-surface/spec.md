@@ -105,3 +105,8 @@ The three Searcher entry points (web app factory, `wenji search` in-process fall
 
 - **WHEN** `wenji segment "query" --no-rewrite` runs
 - **THEN** the CLI exits with code 2 (unknown option)
+
+#### Scenario: serve and search reject stale rewrite flags symmetrically
+
+- **WHEN** `wenji serve --no-rewrite` or `wenji search "query" --enable-rewrite` runs under 0.5.0
+- **THEN** each CLI exits with code 2 (unknown option) — no sibling command silently accepts a removed rewrite flag
