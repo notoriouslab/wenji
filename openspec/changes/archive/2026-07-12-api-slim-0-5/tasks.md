@@ -50,5 +50,5 @@
 - [x] 5.1 eval **after**：同 Phase 0.3 環境（`unset WENJI_CONFIG`、同 parity db、branch code）重跑 80q+r14；預期 = 與 before 完全一致（75/80、miss 清單相同）；劣化 → 停下按 G3 Auto-Retry 排查；run 檔 `/tmp/eval_slim_after.json`，before/after 對比記錄進 PR（eval-regression-guard 完整履約；v3 題集不跑不調 — 鐵律）
 - [x] 5.2 CHANGELOG 0.5.0 條目（公開 OSS 精簡風格 1-2 句/條，BREAKING 集中列：Searcher 簽名、schema v3、rewrite/rerank 移除、`WENJI_REWRITE_OVERRIDE` 除役、segment 與 eval 的 rewrite flags 移除）；README/docstring 同步（config 生效說明 + `WENJI_CONFIG`、A' 開關、doctor 環境段）
 - [x] 5.3 Code Change Self-Review 6 點（重複定義 ruff F811、patch 副產物、重構殘留 rg、一致性、安全微清單、`git diff` 全讀）+ `scripts/audit_release.sh` **存 exit code 判斷**（不接 pipe）
-- [ ] 5.4 push + PR（body 含 before/after eval 對比）+ CI 全綠 → 維護者核可後 merge
-- [ ] 5.5 `spectra archive api-slim-0-5` + memory 更新（handoff：健檢三包 3/3 完結；topology：0.5.0 升級注意事項 — logos pip 升級 + env 清理 + A' 開關擇期）
+- [x] 5.4 push + PR（body 含 before/after eval 對比）+ CI 全綠 → 維護者核可後 merge
+- [x] 5.5 `spectra archive api-slim-0-5` + memory 更新（handoff：健檢三包 3/3 完結；topology：0.5.0 升級注意事項 — logos pip 升級 + env 清理 + A' 開關擇期）
