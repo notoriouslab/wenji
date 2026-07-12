@@ -79,17 +79,3 @@ def test_concurrent_lock_blocks_second_download(monkeypatch, tmp_path):
         model_download.download_embed_model(target_dir=target)
 
 
-def test_reranker_default_repo(monkeypatch, tmp_path):
-    captured = {}
-
-    def fake_snapshot(repo_id, revision=None, local_dir=None, allow_patterns=None):
-        captured["repo_id"] = repo_id
-        local = type(tmp_path)(local_dir)
-        (local / "tokenizer.json").write_text("{}", encoding="utf-8")
-        (local / "onnx").mkdir(exist_ok=True, parents=True)
-        (local / "onnx" / "model_quantized.onnx").write_bytes(b"")
-        return local_dir
-
-    monkeypatch.setattr(model_download, "snapshot_download", fake_snapshot)
-    model_download.download_reranker_model(target_dir=tmp_path / "rer")
-    assert captured["repo_id"] == model_download.RERANKER_MODEL_DEFAULT

@@ -2,11 +2,9 @@
 
 Uses ``huggingface_hub.snapshot_download`` (already in deps) for resumable
 downloads + integrity checks. Output directory layout matches what
-:class:`wenji.ingest.embed.Embedder` and
-:class:`wenji.search.rerank.CrossEncoderReranker` expect:
+:class:`wenji.ingest.embed.Embedder` expects:
 
 - ``{cache_dir}/bge-m3-onnx-int8/{tokenizer.json, model.onnx, config.json}``
-- ``{cache_dir}/qwen3-reranker/{tokenizer.json, model.onnx, config.json}``
 
 A ``.lock`` file under each target dir prevents concurrent download races
 (e.g. when CLI + serve start simultaneously).
@@ -25,9 +23,8 @@ from wenji.core.errors import WenjiError
 
 DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "wenji"
 
-# Known model presets — can be overridden by passing repo_id explicitly
+# Known model preset — can be overridden by passing repo_id explicitly
 EMBED_MODEL_DEFAULT = "Xenova/bge-m3"  # community ONNX export of BAAI/bge-m3
-RERANKER_MODEL_DEFAULT = "Xenova/bge-reranker-base"  # community ONNX cross-encoder
 
 
 @contextmanager
@@ -101,42 +98,3 @@ def download_embed_model(
     return target
 
 
-def download_reranker_model(
-    target_dir: Path | None = None,
-    *,
-    repo_id: str = RERANKER_MODEL_DEFAULT,
-    revision: str | None = None,
-    onnx_file: str = "onnx/model_quantized.onnx",
-) -> Path:
-    """Download a cross-encoder reranker ONNX model + tokenizer."""
-    target = Path(target_dir) if target_dir else DEFAULT_CACHE_ROOT / "qwen3-reranker"
-    if _is_already_downloaded(target, ("tokenizer.json", "model.onnx")):
-        return target
-
-    target.mkdir(parents=True, exist_ok=True)
-    with _file_lock(target / ".lock"):
-        try:
-            snapshot_download(
-                repo_id=repo_id,
-                revision=revision,
-                local_dir=str(target),
-                allow_patterns=[
-                    "tokenizer.json",
-                    "tokenizer_config.json",
-                    "config.json",
-                    "special_tokens_map.json",
-                    onnx_file,
-                ],
-            )
-        except HfHubHTTPError as exc:
-            raise WenjiError(f"failed to download {repo_id}: {exc}") from exc
-        nested = target / onnx_file
-        flat = target / "model.onnx"
-        if nested.exists() and not flat.exists():
-            try:
-                flat.symlink_to(nested)
-            except OSError:
-                import shutil
-
-                shutil.copyfile(nested, flat)
-    return target

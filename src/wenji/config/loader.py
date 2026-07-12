@@ -13,8 +13,6 @@ chunk_strategies:
 search:
   alpha: 0.25
   candidate_pool: 50
-  rerank:
-    enabled: false
 ```
 
 Missing keys fall back to :mod:`wenji.config.defaults`.
@@ -22,7 +20,7 @@ Missing keys fall back to :mod:`wenji.config.defaults`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -36,17 +34,10 @@ from wenji.core.errors import ConfigError
 
 
 @dataclass(frozen=True)
-class RerankConfig:
-    enabled: bool = False
-    model_dir: str | None = None
-
-
-@dataclass(frozen=True)
 class SearchConfig:
     alpha: float = 0.25
     candidate_pool: int = 50
     default_limit: int = 10
-    rerank: RerankConfig = field(default_factory=RerankConfig)
 
 
 @dataclass(frozen=True)
@@ -72,15 +63,10 @@ def _build_search(raw: dict | None) -> SearchConfig:
     merged = _merge_dicts(DEFAULT_SEARCH_CONFIG, raw or {})
     if not 0.0 <= float(merged["alpha"]) <= 1.0:
         raise ConfigError(f"search.alpha must be in [0, 1]; got {merged['alpha']}")
-    rerank_raw = merged.get("rerank", {}) or {}
     return SearchConfig(
         alpha=float(merged["alpha"]),
         candidate_pool=int(merged["candidate_pool"]),
         default_limit=int(merged["default_limit"]),
-        rerank=RerankConfig(
-            enabled=bool(rerank_raw.get("enabled", False)),
-            model_dir=rerank_raw.get("model_dir"),
-        ),
     )
 
 

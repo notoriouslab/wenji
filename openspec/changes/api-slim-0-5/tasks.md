@@ -22,12 +22,12 @@
 
 ## Phase 2 — D1 後半：reranker + ranker_hooks + classify_intent 刪除，Searcher 簽名收斂
 
-- [ ] 2.1 刪 `src/wenji/search/rerank.py`；`search/__init__.py` 移除 `CrossEncoderReranker` import/export、`Searcher(reranker=)` 參數與 pipeline 分支；`core/model_download.py` 刪 `download_reranker_model`/`RERANKER_MODEL_DEFAULT`（embedder 分支保留）；`cli/download.py` 刪 reranker 選項；config 側對齊 1.5：`loader.py` 刪 `RerankConfig` + `SearchConfig.rerank` + `_build_search` rerank 區塊 + docstring yaml 範例、`defaults.py` 刪 `"rerank"` 鍵；行為 = `wenji download --help` 無 reranker 字樣
-- [ ] 2.2 刪 `src/wenji/search/ranker.py`；`search/__init__.py` 移除 `RankerHook`/`apply_ranker_hooks` export、`Searcher(ranker_hooks=)` 參數與 pipeline step 9
-- [ ] 2.3 刪 `IntentClassifier.classify_intent`（`detect_intent`/`get_boost_types` 保留）+ 對應 tests 刪除；行為 = 生產 intent boost 路徑不變
-- [ ] 2.4 Searcher 簽名終態 = 6 參數（`conn, embedder, *, alpha, candidate_pool, entity_scorer, intent_classifier`），docstring pipeline 步驟收斂重編號；tests 斷言 `rewriter=`/`reranker=`/`ranker_hooks=` → TypeError（滿足 spec requirement: Searcher construction contract is six parameters）
-- [ ] 2.5 殘留總掃描（精確 symbol 全清單，對齊 spec scenario）：`rg "QueryRewriter|CrossEncoderReranker|RankerHook|apply_ranker_hooks|ranker_hooks|ChunkHitBooster|WENJI_REWRITE_OVERRIDE|WENJI_RERANKER_DIR|WENJI_LLM_REWRITE_CACHE_TTL_DAYS|rewrite_cache_ttl_days|download_reranker_model|RERANKER_MODEL_DEFAULT|RewriteConfig|RerankConfig|RewriteInfo|clear_rewrite_cache|rewritten_query" src/ tests/` = 0 hits（滿足 spec requirement: Removed retrieval paths leave no runtime trace；保留識別符不在清單故不誤中）
-- [ ] 2.6 `ruff check` + `pytest` 全綠 → **commit boundary**（BREAKING 標記）
+- [x] 2.1 刪 `src/wenji/search/rerank.py`；`search/__init__.py` 移除 `CrossEncoderReranker` import/export、`Searcher(reranker=)` 參數與 pipeline 分支；`core/model_download.py` 刪 `download_reranker_model`/`RERANKER_MODEL_DEFAULT`（embedder 分支保留）；`cli/download.py` 刪 reranker 選項；config 側對齊 1.5：`loader.py` 刪 `RerankConfig` + `SearchConfig.rerank` + `_build_search` rerank 區塊 + docstring yaml 範例、`defaults.py` 刪 `"rerank"` 鍵；行為 = `wenji download --help` 無 reranker 字樣
+- [x] 2.2 刪 `src/wenji/search/ranker.py`；`search/__init__.py` 移除 `RankerHook`/`apply_ranker_hooks` export、`Searcher(ranker_hooks=)` 參數與 pipeline step 9
+- [x] 2.3 刪 `IntentClassifier.classify_intent`（`detect_intent`/`get_boost_types` 保留）+ 對應 tests 刪除；行為 = 生產 intent boost 路徑不變
+- [x] 2.4 Searcher 簽名終態 = 6 參數（`conn, embedder, *, alpha, candidate_pool, entity_scorer, intent_classifier`），docstring pipeline 步驟收斂重編號；tests 斷言 `rewriter=`/`reranker=`/`ranker_hooks=` → TypeError（滿足 spec requirement: Searcher construction contract is six parameters）
+- [x] 2.5 殘留總掃描（精確 symbol 全清單，對齊 spec scenario）：`rg "QueryRewriter|CrossEncoderReranker|RankerHook|apply_ranker_hooks|ranker_hooks|ChunkHitBooster|WENJI_REWRITE_OVERRIDE|WENJI_RERANKER_DIR|WENJI_LLM_REWRITE_CACHE_TTL_DAYS|rewrite_cache_ttl_days|download_reranker_model|RERANKER_MODEL_DEFAULT|RewriteConfig|RerankConfig|RewriteInfo|clear_rewrite_cache|rewritten_query" src/ tests/` = 唯一命中為 test_search_searcher.py 的 removed-keyword 合約測試（其字面量點名被拒參數屬必要；滿足 spec requirement: Removed retrieval paths leave no runtime trace）
+- [x] 2.6 `ruff check` + `pytest` 全綠 → **commit boundary**（BREAKING 標記）
 
 ## Phase 3 — D2 config 接上 + D5 去重歸位
 

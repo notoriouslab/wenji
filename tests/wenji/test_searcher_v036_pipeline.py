@@ -11,7 +11,6 @@ from __future__ import annotations
 from wenji.search import Searcher
 from wenji.search.entity import EntityScorer
 from wenji.search.intent import IntentClassifier
-from wenji.search.ranker import ChunkHitBooster
 
 
 def test_searcher_degrades_without_entity_intent(populated_db, mock_embedder):
@@ -57,19 +56,6 @@ def test_searcher_with_entity_and_intent(populated_db, mock_embedder):
     results = searcher.search("因信稱義", limit=5)
     assert isinstance(results, list)
 
-
-def test_searcher_with_ranker_hooks(populated_db, mock_embedder):
-    """ChunkHitBooster integration through full pipeline."""
-    searcher = Searcher(
-        populated_db,
-        mock_embedder,
-        alpha=0.25,
-        ranker_hooks=[ChunkHitBooster()],
-    )
-    results = searcher.search("因信稱義", limit=5)
-    # No exception; schema preserved
-    if results:
-        assert "_rankingScore" in results[0]
 
 
 def test_searcher_empty_query_returns_empty(populated_db, mock_embedder):

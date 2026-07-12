@@ -16,8 +16,4 @@ DEFAULT_SEARCH_CONFIG: dict = {
     "alpha": 0.25,
     "candidate_pool": 50,
     "default_limit": 10,
-    "rerank": {
-        "enabled": False,
-        "model_dir": None,
-    },
 }

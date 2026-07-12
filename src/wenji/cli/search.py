@@ -77,7 +77,7 @@ def command(
             typer.echo("(no results)")
         for i, r in enumerate(results, start=1):
             title = r.get("title", "(no title)")
-            score = r.get("hybrid_score") or r.get("rerank_score") or 0.0
+            score = r.get("hybrid_score") or 0.0
             src = r.get("source_type", "")
             typer.echo(f"  [{i:>2}] [{score:.3f}] {title}  — {src}")
             snippet = r.get("content_snippet", "")

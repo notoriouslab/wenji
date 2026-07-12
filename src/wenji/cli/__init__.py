@@ -43,7 +43,7 @@ app.add_typer(_eval.app, name="eval")
 app.command(name="serve", help="Start the FastAPI search server.")(_serve.command)
 app.command(
     name="download-model",
-    help="Fetch BGE-M3 embed / reranker ONNX from HuggingFace.",
+    help="Fetch the BGE-M3 embed ONNX model from HuggingFace.",
 )(_download.command)
 app.command(
     name="inspect-chunks",
