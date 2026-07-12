@@ -294,7 +294,7 @@ def create_app(
     # the shared Searcher connection see genuine concurrency:
     # - _init_lock guards one-time construction (double-checked below)
     # - _query_lock serialises every call touching the Searcher's shared
-    #   sqlite3.Connection (search + rewrite-cache writes). Python's sqlite3
+    #   sqlite3.Connection (search reads). Python's sqlite3
     #   requires the caller to serialise concurrent calls on the SAME
     #   connection object; the file lock only arbitrates across connections.
     _init_lock = threading.Lock()
@@ -320,10 +320,6 @@ def create_app(
     def _get_searcher() -> Searcher | None:
         """Lazy-construct Searcher; return None if model files missing (degraded mode).
 
-        v0.3.2: if WENJI_LLM_* env config is enabled (and not overridden by
-        WENJI_REWRITE_OVERRIDE=disabled), instantiate a QueryRewriter and
-        inject it into the Searcher.
-
         v0.3.6: WENJI_ENTITY_SOURCES (comma-separated source list) and
         WENJI_INTENT_SOURCES, when set, instantiate EntityScorer and
         IntentClassifier and inject them. Source items follow
@@ -347,39 +343,11 @@ def create_app(
     def _build_searcher() -> Searcher | None:
         """One-time Searcher construction; caller holds ``_init_lock``."""
         try:
-            from wenji.config import load_llm_config_from_env
             from wenji.ingest.embed import Embedder
             from wenji.search.entity import EntityScorer
             from wenji.search.intent import IntentClassifier
-            from wenji.search.rewrite import QueryRewriter
 
             conn = _get_conn()
-            llm_cfg = load_llm_config_from_env()
-            override = os.environ.get("WENJI_REWRITE_OVERRIDE", "").lower()
-            rewrite_enabled = override == "enabled" or (override != "disabled" and llm_cfg.enabled)
-            rewriter: QueryRewriter | None = None
-            if rewrite_enabled and llm_cfg.enabled:
-                base_url = (llm_cfg.base_url or "").strip()
-                if base_url.startswith(_ALLOWED_LLM_BASE_URL_PREFIXES):
-                    rewriter = QueryRewriter(
-                        conn,
-                        api_url=base_url.rstrip("/") + "/chat/completions",
-                        api_key=llm_cfg.api_key,
-                        model=llm_cfg.model,
-                        timeout=1.5,
-                        ttl_days=llm_cfg.rewrite_cache_ttl_days,
-                    )
-                else:
-                    logger.warning(
-                        "WENJI_LLM_BASE_URL (%s) not in allowed prefixes; rewrite disabled",
-                        (llm_cfg.base_url or "")[:30],
-                    )
-            else:
-                logger.debug(
-                    "query rewrite disabled (override=%r, llm_cfg.enabled=%s)",
-                    override,
-                    llm_cfg.enabled,
-                )
 
             entity_scorer = state.get("entity_scorer")
             if entity_scorer is None:
@@ -422,7 +390,6 @@ def create_app(
             state["searcher"] = Searcher(
                 conn,
                 Embedder(),
-                rewriter=rewriter,
                 entity_scorer=entity_scorer,
                 intent_classifier=intent_classifier,
             )
@@ -730,13 +697,7 @@ def create_app(
 
     @app.get("/api/segment")
     def api_segment(q: str = "") -> JSONResponse:
-        """Read-only query pipeline trace (v0.3.3 observability).
-
-        The rewriter is sourced from the lazy Searcher so that ``rewrite``
-        reflects the same configuration ``/api/search`` sees. If the embedder
-        model is absent, _get_searcher returns None and ``rewrite`` falls back
-        to null (graceful degradation, not an error).
-        """
+        """Read-only query pipeline trace (v0.3.3 observability)."""
         from wenji.observability import compute_segment_trace
 
         if not q.strip():
@@ -744,20 +705,15 @@ def create_app(
                 status_code=400,
                 content={"error": "query parameter 'q' is required"},
             )
-        rewriter = None
         entity_scorer = None
         intent_classifier = None
         searcher = _get_searcher()
         if searcher is not None:
-            rewriter = getattr(searcher, "rewriter", None)
             entity_scorer = getattr(searcher, "entity_scorer", None)
             intent_classifier = getattr(searcher, "intent_classifier", None)
-        # compute_segment_trace may call rewriter.rewrite (cache write on the
-        # shared Searcher connection) — same lock as the search paths.
         with _query_lock:
             trace = compute_segment_trace(
                 q,
-                rewriter=rewriter,
                 entity_scorer=entity_scorer,
                 intent_classifier=intent_classifier,
             )
@@ -780,20 +736,6 @@ def create_app(
             )
         demo_src = state["demo_source"]
         try:
-            # Compute rewritten_query for transparency (v0.3.2). Calling
-            # rewriter.rewrite() here is safe — Searcher.search() also calls it
-            # internally and the second call hits the cache (same row in
-            # query_rewrite_cache, no extra LLM API call).
-            rewritten_query: str | None = None
-            if getattr(s, "rewriter", None) is not None:
-                try:
-                    with _query_lock:
-                        effective = s.rewriter.rewrite(q)
-                    if effective and effective != q:
-                        rewritten_query = effective
-                except Exception:
-                    # Rewriter has its own timeout/fallback; ignore here.
-                    pass
             with _query_lock:
                 results = s.search(q, axis=axis, limit=limit)
             if demo_src:
@@ -804,9 +746,7 @@ def create_app(
                     )
                 finally:
                     filter_conn.close()
-            return JSONResponse(
-                {"results": results, "query": q, "rewritten_query": rewritten_query}
-            )
+            return JSONResponse({"results": results, "query": q})
         except WenjiError as exc:
             return JSONResponse(status_code=504, content={"error": str(exc)})
 

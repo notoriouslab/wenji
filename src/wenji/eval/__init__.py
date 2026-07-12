@@ -1,14 +1,11 @@
 """End-to-end eval runner: HTTP client → search server → multi-path metrics.
 
 The runner is a black-box test against a running ``wenji serve``. It does NOT
-load ``Searcher`` in-process. Optional ``--clear-cache`` wipes
-``query_rewrite_cache`` on a directly-attached SQLite DB before queries fire,
-so repeat runs are deterministic for jitter-aware comparison.
+load ``Searcher`` in-process.
 """
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -50,28 +47,11 @@ def _query_server(
     return payload
 
 
-def clear_rewrite_cache(db_path: str | Path) -> int:
-    """Delete every row from ``query_rewrite_cache`` of the given DB.
-
-    Returns the number of rows deleted. Used by ``--clear-cache`` to make
-    LLM-rewrite-on eval runs reproducible.
-    """
-    conn = sqlite3.connect(str(db_path))
-    try:
-        before = conn.execute("SELECT COUNT(*) FROM query_rewrite_cache").fetchone()[0]
-        conn.execute("DELETE FROM query_rewrite_cache")
-        conn.commit()
-    finally:
-        conn.close()
-    return int(before)
-
-
 def run_baseline(
     candidates_path: str | Path,
     *,
     api_url: str = "http://localhost:8000/api/search",
     db_path: str | Path | None = None,
-    clear_cache: bool = False,
     top_k: int = DEFAULT_TOP_K,
     request_timeout: float = 30.0,
     candidates: Iterable[Candidate] | None = None,
@@ -82,8 +62,7 @@ def run_baseline(
     Args:
         candidates_path: JSONL file (used when ``candidates`` not supplied).
         api_url: Search endpoint (typically ``wenji serve`` on localhost).
-        db_path: SQLite path. Required when ``clear_cache=True``.
-        clear_cache: If True, wipe ``query_rewrite_cache`` before queries fire.
+        db_path: SQLite path (reserved for future direct-DB assertions).
         top_k: candidate window per question (default 20, multi-path baseline).
         candidates: Pre-loaded candidates iterable (skips file load — used in tests).
         http_client: Pre-built ``httpx.Client`` (test injection).
@@ -91,11 +70,6 @@ def run_baseline(
     Returns:
         ``{"summary": {...}, "results": [...per-question multi-path metrics...]}``.
     """
-    if clear_cache:
-        if db_path is None:
-            raise SearchError("clear_cache=True requires db_path")
-        clear_rewrite_cache(db_path)
-
     if candidates is None:
         candidates = load_candidates(candidates_path)
 
@@ -120,7 +94,6 @@ def run_baseline(
 
 __all__ = [
     "run_baseline",
-    "clear_rewrite_cache",
     "load_candidates",
     "wrap_legacy_candidate",
     "evaluate_question",

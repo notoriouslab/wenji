@@ -128,18 +128,6 @@ def test_searcher_results_include_chunk_hits_and_matched_chunks(populated_db, mo
         assert isinstance(r["matched_chunks"], list)
 
 
-def test_searcher_with_rewriter_uses_rewritten_query(populated_db, mock_embedder):
-    class MockRewriter:
-        def rewrite(self, raw):
-            return "禱告" if raw == "raw query" else raw
-
-    s = Searcher(populated_db, mock_embedder, rewriter=MockRewriter())
-    results = s.search("raw query", limit=5)
-    # Rewriter changed query to 禱告; should hit prayer article
-    titles = [r.get("title", "") for r in results]
-    assert any("禱告" in t for t in titles)
-
-
 # ---------------------------------------------------------------------------
 # L1: chunk_hits column-restricted to chunk_text (title-only matches → 0)
 # ---------------------------------------------------------------------------

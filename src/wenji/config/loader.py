@@ -15,8 +15,6 @@ search:
   candidate_pool: 50
   rerank:
     enabled: false
-  rewrite:
-    enabled: false
 ```
 
 Missing keys fall back to :mod:`wenji.config.defaults`.
@@ -44,22 +42,11 @@ class RerankConfig:
 
 
 @dataclass(frozen=True)
-class RewriteConfig:
-    enabled: bool = False
-    api_url: str | None = None
-    api_key_env: str = "WENJI_LLM_API_KEY"
-    model: str = "llama-3.3-70b-versatile"
-    timeout: float = 1.5
-    ttl_days: int = 30
-
-
-@dataclass(frozen=True)
 class SearchConfig:
     alpha: float = 0.25
     candidate_pool: int = 50
     default_limit: int = 10
     rerank: RerankConfig = field(default_factory=RerankConfig)
-    rewrite: RewriteConfig = field(default_factory=RewriteConfig)
 
 
 @dataclass(frozen=True)
@@ -86,7 +73,6 @@ def _build_search(raw: dict | None) -> SearchConfig:
     if not 0.0 <= float(merged["alpha"]) <= 1.0:
         raise ConfigError(f"search.alpha must be in [0, 1]; got {merged['alpha']}")
     rerank_raw = merged.get("rerank", {}) or {}
-    rewrite_raw = merged.get("rewrite", {}) or {}
     return SearchConfig(
         alpha=float(merged["alpha"]),
         candidate_pool=int(merged["candidate_pool"]),
@@ -94,14 +80,6 @@ def _build_search(raw: dict | None) -> SearchConfig:
         rerank=RerankConfig(
             enabled=bool(rerank_raw.get("enabled", False)),
             model_dir=rerank_raw.get("model_dir"),
-        ),
-        rewrite=RewriteConfig(
-            enabled=bool(rewrite_raw.get("enabled", False)),
-            api_url=rewrite_raw.get("api_url"),
-            api_key_env=str(rewrite_raw.get("api_key_env", "WENJI_LLM_API_KEY")),
-            model=str(rewrite_raw.get("model", "llama-3.3-70b-versatile")),
-            timeout=float(rewrite_raw.get("timeout", 1.5)),
-            ttl_days=int(rewrite_raw.get("ttl_days", 30)),
         ),
     )
 

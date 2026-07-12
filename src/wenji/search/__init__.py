@@ -1,8 +1,8 @@
-"""wenji.search — hybrid BM25 + vector retrieval with optional rerank / rewrite.
+"""wenji.search — hybrid BM25 + vector retrieval with optional rerank.
 
 Public API:
 - :class:`Searcher` — main entry, takes a connection + embedder + optional
-  reranker / rewriter, exposes :meth:`Searcher.search`.
+  reranker, exposes :meth:`Searcher.search`.
 
 Modular pieces are exported for advanced users / tests:
 - :func:`bm25_search` from :mod:`wenji.search.bm25`
@@ -26,7 +26,6 @@ from wenji.search.hybrid import DEFAULT_ALPHA, hybrid_combine
 from wenji.search.intent import IntentClassifier
 from wenji.search.ranker import RankerHook, apply_ranker_hooks
 from wenji.search.rerank import CrossEncoderReranker
-from wenji.search.rewrite import QueryRewriter
 from wenji.search.rrf import chunk_bm25_search, rrf_merge
 from wenji.search.vector import vector_search
 
@@ -177,7 +176,6 @@ class Searcher:
 
     Pipeline (see ``openspec/specs/wenji-search-engine/spec.md``):
 
-    1. Optional LLM rewrite via ``rewriter``.
     2. Optional entity detection via ``entity_scorer``.
     3. Optional intent detection via ``intent_classifier``.
     4. Optional alias-based query expansion (when entities + scorer present).
@@ -197,7 +195,6 @@ class Searcher:
             Default 0.25. Primary sort is RRF, not this α.
         reranker: Optional :class:`CrossEncoderReranker`. Reserved hook;
             v0.3.6 default still routes around RRF when reranker enabled.
-        rewriter: Optional :class:`QueryRewriter`.
         candidate_pool: Top-K from each retriever before hybrid merge / RRF.
         entity_scorer: Optional :class:`EntityScorer` enabling steps 2/4/8.
         intent_classifier: Optional :class:`IntentClassifier` enabling step 3
@@ -213,7 +210,6 @@ class Searcher:
         *,
         alpha: float = DEFAULT_ALPHA,
         reranker: CrossEncoderReranker | None = None,
-        rewriter: QueryRewriter | None = None,
         candidate_pool: int = 50,
         entity_scorer: EntityScorer | None = None,
         intent_classifier: IntentClassifier | None = None,
@@ -227,7 +223,6 @@ class Searcher:
         self.embedder = embedder
         self.alpha = alpha
         self.reranker = reranker
-        self.rewriter = rewriter
         self.candidate_pool = candidate_pool
         self.entity_scorer = entity_scorer
         self.intent_classifier = intent_classifier
@@ -244,8 +239,7 @@ class Searcher:
         if not query.strip():
             return []
 
-        # Step 1: LLM rewrite (existing v0.3.2)
-        effective_query = self.rewriter.rewrite(query) if self.rewriter else query
+        effective_query = query
 
         # Step 2 + 3: entity detection + intent detection
         query_entities: list[QueryEntity] = []
@@ -393,5 +387,4 @@ __all__ = [
     "make_snippet",
     "DEFAULT_ALPHA",
     "CrossEncoderReranker",
-    "QueryRewriter",
 ]

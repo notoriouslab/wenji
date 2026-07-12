@@ -17,7 +17,6 @@ def test_segment_chinese_query_returns_tokens_and_fts_form():
         assert "text" in tok and "pos" in tok
     # Searcher's MATCH form: char-level + space + phrase-quoted
     assert trace["fts_form"] == build_fts_query("因信稱義是什麼")
-    assert trace["rewrite"] is None  # no rewriter passed
 
 
 def test_segment_empty_query_returns_empty_tokens():
@@ -26,7 +25,6 @@ def test_segment_empty_query_returns_empty_tokens():
     assert trace["tokens"] == []
     assert trace["fts_form"] == ""
     assert trace["dict_hits"] == []
-    assert trace["rewrite"] is None
 
 
 def test_segment_uses_shared_jieba_helper():
@@ -61,58 +59,4 @@ def test_segment_dict_hits_picks_user_dict_tokens(tmp_path):
     assert "因信稱義" in trace["dict_hits"]
 
 
-class _StubRewriter:
-    """Stand-in QueryRewriter without httpx dependency."""
 
-    def __init__(self, *, rewritten: str | None, raises: bool = False):
-        self._rewritten = rewritten
-        self._raises = raises
-        self._cache: dict[str, str] = {}
-
-    def peek_cache(self, raw: str) -> str | None:
-        return self._cache.get(raw)
-
-    def rewrite(self, raw: str) -> str:
-        if self._raises:
-            raise RuntimeError("simulated LLM failure")
-        if raw in self._cache:
-            return self._cache[raw]
-        if self._rewritten is None:
-            return raw
-        self._cache[raw] = self._rewritten
-        return self._rewritten
-
-
-def test_segment_rewrite_llm_path():
-    rewriter = _StubRewriter(rewritten="因信稱義")
-    trace = compute_segment_trace("信稱義", rewriter=rewriter)
-    assert trace["rewrite"] is not None
-    assert trace["rewrite"]["rewritten_query"] == "因信稱義"
-    assert trace["rewrite"]["source"] == "llm"
-    assert trace["rewrite"]["latency_ms"] >= 0
-
-
-def test_segment_rewrite_cache_path():
-    rewriter = _StubRewriter(rewritten="因信稱義")
-    # warm cache
-    compute_segment_trace("信稱義", rewriter=rewriter)
-    trace = compute_segment_trace("信稱義", rewriter=rewriter)
-    assert trace["rewrite"] is not None
-    assert trace["rewrite"]["source"] == "cache"
-
-
-def test_segment_rewrite_returns_null_on_unchanged():
-    rewriter = _StubRewriter(rewritten=None)  # rewrite returns the raw query
-    trace = compute_segment_trace("因信稱義", rewriter=rewriter)
-    assert trace["rewrite"] is None
-
-
-def test_segment_rewrite_returns_null_on_exception():
-    rewriter = _StubRewriter(rewritten=None, raises=True)
-    trace = compute_segment_trace("因信稱義", rewriter=rewriter)
-    assert trace["rewrite"] is None
-
-
-def test_segment_no_rewriter_returns_null():
-    trace = compute_segment_trace("因信稱義", rewriter=None)
-    assert trace["rewrite"] is None

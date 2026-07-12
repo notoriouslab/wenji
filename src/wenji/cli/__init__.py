@@ -64,7 +64,7 @@ app.command(
 )(_doctor.command)
 app.command(
     name="segment",
-    help="Trace how a query is segmented (jieba tokens, FTS form, LLM rewrite).",
+    help="Trace how a query is segmented (jieba tokens, FTS form, dict hits).",
 )(_segment.command)
 
 

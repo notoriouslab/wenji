@@ -1,4 +1,4 @@
--- wenji v0.2 single-file schema (schema_version = "2")
+-- wenji single-file schema (schema_version = "3")
 -- See design.md D3 (v0.1.0 baseline) + wenji-limitations-v0-2 design.md L5.
 -- Tokenizer: unicode61 + jieba pre-tokenization at ingest layer
 -- (libsimple extension considered for v0.2+ char-unigram fallback path).
@@ -7,6 +7,8 @@
 --   - articles_meta: + path TEXT UNIQUE NOT NULL (article identity key)
 --   - articles_meta: + source_urls_json TEXT NOT NULL DEFAULT '' (plural source URLs)
 --   - schema_version bumped 1 → 2; v0.1.0 DBs MUST rebuild from disk.
+--   - schema_version bumped 2 → 3 (v0.5.0): query_rewrite_cache dropped;
+--     v2 DBs are migrated in place by initialise_schema (core/db.py).
 
 -- ============================================================
 -- 1. wenji_meta: key/value
@@ -20,7 +22,7 @@ CREATE TABLE IF NOT EXISTS wenji_meta (
     value TEXT
 );
 INSERT OR IGNORE INTO wenji_meta (key, value) VALUES
-    ('schema_version', '2'),
+    ('schema_version', '3'),
     ('embedder', 'BGE-M3-INT8-ONNX');
 
 -- ============================================================
@@ -108,16 +110,6 @@ CREATE TABLE IF NOT EXISTS article_axes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_article_axes_primary
     ON article_axes(article_id) WHERE is_primary = 1;
 CREATE INDEX IF NOT EXISTS idx_article_axes_axis ON article_axes(axis_id);
-
--- ============================================================
--- 7. query_rewrite_cache: LLM rewrite cache (TTL handled at app layer, default 30 days)
--- ============================================================
-CREATE TABLE IF NOT EXISTS query_rewrite_cache (
-    raw        TEXT PRIMARY KEY,
-    rewritten  TEXT NOT NULL,
-    created_at TEXT NOT NULL  -- ISO 8601 timestamp
-);
-CREATE INDEX IF NOT EXISTS idx_query_rewrite_created ON query_rewrite_cache(created_at);
 
 -- ============================================================
 -- 8. aggregate_cache: Aggregator result cache (TTL handled at app layer, default 30 days)

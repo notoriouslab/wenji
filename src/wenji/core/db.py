@@ -16,7 +16,7 @@ from pathlib import Path
 from wenji.core.errors import SchemaError, WenjiError
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 
 def connect(
@@ -69,6 +69,12 @@ def initialise_schema(conn: sqlite3.Connection) -> None:
     Also deletes the dead build-telemetry keys seeded by pre-v0.4.0 schemas
     (dropped without a version bump — same table shape, no readers); the
     DELETE is a no-op on fresh databases.
+
+    v2 → v3 (v0.5.0) is migrated in place: ``query_rewrite_cache`` is dropped
+    (its only readers were removed with the LLM-rewrite feature) and the
+    version stamp is advanced. All other data is untouched, so an existing v2
+    corpus never needs a rebuild. Read-only entry points call :func:`connect`
+    without this function and serve a v2 database unchanged.
     """
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
@@ -76,9 +82,14 @@ def initialise_schema(conn: sqlite3.Connection) -> None:
         "DELETE FROM wenji_meta WHERE key IN ("
         "'build_started_at','build_completed_at','n_articles','n_chunks','n_doc_vectors')"
     )
-    conn.commit()
 
     row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()
+    if row is not None and row[0] == "2":
+        conn.execute("DROP TABLE IF EXISTS query_rewrite_cache")
+        conn.execute("UPDATE wenji_meta SET value = '3' WHERE key = 'schema_version'")
+        row = ("3",)
+    conn.commit()
+
     if row is None:
         raise SchemaError("schema_version missing from wenji_meta after initialise")
     if row[0] != SCHEMA_VERSION:

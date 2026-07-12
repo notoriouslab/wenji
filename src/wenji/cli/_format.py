@@ -80,12 +80,4 @@ def format_segment_human(trace: dict[str, Any]) -> str:
             lines.append(f"  {h}")
     lines.append("")
 
-    lines.append("Rewrite (LLM)")
-    rw = trace["rewrite"]
-    if rw is None:
-        lines.append("  (disabled / unchanged / fallback)")
-    else:
-        lines.append(f"  rewritten   : {rw['rewritten_query']}")
-        lines.append(f"  source      : {rw['source']}")
-        lines.append(f"  latency_ms  : {rw['latency_ms']}")
     return "\n".join(lines)

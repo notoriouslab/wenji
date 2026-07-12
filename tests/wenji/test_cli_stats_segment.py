@@ -51,14 +51,14 @@ def test_cli_stats_missing_db_exits_nonzero(tmp_path: Path):
 
 
 def test_cli_segment_human_output(db_path: Path):
-    result = runner.invoke(app, ["segment", "因信稱義", "--db", str(db_path)])
+    result = runner.invoke(app, ["segment", "因信稱義"])
     assert result.exit_code == 0
-    for label in ("Query:", "Tokens", "FTS form", "Dict hits", "Rewrite"):
+    for label in ("Query:", "Tokens", "FTS form", "Dict hits"):
         assert label in result.stdout
 
 
 def test_cli_segment_json_output_parses(db_path: Path):
-    result = runner.invoke(app, ["segment", "因信稱義", "--db", str(db_path), "--json"])
+    result = runner.invoke(app, ["segment", "因信稱義", "--json"])
     assert result.exit_code == 0
     body = json.loads(result.stdout)
     assert set(body.keys()) == {
@@ -67,27 +67,13 @@ def test_cli_segment_json_output_parses(db_path: Path):
         "normalized_query",
         "fts_form",
         "dict_hits",
-        "rewrite",
         "entities",
         "intent",
     }
 
 
 def test_cli_segment_empty_query_exits_nonzero(db_path: Path):
-    result = runner.invoke(app, ["segment", "", "--db", str(db_path)])
+    result = runner.invoke(app, ["segment", ""])
     assert result.exit_code != 0
 
 
-def test_cli_segment_mutually_exclusive_rewrite_flags(db_path: Path):
-    result = runner.invoke(
-        app,
-        [
-            "segment",
-            "因信稱義",
-            "--db",
-            str(db_path),
-            "--enable-rewrite",
-            "--no-rewrite",
-        ],
-    )
-    assert result.exit_code != 0
