@@ -39,11 +39,11 @@
 
 ## Phase 4 — D4 A' 開關 + D6 環境記錄 + D3 doctor 漂移
 
-- [ ] 4.1 落實 D4: A' 開關語意 — config bool 欄位 + `derive_source_type` 顯式參數：`WenjiConfig.directory_map_overrides_frontmatter: bool = False`（loader 解析頂層 key）+ `derive_source_type` 同名參數，ingest_one/ingest_dir 傳入；行為 = 預設 false 現行為不變（既有 frontmatter-first tests 零改動全綠，滿足 spec requirement: Default resolution order is frontmatter first）
-- [ ] 4.2 A' tests：開關 on 三分支（map 命中蓋 frontmatter / map 未命中 fallback frontmatter / 兩無 IngestError）+ tgc example 情境（滿足 spec requirement: Deployment can declare directory structure as source of truth）
-- [ ] 4.3 落實 D6: 建庫環境版本記錄 — 最小兩鍵、批量完成時 upsert：`ingest_dir`/`rebuild_from_disk` 成功收尾 `INSERT OR REPLACE` `env_onnxruntime_version`/`env_numpy_version`；行為 = 成功跑完 meta 有兩鍵、中途 crash 不寫（滿足 spec requirement: Bulk ingest records the build environment）；tests = 成功寫入 + mock crash 不寫 + 增量覆蓋
-- [ ] 4.4 落實 D3: doctor 環境漂移檢查 — 資訊層（warn-only，不影響 exit code）：`observability/health.py` + `cli/doctor.py` 加 environment 比對，三態輸出（ok / DRIFT / not recorded (pre-0.5 db)），exit code 純由 consistency 決定；tests = 三態各一 + DRIFT 時 exit 0 斷言（滿足 spec requirement: Doctor reports environment drift without failing）
-- [ ] 4.5 `ruff check` + `pytest` 全套全綠 → **commit boundary**
+- [x] 4.1 落實 D4: A' 開關語意 — config bool 欄位 + `derive_source_type` 顯式參數：`WenjiConfig.directory_map_overrides_frontmatter: bool = False`（loader 解析頂層 key）+ `derive_source_type` 同名參數，ingest_one/ingest_dir 傳入；行為 = 預設 false 現行為不變（既有 frontmatter-first tests 零改動全綠，滿足 spec requirement: Default resolution order is frontmatter first）
+- [x] 4.2 A' tests：開關 on 三分支（map 命中蓋 frontmatter / map 未命中 fallback frontmatter / 兩無 IngestError）+ tgc example 情境（滿足 spec requirement: Deployment can declare directory structure as source of truth）
+- [x] 4.3 落實 D6: 建庫環境版本記錄 — 最小兩鍵、批量完成時 upsert：`ingest_dir`/`rebuild_from_disk` 成功收尾 `INSERT OR REPLACE` `env_onnxruntime_version`/`env_numpy_version`；行為 = 成功跑完 meta 有兩鍵、中途 crash 不寫（滿足 spec requirement: Bulk ingest records the build environment）；tests = 成功寫入 + mock crash 不寫 + 增量覆蓋
+- [x] 4.4 落實 D3: doctor 環境漂移檢查 — 資訊層（warn-only，不影響 exit code）：`observability/health.py` + `cli/doctor.py` 加 environment 比對，三態輸出（ok / DRIFT / not recorded (pre-0.5 db)），exit code 純由 consistency 決定；tests = 三態各一 + DRIFT 時 exit 0 斷言（滿足 spec requirement: Doctor reports environment drift without failing）
+- [x] 4.5 `ruff check` + `pytest` 全套全綠 → **commit boundary**
 
 ## Phase 5 — eval guard after + 文件 + PR + 收尾
 

@@ -54,3 +54,4 @@ coverage.xml
 # Spectra app data
 .spectra/
 openspec/.vector-search.db*
+multi-ai-chat/

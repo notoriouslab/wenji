@@ -46,6 +46,7 @@ class WenjiConfig:
     directory_map: dict[str, str]
     chunk_strategies: dict[str, dict]
     search: SearchConfig
+    directory_map_overrides_frontmatter: bool = False
 
 
 def _merge_dicts(base: dict, override: dict | None) -> dict:
@@ -91,6 +92,7 @@ def load_config(path: str | Path | None = None) -> WenjiConfig:
             directory_map=dict(DEFAULT_DIRECTORY_MAP),
             chunk_strategies=dict(DEFAULT_CHUNK_STRATEGIES),
             search=_build_search(None),
+            directory_map_overrides_frontmatter=False,
         )
 
     p = Path(path)
@@ -115,4 +117,7 @@ def load_config(path: str | Path | None = None) -> WenjiConfig:
         directory_map={str(k): str(v) for k, v in directory_map_raw.items()},
         chunk_strategies=dict(chunk_strategies_raw),
         search=_build_search(raw.get("search")),
+        directory_map_overrides_frontmatter=bool(
+            raw.get("directory_map_overrides_frontmatter", False)
+        ),
     )

@@ -48,6 +48,7 @@ def command(
         corpus_dir,
         Embedder(),
         directory_map=directory_map,
+        directory_map_overrides_frontmatter=cfg.directory_map_overrides_frontmatter,
         chunk_strategies=chunk_strategies,
         skip_bad=skip_bad,
         bad_files_out=bad_files,

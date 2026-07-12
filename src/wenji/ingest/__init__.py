@@ -118,6 +118,7 @@ def ingest_one(
     embedder: EmbedderProtocol,
     *,
     directory_map: Mapping[str, str] | None = None,
+    directory_map_overrides_frontmatter: bool = False,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
     indexed_at: str | None = None,
     corpus_root: str | Path | None = None,
@@ -136,6 +137,9 @@ def ingest_one(
         embedder: Object exposing ``encode_batch(list[str]) -> ndarray``.
         directory_map: parent-dir-name → source_type fallback when frontmatter
             lacks ``source_type``.
+        directory_map_overrides_frontmatter: when True, a directory_map hit
+            wins over frontmatter (deployment declares directory structure as
+            the source of truth); default False keeps frontmatter-first.
         chunk_strategies: ``source_type`` → ``{"strategy": <name>, **kwargs}``
             mapping. Source types not present here are not chunked.
         indexed_at: ISO timestamp for ``articles_meta.indexed_at``; defaults
@@ -155,7 +159,11 @@ def ingest_one(
     else:
         article_path = str(path.resolve())
 
-    article = load_article(path, directory_map=directory_map)
+    article = load_article(
+        path,
+        directory_map=directory_map,
+        directory_map_overrides_frontmatter=directory_map_overrides_frontmatter,
+    )
     body_norm = normalize(article.body)
     if not body_norm:
         logger.warning("ingest: skipping empty-body article: %s", path)
@@ -385,6 +393,24 @@ def ingest_one(
 PROGRESS_LOG_EVERY = 200
 
 
+def _record_build_environment(conn: sqlite3.Connection) -> None:
+    """Stamp the runtime that produced this corpus's vectors into wenji_meta.
+
+    Cross-version onnxruntime drift silently degrades retrieval (measured
+    cosine ~0.98 between 1.26 and 1.27 vectors); ``wenji doctor`` compares
+    these keys against the current runtime. Written only on successful bulk
+    completion — an aborted run leaves prior values untouched.
+    """
+    import numpy
+    import onnxruntime
+
+    conn.execute(
+        "INSERT OR REPLACE INTO wenji_meta (key, value) VALUES "
+        "('env_onnxruntime_version', ?), ('env_numpy_version', ?)",
+        (onnxruntime.__version__, numpy.__version__),
+    )
+
+
 def ingest_dir(
     dir_path: str | Path,
     conn: sqlite3.Connection,
@@ -392,6 +418,7 @@ def ingest_dir(
     *,
     recursive: bool = True,
     directory_map: Mapping[str, str] | None = None,
+    directory_map_overrides_frontmatter: bool = False,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
     skip_bad: bool = False,
     bad_files_out: list[tuple[str, str]] | None = None,
@@ -434,6 +461,7 @@ def ingest_dir(
                 conn,
                 embedder,
                 directory_map=directory_map,
+                directory_map_overrides_frontmatter=directory_map_overrides_frontmatter,
                 chunk_strategies=chunk_strategies,
                 corpus_root=root,
             )
@@ -471,6 +499,7 @@ def ingest_dir(
             logger.error("ingest_dir: bad file skipped: %s: %s", bad_path, err)
         if bad_files_out is not None:
             bad_files_out.extend(skipped_bad)
+    _record_build_environment(conn)
     conn.commit()
     return article_ids
 
@@ -481,6 +510,7 @@ def rebuild_from_disk(
     embedder: EmbedderProtocol,
     *,
     directory_map: Mapping[str, str] | None = None,
+    directory_map_overrides_frontmatter: bool = False,
     chunk_strategies: Mapping[str, Mapping[str, Any]] | None = None,
     skip_bad: bool = False,
     bad_files_out: list[tuple[str, str]] | None = None,
@@ -513,6 +543,7 @@ def rebuild_from_disk(
         embedder,
         recursive=True,
         directory_map=directory_map,
+        directory_map_overrides_frontmatter=directory_map_overrides_frontmatter,
         chunk_strategies=chunk_strategies,
         skip_bad=skip_bad,
         bad_files_out=bad_files_out,
