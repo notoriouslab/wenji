@@ -20,6 +20,7 @@ Missing keys fall back to :mod:`wenji.config.defaults`.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,6 +69,19 @@ def _build_search(raw: dict | None) -> SearchConfig:
         candidate_pool=int(merged["candidate_pool"]),
         default_limit=int(merged["default_limit"]),
     )
+
+
+def resolve_config_path(cli_path: str | Path | None = None) -> str | Path | None:
+    """Resolution order for the config file: CLI ``--config`` flag >
+    ``WENJI_CONFIG`` environment variable > ``None`` (built-in defaults).
+
+    Centralised here so every Searcher entry point (web factory, ``wenji
+    search`` fallback, ``Asker``) resolves identically.
+    """
+    if cli_path is not None:
+        return cli_path
+    env = os.environ.get("WENJI_CONFIG", "").strip()
+    return env or None
 
 
 def load_config(path: str | Path | None = None) -> WenjiConfig:

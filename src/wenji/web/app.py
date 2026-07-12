@@ -208,6 +208,13 @@ def create_app(
         Path(db_path) if db_path else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db"))
     )
 
+    # search.* tuning (alpha / candidate_pool / default_limit) resolves from
+    # WENJI_CONFIG at factory time; a broken config file fails app startup
+    # loudly instead of silently falling back to defaults.
+    from wenji.config import load_config, resolve_config_path
+
+    search_cfg = load_config(resolve_config_path()).search
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup consistency gate. Always runs unless explicitly disabled by
@@ -390,6 +397,8 @@ def create_app(
             state["searcher"] = Searcher(
                 conn,
                 Embedder(),
+                alpha=search_cfg.alpha,
+                candidate_pool=search_cfg.candidate_pool,
                 entity_scorer=entity_scorer,
                 intent_classifier=intent_classifier,
             )
@@ -720,7 +729,11 @@ def create_app(
         return JSONResponse(trace)
 
     @app.get("/api/search")
-    def api_search(q: str, axis: str | None = None, limit: int = 10) -> JSONResponse:
+    def api_search(q: str, axis: str | None = None, limit: int | None = None) -> JSONResponse:
+        # Explicit per-request limit always wins; unset falls back to
+        # search.default_limit from WENJI_CONFIG.
+        if limit is None:
+            limit = search_cfg.default_limit
         limit = max(0, min(limit, 200))
         s = _get_searcher()
         if s is None:

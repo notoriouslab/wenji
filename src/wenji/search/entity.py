@@ -15,8 +15,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from importlib import resources
-from pathlib import Path
 from typing import Any
+
+from wenji.search._sources import merge_sources
 
 DEFAULT_ALPHA = 0.5
 SUBJECT_PRIORITY = {"concept", "person", "org"}
@@ -318,15 +319,5 @@ class EntityScorer:
         Network URLs (``http://``, ``https://``) are rejected to prevent
         accidental remote fetch.
         """
-        merged: dict[str, str] = {}
-        for src in sources:
-            if src.startswith(("http://", "https://")):
-                raise ValueError(f"network sources not supported in v0.3.6: {src}")
-            if src.startswith("example:"):
-                merged.update(cls.load_example(src[len("example:") :]))
-                continue
-            path = Path(src)
-            if not path.exists():
-                raise FileNotFoundError(f"source not found: {src}")
-            merged.update(json.loads(path.read_text(encoding="utf-8")))
+        merged: dict[str, str] = merge_sources(sources, cls.load_example)
         return cls(entity_dict=merged, alias_map=alias_map, alpha=alpha)

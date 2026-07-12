@@ -14,25 +14,18 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Any, Protocol
+from typing import Any
 
-import numpy as np
 from markdown_it import MarkdownIt
 
 from wenji.core.errors import SearchError
+from wenji.core.protocols import EmbedderProtocol
 from wenji.search.bm25 import bm25_search, build_fts_query
 from wenji.search.entity import EntityScorer, QueryEntity
 from wenji.search.hybrid import DEFAULT_ALPHA, hybrid_combine
 from wenji.search.intent import IntentClassifier
 from wenji.search.rrf import chunk_bm25_search, rrf_merge
 from wenji.search.vector import vector_search
-
-
-class EmbedderProtocol(Protocol):
-    DIM: int
-
-    def encode_batch(self, texts: list[str]) -> np.ndarray: ...
-
 
 _MD_SNIPPET = MarkdownIt("commonmark", {"html": False, "linkify": False})
 

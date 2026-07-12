@@ -36,6 +36,7 @@ def _in_process_search(
     query: str,
     axis: str | None,
     limit: int,
+    search_cfg,
 ) -> dict:
     from wenji.core.db import connect
     from wenji.ingest.embed import Embedder
@@ -44,7 +45,12 @@ def _in_process_search(
 
     _ensure_consistency(db)
     conn = connect(db)
-    searcher = Searcher(conn, Embedder())
+    searcher = Searcher(
+        conn,
+        Embedder(),
+        alpha=search_cfg.alpha,
+        candidate_pool=search_cfg.candidate_pool,
+    )
     results = searcher.search(query, axis=axis, limit=limit)
     conn.close()
     return {"results": results, "query": query}
@@ -57,9 +63,20 @@ def command(
         DEFAULT_SERVER, help="Server URL to probe before in-process fallback."
     ),
     axis: str | None = typer.Option(None, help="Filter to a specific axis_id."),
-    limit: int = typer.Option(10, help="Top-K results to return."),
+    limit: int | None = typer.Option(
+        None, help="Top-K results to return (default: search.default_limit from config, 10)."
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", help="wenji.yaml path (beats WENJI_CONFIG; unset = env then defaults)."
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print raw JSON."),
 ) -> None:
+    from wenji.config import load_config, resolve_config_path
+
+    search_cfg = load_config(resolve_config_path(config)).search
+    if limit is None:
+        limit = search_cfg.default_limit
+
     payload = _try_server(server, query, axis, limit)
     if payload is None:
         typer.echo(
@@ -67,7 +84,7 @@ def command(
             f"(this loads the embed model, ~5s cold start)",
             err=True,
         )
-        payload = _in_process_search(db, query, axis, limit)
+        payload = _in_process_search(db, query, axis, limit, search_cfg)
 
     if json_output:
         typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))

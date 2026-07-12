@@ -31,11 +31,11 @@
 
 ## Phase 3 — D2 config 接上 + D5 去重歸位
 
-- [ ] 3.1 落實 D2: config 傳遞機制 — `WENJI_CONFIG` env + CLI `--config` 優先：web/app.py factory 讀 `WENJI_CONFIG` env 建 config、Searcher 構造帶 `alpha`/`candidate_pool`、`/api/search` limit default 用 `default_limit`；`cli/search.py` 加 `--config`（flag > env > defaults）；`--limit`/web `limit` query param 改 sentinel（未顯式提供時 fallback config `default_limit`，顯式值永遠優先）；`ask/__init__.py` lazy Searcher 接受可選 config；行為 = yaml `search.alpha: 0.9` 時 Searcher.alpha == 0.9（滿足 spec requirement: search config takes effect at every Searcher entry point）
-- [ ] 3.2 tests：三入口注入斷言（unit 層 mock env/flag，斷言 Searcher 收到值）、flag 蓋 env、無 config = defaults 逐值等於 0.4 hardcoded（`DEFAULT_ALPHA`/50/10 斷言鎖定）
-- [ ] 3.3 `cli/ingest.py` + `cli/rebuild.py` 手工 yaml 解析改 `load_config(config_path)`；行為 = 三命令壞 yaml 同 `ConfigError` 訊息（滿足 spec requirement: CLI config parsing has a single entry point）；驗證 = 壞 yaml fixture test 跨命令斷言
-- [ ] 3.4 落實 D5: 共用型別與重複碼歸屬 — EmbedderProtocol 入 core、from_sources 入 search 私有模組：`EmbedderProtocol` 唯一定義移 `core/protocols.py`，search/ingest 改 import（re-export 保留）；`from_sources` 兩段先 `diff` 確認逐行相同（**有差異 → 停，spec-drift 流程呈報主公**）再抽 `search/_sources.py`；驗證 = `rg "class EmbedderProtocol" src/` 恰 1 hit、既有 entity/intent tests 綠
-- [ ] 3.5 `ruff check` + `pytest` 全綠 → **commit boundary**
+- [x] 3.1 落實 D2: config 傳遞機制 — `WENJI_CONFIG` env + CLI `--config` 優先：web/app.py factory 讀 `WENJI_CONFIG` env 建 config、Searcher 構造帶 `alpha`/`candidate_pool`、`/api/search` limit default 用 `default_limit`；`cli/search.py` 加 `--config`（flag > env > defaults）；`--limit`/web `limit` query param 改 sentinel（未顯式提供時 fallback config `default_limit`，顯式值永遠優先）；`ask/__init__.py` lazy Searcher 接受可選 config；行為 = yaml `search.alpha: 0.9` 時 Searcher.alpha == 0.9（滿足 spec requirement: search config takes effect at every Searcher entry point）
+- [x] 3.2 tests：三入口注入斷言（unit 層 mock env/flag，斷言 Searcher 收到值）、flag 蓋 env、無 config = defaults 逐值等於 0.4 hardcoded（`DEFAULT_ALPHA`/50/10 斷言鎖定）
+- [x] 3.3 `cli/ingest.py` + `cli/rebuild.py` 手工 yaml 解析改 `load_config(config_path)`；行為 = 三命令壞 yaml 同 `ConfigError` 訊息（滿足 spec requirement: CLI config parsing has a single entry point）；驗證 = 壞 yaml fixture test 跨命令斷言
+- [x] 3.4 落實 D5: 共用型別與重複碼歸屬 — EmbedderProtocol 入 core、from_sources 入 search 私有模組：`EmbedderProtocol` 唯一定義移 `core/protocols.py`，search/ingest 改 import（re-export 保留）；`from_sources` 兩段先 `diff` 確認逐行相同（**有差異 → 停，spec-drift 流程呈報主公**）再抽 `search/_sources.py`；驗證 = `rg "class EmbedderProtocol" src/` 恰 1 hit、既有 entity/intent tests 綠
+- [x] 3.5 `ruff check` + `pytest` 全綠 → **commit boundary**
 
 ## Phase 4 — D4 A' 開關 + D6 環境記錄 + D3 doctor 漂移
 

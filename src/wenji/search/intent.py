@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import json
 from importlib import resources
-from pathlib import Path
+
+from wenji.search._sources import merge_sources
 
 DEFAULT_INTENT = "general"
 DEFAULT_ALPHA = 0.5
@@ -87,17 +88,7 @@ class IntentClassifier:
         loaded from examples — pass it via this constructor argument when
         the deployment needs RRF intent boosts.
         """
-        merged: dict[str, list[str]] = {}
-        for src in sources:
-            if src.startswith(("http://", "https://")):
-                raise ValueError(f"network sources not supported in v0.3.6: {src}")
-            if src.startswith("example:"):
-                merged.update(cls.load_example(src[len("example:") :]))
-                continue
-            path = Path(src)
-            if not path.exists():
-                raise FileNotFoundError(f"source not found: {src}")
-            merged.update(json.loads(path.read_text(encoding="utf-8")))
+        merged: dict[str, list[str]] = merge_sources(sources, cls.load_example)
         return cls(
             intent_keywords=merged,
             intent_source_types=intent_source_types,

@@ -17,10 +17,12 @@ from wenji.config.loader import (
     SearchConfig,
     WenjiConfig,
     load_config,
+    resolve_config_path,
 )
 
 __all__ = [
     "load_config",
+    "resolve_config_path",
     "WenjiConfig",
     "SearchConfig",
     "DEFAULT_DIRECTORY_MAP",

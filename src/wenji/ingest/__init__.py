@@ -15,7 +15,7 @@ import sqlite3
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from markdown_it import MarkdownIt
 
@@ -23,6 +23,7 @@ from wenji.core.chunk import chunk as chunk_text
 from wenji.core.errors import IngestError
 from wenji.core.hash import content_hash
 from wenji.core.normalize import normalize
+from wenji.core.protocols import EmbedderProtocol
 from wenji.ingest.frontmatter import load_article
 from wenji.ingest.jieba_setup import tokenize_for_fts
 
@@ -32,14 +33,6 @@ logger = logging.getLogger(__name__)
 # strip). ``html=False`` sanitises raw HTML; ``linkify=False`` avoids
 # auto-detecting URLs that aren't in markdown link syntax.
 _MD = MarkdownIt("commonmark", {"html": False, "linkify": False})
-
-
-class EmbedderProtocol(Protocol):
-    """Duck-typed interface for embedders. See :class:`wenji.ingest.embed.Embedder`."""
-
-    DIM: int
-
-    def encode_batch(self, texts: list[str]) -> Any: ...
 
 
 def _stable_article_id(path: Path, content_hash_value: str) -> str:
