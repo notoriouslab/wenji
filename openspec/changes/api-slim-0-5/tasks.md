@@ -1,11 +1,11 @@
 # Tasks: api-slim-0-5
 
-> 每個 Phase 結尾是 commit boundary；apply 時每個 boundary 後停下向主公回報（chunking 偏好）。
+> 每個 Phase 結尾是 commit boundary；apply 時每個 boundary 後停下向維護者回報（chunking 偏好）。
 
 ## Phase 0 — Pre-flight + eval before 基準
 
 - [x] 0.1 `pwd` + `git remote -v` 確認 wenji repo、tree clean、main 最新；切 branch `api-slim-0-5`
-- [x] 0.2 檢查本機 parity db 存活：`ls -la /tmp/parity_after.db`；不在 → 按 handoff memory 重建法重建（`rsync oracle:~/logos/articles/` + `wenji rebuild`，~6.5h，走 burn-guard 流程先跟主公確認再點火）
+- [x] 0.2 檢查本機 parity db 存活：`ls -la /tmp/parity_after.db`；不在 → 按 handoff memory 重建法重建（`rsync oracle:~/logos/articles/` + `wenji rebuild`，~6.5h，走 burn-guard 流程先跟維護者確認再點火）
 - [x] 0.3 eval **before** 基準（0.4 code、main HEAD）：`unset WENJI_CONFIG` → serve parity db → `wenji eval run-benchmark --snapshot <logos>/tests/benchmark_80_v2_gold_r14.json --port 8765`；預期 75/80，run 檔存 `/tmp/eval_slim_before.json`（eval-regression-guard 之 before 半場；驗證 = run 檔存在且 pass 數記錄在案）
 
 ## Phase 1 — D1: 判死路徑移除深度 — 連根刪除 + schema v2→v3 in-place migration（前半：rewrite）
@@ -34,7 +34,7 @@
 - [x] 3.1 落實 D2: config 傳遞機制 — `WENJI_CONFIG` env + CLI `--config` 優先：web/app.py factory 讀 `WENJI_CONFIG` env 建 config、Searcher 構造帶 `alpha`/`candidate_pool`、`/api/search` limit default 用 `default_limit`；`cli/search.py` 加 `--config`（flag > env > defaults）；`--limit`/web `limit` query param 改 sentinel（未顯式提供時 fallback config `default_limit`，顯式值永遠優先）；`ask/__init__.py` lazy Searcher 接受可選 config；行為 = yaml `search.alpha: 0.9` 時 Searcher.alpha == 0.9（滿足 spec requirement: search config takes effect at every Searcher entry point）
 - [x] 3.2 tests：三入口注入斷言（unit 層 mock env/flag，斷言 Searcher 收到值）、flag 蓋 env、無 config = defaults 逐值等於 0.4 hardcoded（`DEFAULT_ALPHA`/50/10 斷言鎖定）
 - [x] 3.3 `cli/ingest.py` + `cli/rebuild.py` 手工 yaml 解析改 `load_config(config_path)`；行為 = 三命令壞 yaml 同 `ConfigError` 訊息（滿足 spec requirement: CLI config parsing has a single entry point）；驗證 = 壞 yaml fixture test 跨命令斷言
-- [x] 3.4 落實 D5: 共用型別與重複碼歸屬 — EmbedderProtocol 入 core、from_sources 入 search 私有模組：`EmbedderProtocol` 唯一定義移 `core/protocols.py`，search/ingest 改 import（re-export 保留）；`from_sources` 兩段先 `diff` 確認逐行相同（**有差異 → 停，spec-drift 流程呈報主公**）再抽 `search/_sources.py`；驗證 = `rg "class EmbedderProtocol" src/` 恰 1 hit、既有 entity/intent tests 綠
+- [x] 3.4 落實 D5: 共用型別與重複碼歸屬 — EmbedderProtocol 入 core、from_sources 入 search 私有模組：`EmbedderProtocol` 唯一定義移 `core/protocols.py`，search/ingest 改 import（re-export 保留）；`from_sources` 兩段先 `diff` 確認逐行相同（**有差異 → 停，spec-drift 流程呈報維護者**）再抽 `search/_sources.py`；驗證 = `rg "class EmbedderProtocol" src/` 恰 1 hit、既有 entity/intent tests 綠
 - [x] 3.5 `ruff check` + `pytest` 全綠 → **commit boundary**
 
 ## Phase 4 — D4 A' 開關 + D6 環境記錄 + D3 doctor 漂移
@@ -47,8 +47,8 @@
 
 ## Phase 5 — eval guard after + 文件 + PR + 收尾
 
-- [ ] 5.1 eval **after**：同 Phase 0.3 環境（`unset WENJI_CONFIG`、同 parity db、branch code）重跑 80q+r14；預期 = 與 before 完全一致（75/80、miss 清單相同）；劣化 → 停下按 G3 Auto-Retry 排查；run 檔 `/tmp/eval_slim_after.json`，before/after 對比記錄進 PR（eval-regression-guard 完整履約；v3 題集不跑不調 — 鐵律）
-- [ ] 5.2 CHANGELOG 0.5.0 條目（公開 OSS 精簡風格 1-2 句/條，BREAKING 集中列：Searcher 簽名、schema v3、rewrite/rerank 移除、`WENJI_REWRITE_OVERRIDE` 除役、segment 與 eval 的 rewrite flags 移除）；README/docstring 同步（config 生效說明 + `WENJI_CONFIG`、A' 開關、doctor 環境段）
-- [ ] 5.3 Code Change Self-Review 6 點（重複定義 ruff F811、patch 副產物、重構殘留 rg、一致性、安全微清單、`git diff` 全讀）+ `scripts/audit_release.sh` **存 exit code 判斷**（不接 pipe）
-- [ ] 5.4 push + PR（body 含 before/after eval 對比）+ CI 全綠 → 主公核可後 merge
+- [x] 5.1 eval **after**：同 Phase 0.3 環境（`unset WENJI_CONFIG`、同 parity db、branch code）重跑 80q+r14；預期 = 與 before 完全一致（75/80、miss 清單相同）；劣化 → 停下按 G3 Auto-Retry 排查；run 檔 `/tmp/eval_slim_after.json`，before/after 對比記錄進 PR（eval-regression-guard 完整履約；v3 題集不跑不調 — 鐵律）
+- [x] 5.2 CHANGELOG 0.5.0 條目（公開 OSS 精簡風格 1-2 句/條，BREAKING 集中列：Searcher 簽名、schema v3、rewrite/rerank 移除、`WENJI_REWRITE_OVERRIDE` 除役、segment 與 eval 的 rewrite flags 移除）；README/docstring 同步（config 生效說明 + `WENJI_CONFIG`、A' 開關、doctor 環境段）
+- [x] 5.3 Code Change Self-Review 6 點（重複定義 ruff F811、patch 副產物、重構殘留 rg、一致性、安全微清單、`git diff` 全讀）+ `scripts/audit_release.sh` **存 exit code 判斷**（不接 pipe）
+- [ ] 5.4 push + PR（body 含 before/after eval 對比）+ CI 全綠 → 維護者核可後 merge
 - [ ] 5.5 `spectra archive api-slim-0-5` + memory 更新（handoff：健檢三包 3/3 完結；topology：0.5.0 升級注意事項 — logos pip 升級 + env 清理 + A' 開關擇期）

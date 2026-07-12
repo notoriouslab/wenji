@@ -127,4 +127,4 @@ Keys（wenji_meta，key/value insert，不動 schema shape）：
 
 ## Open Questions
 
-（無 — O1/O2/O3 已由主公 2026-07-11 拍板；D1-D6 本文件定案，G1 審查後如有翻案再回此節記錄）
+（無 — O1/O2/O3 已由維護者 2026-07-11 拍板；D1-D6 本文件定案，G1 審查後如有翻案再回此節記錄）

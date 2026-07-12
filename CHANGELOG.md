@@ -7,6 +7,42 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed (BREAKING)
+
+- LLM query rewrite, end to end: it measurably hurt retrieval quality on
+  the 80-question baseline and production has run with it disabled since
+  0.4.0. Drops `Searcher(rewriter=)`, the `rewritten_query` field from
+  `/api/search`, the `--enable-rewrite`/`--no-rewrite` flags on
+  `serve`/`search`/`segment`/`eval run-benchmark` (plus eval
+  `--clear-cache` and segment `--db`), the `WENJI_REWRITE_OVERRIDE` /
+  `WENJI_LLM_REWRITE_CACHE_TTL_DAYS` env vars, and `search.rewrite`
+  config.
+- Cross-encoder reranker hook and the `RankerHook` chain: error analysis
+  found essentially no pure ranking misses, so the never-wired hooks go.
+  Drops `Searcher(reranker=/ranker_hooks=)`, the `reranker` download
+  target, and `search.rerank` config. `Searcher.__init__` converges to
+  six parameters.
+
+### Changed (BREAKING)
+
+- Database schema v2 → v3: the `query_rewrite_cache` table is dropped.
+  Existing v2 databases migrate in place on the next `ingest`/`rebuild`
+  (no corpus rebuild needed); read-only entry points serve v2 unchanged.
+
+### Added
+
+- `search.alpha` / `search.candidate_pool` / `search.default_limit` in
+  `wenji.yaml` now take effect at every entry point (previously parsed
+  but silently ignored). Resolution: `--config` flag > `WENJI_CONFIG`
+  env > defaults; defaults reproduce 0.4.0 behavior exactly.
+- `directory_map_overrides_frontmatter` config flag (default off) lets a
+  deployment declare directory structure as the `source_type` source of
+  truth.
+- Bulk ingest stamps the build environment (onnxruntime / numpy
+  versions) into `wenji_meta`; `wenji doctor` reports drift between the
+  recorded and current runtime (informational — cross-version vectors
+  degrade retrieval silently).
+
 ### Performance
 
 - Bulk ingest no longer degrades with corpus size: per-article FTS
