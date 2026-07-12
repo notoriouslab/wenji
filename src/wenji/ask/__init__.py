@@ -91,9 +91,18 @@ class Asker:
 
     def _get_searcher(self) -> Searcher:
         if self.searcher is None:
+            from wenji.config import load_config, resolve_config_path
             from wenji.ingest.embed import Embedder
 
-            self.searcher = Searcher(self.db, Embedder())
+            # Standalone use resolves search.* from WENJI_CONFIG like every
+            # other Searcher entry point; the web app injects its own.
+            cfg = load_config(resolve_config_path()).search
+            self.searcher = Searcher(
+                self.db,
+                Embedder(),
+                alpha=cfg.alpha,
+                candidate_pool=cfg.candidate_pool,
+            )
         return self.searcher
 
     @staticmethod

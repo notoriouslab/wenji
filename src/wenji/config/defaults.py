@@ -16,16 +16,4 @@ DEFAULT_SEARCH_CONFIG: dict = {
     "alpha": 0.25,
     "candidate_pool": 50,
     "default_limit": 10,
-    "rerank": {
-        "enabled": False,
-        "model_dir": None,
-    },
-    "rewrite": {
-        "enabled": False,
-        "api_url": None,
-        "api_key_env": "WENJI_LLM_API_KEY",
-        "model": "llama-3.3-70b-versatile",
-        "timeout": 1.5,
-        "ttl_days": 30,
-    },
 }

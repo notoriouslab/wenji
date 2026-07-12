@@ -49,19 +49,29 @@ def derive_source_type(
     metadata: Mapping[str, Any],
     path: str | Path,
     directory_map: Mapping[str, str] | None = None,
+    *,
+    directory_map_overrides_frontmatter: bool = False,
 ) -> str:
     """Determine ``source_type`` for an article.
 
-    Resolution order:
+    Default resolution order (pre-0.5 behavior, unchanged):
 
     1. ``metadata['source_type']`` if present and non-empty
     2. ``directory_map[parent_dir_name]`` if mapping provided and key matches
     3. raise :class:`IngestError`
 
-    ``directory_map`` is typically loaded from ``chunk_policy.yaml`` at the
-    config layer (Group 9); ``ingest_one`` accepts the resolved mapping as a
-    pure dict.
+    With ``directory_map_overrides_frontmatter=True`` the deployment declares
+    directory structure as the source of truth: a directory_map hit wins over
+    frontmatter, a miss still falls back to frontmatter (never an error for
+    mapped-elsewhere files), and only both-absent raises.
+
+    ``directory_map`` is typically loaded from ``wenji.yaml`` at the config
+    layer; ``ingest_one`` accepts the resolved mapping as a pure dict.
     """
+    if directory_map_overrides_frontmatter and directory_map is not None:
+        parent = Path(path).parent.name
+        if parent in directory_map:
+            return directory_map[parent]
     if "source_type" in metadata and metadata["source_type"]:
         return str(metadata["source_type"])
     if directory_map is None:
@@ -77,9 +87,16 @@ def derive_source_type(
 def load_article(
     path: str | Path,
     directory_map: Mapping[str, str] | None = None,
+    *,
+    directory_map_overrides_frontmatter: bool = False,
 ) -> ParsedArticle:
     """One-shot: parse markdown and derive source_type."""
     p = Path(path)
     metadata, body = parse_markdown(p)
-    source_type = derive_source_type(metadata, p, directory_map)
+    source_type = derive_source_type(
+        metadata,
+        p,
+        directory_map,
+        directory_map_overrides_frontmatter=directory_map_overrides_frontmatter,
+    )
     return ParsedArticle(metadata=metadata, body=body, source_type=source_type, path=p)

@@ -1,9 +1,7 @@
 """LLM provider configuration loaded from ``WENJI_LLM_*`` environment variables.
 
-This module is shared by:
-
-- ``wenji.aggregate.llm.LLMClient`` (v0.3.0+, aggregate / ask functionality)
-- ``wenji.search.rewrite.QueryRewriter`` (v0.3.2+, query rewrite wiring)
+This module serves ``wenji.aggregate.llm.LLMClient`` (v0.3.0+, aggregate /
+ask functionality).
 
 Recognised env vars:
 
@@ -13,10 +11,9 @@ Recognised env vars:
 | ``WENJI_LLM_API_KEY`` | shared | API key | unset |
 | ``WENJI_LLM_MODEL`` | shared | model name | unset |
 | ``WENJI_LLM_TIMEOUT`` | shared | per-request timeout (seconds) | ``10.0`` |
-| ``WENJI_LLM_REWRITE_CACHE_TTL_DAYS`` | rewriter-only | cache TTL | ``30`` |
 
 When ``LLMConfig.enabled`` is ``False`` (any of base_url / api_key / model
-unset), neither the aggregator nor the rewriter SHALL be instantiated. This
+unset), the aggregator SHALL NOT be instantiated. This
 preserves the v0.3.1 default-disabled behaviour.
 """
 
@@ -34,7 +31,6 @@ class LLMConfig:
     api_key: str | None
     model: str | None
     timeout: float = 10.0
-    rewrite_cache_ttl_days: int = 30
 
     @property
     def enabled(self) -> bool:
@@ -56,7 +52,7 @@ class LLMConfig:
 def load_llm_config_from_env() -> LLMConfig:
     """Load :class:`LLMConfig` from ``WENJI_LLM_*`` environment variables.
 
-    Defaults: ``timeout=10.0``, ``rewrite_cache_ttl_days=30``.
+    Defaults: ``timeout=10.0``.
     Missing core vars (base_url / api_key / model) result in ``enabled=False``.
     """
     base_url = os.environ.get("WENJI_LLM_BASE_URL") or None
@@ -69,16 +65,9 @@ def load_llm_config_from_env() -> LLMConfig:
     except ValueError:
         timeout = 10.0
 
-    ttl_raw = os.environ.get("WENJI_LLM_REWRITE_CACHE_TTL_DAYS", "30")
-    try:
-        rewrite_cache_ttl_days = int(ttl_raw)
-    except ValueError:
-        rewrite_cache_ttl_days = 30
-
     return LLMConfig(
         base_url=base_url,
         api_key=api_key,
         model=model,
         timeout=timeout,
-        rewrite_cache_ttl_days=rewrite_cache_ttl_days,
     )

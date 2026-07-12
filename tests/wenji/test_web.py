@@ -501,8 +501,6 @@ def test_searcher_forwards_intent_source_types_env_to_classifier(
         sources,
         intent_source_types=None,
         default_intent=intent_mod.DEFAULT_INTENT,
-        scripture_pattern=None,
-        generic_entities=None,
     ):
         captured["sources"] = list(sources)
         captured["intent_source_types"] = intent_source_types
@@ -510,8 +508,6 @@ def test_searcher_forwards_intent_source_types_env_to_classifier(
             sources,
             intent_source_types=intent_source_types,
             default_intent=default_intent,
-            scripture_pattern=scripture_pattern,
-            generic_entities=generic_entities,
         )
 
     monkeypatch.setattr(intent_mod.IntentClassifier, "from_sources", spy_from_sources)

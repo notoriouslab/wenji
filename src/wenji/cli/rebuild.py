@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import typer
-import yaml
 
 from wenji.core.db import connect, initialise_schema
 
@@ -36,12 +35,11 @@ def command(
     conn = connect(db)
     initialise_schema(conn)
 
-    directory_map: dict[str, str] = {}
-    chunk_strategies: dict = {}
-    if config is not None:
-        cfg = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
-        directory_map = cfg.get("directory_map", {}) or {}
-        chunk_strategies = cfg.get("chunk_strategies", {}) or {}
+    from wenji.config import load_config
+
+    cfg = load_config(config)
+    directory_map = cfg.directory_map
+    chunk_strategies = cfg.chunk_strategies
 
     typer.echo(f"rebuilding {db} from {corpus_dir}", err=True)
     bad_files: list[tuple[str, str]] = []
@@ -50,6 +48,7 @@ def command(
         corpus_dir,
         Embedder(),
         directory_map=directory_map,
+        directory_map_overrides_frontmatter=cfg.directory_map_overrides_frontmatter,
         chunk_strategies=chunk_strategies,
         skip_bad=skip_bad,
         bad_files_out=bad_files,

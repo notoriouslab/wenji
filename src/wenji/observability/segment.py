@@ -13,31 +13,21 @@ Surfaces, for one input query, what wenji's search-side query pipeline sees:
   can see the char-level expansion that a jieba word-level view does not
   reveal.
 - ``dict_hits``: jieba tokens whose text is present in the loaded user_dict.
-- ``rewrite``: result of v0.3.2 LLM rewrite (cache-aware), or null when the
-  rewriter is unconfigured / falls back / errors.
 """
 
 from __future__ import annotations
 
-import time
 from typing import TypedDict
 
 from wenji.ingest.jieba_setup import jieba_cut_pos
 from wenji.search.bm25 import build_fts_query
 from wenji.search.entity import EntityScorer
 from wenji.search.intent import IntentClassifier
-from wenji.search.rewrite import QueryRewriter
 
 
 class TokenInfo(TypedDict):
     text: str
     pos: str
-
-
-class RewriteInfo(TypedDict):
-    rewritten_query: str
-    source: str  # "llm" or "cache"
-    latency_ms: int
 
 
 class EntityInfo(TypedDict):
@@ -58,7 +48,6 @@ class SegmentTrace(TypedDict):
     normalized_query: str
     fts_form: str
     dict_hits: list[str]
-    rewrite: RewriteInfo | None
     entities: list[EntityInfo] | None
     intent: IntentInfo | None
 
@@ -91,30 +80,9 @@ def _dict_hits(tokens: list[TokenInfo]) -> list[str]:
     return out
 
 
-def _rewrite(query: str, rewriter: QueryRewriter | None) -> RewriteInfo | None:
-    if rewriter is None or not query.strip():
-        return None
-    cached = rewriter.peek_cache(query)
-    start = time.perf_counter()
-    try:
-        rewritten = rewriter.rewrite(query)
-    except Exception:
-        return None
-    latency_ms = int((time.perf_counter() - start) * 1000)
-    if not rewritten or rewritten == query:
-        return None
-    source = "cache" if cached is not None else "llm"
-    return {
-        "rewritten_query": rewritten,
-        "source": source,
-        "latency_ms": latency_ms,
-    }
-
-
 def compute_segment_trace(
     query: str,
     *,
-    rewriter: QueryRewriter | None = None,
     entity_scorer: EntityScorer | None = None,
     intent_classifier: IntentClassifier | None = None,
 ) -> SegmentTrace:
@@ -160,7 +128,6 @@ def compute_segment_trace(
         "normalized_query": normalized,
         "fts_form": build_fts_query(normalized),
         "dict_hits": _dict_hits(tokens),
-        "rewrite": _rewrite(query, rewriter),
         "entities": entities,
         "intent": intent,
     }

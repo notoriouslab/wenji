@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 import typer
-import yaml
 
 app = typer.Typer(
     name="ingest",
@@ -55,12 +54,11 @@ def dir_command(
     conn = connect(db)
     initialise_schema(conn)
 
-    directory_map: dict[str, str] = {}
-    chunk_strategies: dict = {}
-    if config is not None:
-        cfg = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
-        directory_map = cfg.get("directory_map", {}) or {}
-        chunk_strategies = cfg.get("chunk_strategies", {}) or {}
+    from wenji.config import load_config
+
+    cfg = load_config(config)
+    directory_map = cfg.directory_map
+    chunk_strategies = cfg.chunk_strategies
 
     embedder = Embedder()
     typer.echo(f"ingesting {corpus_dir} → {db}", err=True)
@@ -71,6 +69,7 @@ def dir_command(
         embedder,
         recursive=recursive,
         directory_map=directory_map,
+        directory_map_overrides_frontmatter=cfg.directory_map_overrides_frontmatter,
         chunk_strategies=chunk_strategies,
         skip_bad=skip_bad,
         bad_files_out=bad_files,

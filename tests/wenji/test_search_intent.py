@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
 
-from wenji.search.entity import QueryEntity
 from wenji.search.intent import IntentClassifier
 
 
@@ -59,45 +57,6 @@ def test_get_boost_types_unknown_intent_returns_none(classifier):
 def test_get_boost_types_no_source_types_configured():
     c = IntentClassifier(intent_keywords={"x": ["a"]})
     assert c.get_boost_types("x") is None
-
-
-def test_classify_intent_scripture_match():
-    pat = re.compile(r"羅馬書\s*\d+")
-    c = IntentClassifier(intent_keywords={}, scripture_pattern=pat)
-    out = c.classify_intent("羅馬書 8 章探討")
-    assert out["intent"] == "scripture"
-    assert out["alpha"] == 0.3
-    assert out["keyword_boost"] == 2.0
-
-
-def test_classify_intent_person_with_dataclass_entity(classifier):
-    entities = [QueryEntity(name="馬丁路德", type="person", role="subject", weight=1.0)]
-    out = classifier.classify_intent("馬丁路德的神學", entities)
-    assert out["intent"] == "person"
-    assert out["alpha"] == 0.7
-
-
-def test_classify_intent_person_with_dict_entity(classifier):
-    entities = [{"name": "馬丁路德", "type": "person"}]
-    out = classifier.classify_intent("馬丁路德的神學", entities)
-    assert out["intent"] == "person"
-
-
-def test_classify_intent_generic_entity_falls_back_to_topic():
-    c = IntentClassifier(
-        intent_keywords={},
-        generic_entities={"耶穌", "基督"},
-    )
-    entities = [{"name": "耶穌", "type": "person"}]
-    out = c.classify_intent("耶穌的教導", entities)
-    assert out["intent"] == "topic"
-
-
-def test_classify_intent_default_topic(classifier):
-    out = classifier.classify_intent("一般查詢")
-    assert out["intent"] == "topic"
-    assert out["alpha"] == 0.5
-    assert out["keyword_boost"] == 1.0
 
 
 def test_from_sources_rejects_network():

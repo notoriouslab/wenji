@@ -9,7 +9,6 @@ Exposes :func:`compute_stats` (corpus + index aggregation) and
 from __future__ import annotations
 
 from wenji.observability.segment import (
-    RewriteInfo,
     SegmentTrace,
     TokenInfo,
     compute_segment_trace,
@@ -23,5 +22,4 @@ __all__ = [
     "IndicesInfo",
     "SegmentTrace",
     "TokenInfo",
-    "RewriteInfo",
 ]

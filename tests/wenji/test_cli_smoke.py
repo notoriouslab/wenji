@@ -51,17 +51,6 @@ def test_eval_missing_candidates_exits_nonzero():
     assert result.exit_code != 0
 
 
-def test_eval_clear_cache_without_db_exits_2(tmp_path):
-    candidates = tmp_path / "c.jsonl"
-    candidates.write_text(
-        '{"id": 1, "query": "Q", "gold_paths": [{"path_tag": "d", "keywords": ["a"]}]}\n',
-        encoding="utf-8",
-    )
-    result = runner.invoke(app, ["eval", "run", "--candidates", str(candidates), "--clear-cache"])
-    assert result.exit_code == 2
-    assert "--clear-cache requires --db" in result.stderr
-
-
 def test_classify_end_to_end(tmp_path: Path):
     """ingest a tiny corpus then classify with a one-axis config."""
     from wenji.core.db import connect, initialise_schema
@@ -97,17 +86,13 @@ def test_classify_end_to_end(tmp_path: Path):
     assert "PASS" in result.stdout
 
 
-def test_serve_enable_rewrite_without_env_exits_nonzero(monkeypatch):
-    for v in ("WENJI_LLM_BASE_URL", "WENJI_LLM_API_KEY", "WENJI_LLM_MODEL"):
-        monkeypatch.delenv(v, raising=False)
-    result = runner.invoke(app, ["serve", "--enable-rewrite"])
-    assert result.exit_code != 0
-    assert "missing" in result.stderr.lower() or "env" in result.stderr.lower()
-
-
-def test_search_accepts_no_rewrite_flag():
-    result = runner.invoke(app, ["search", "--help"])
-    assert result.exit_code == 0
-    stripped = _strip_ansi(result.stdout)
-    assert "--no-rewrite" in stripped
-    assert "--enable-rewrite" in stripped
+def test_stale_rewrite_flags_rejected_everywhere():
+    """0.5.0: removed rewrite flags exit 2 symmetrically across sibling CLIs."""
+    for args in (
+        ["serve", "--no-rewrite"],
+        ["search", "q", "--enable-rewrite"],
+        ["segment", "q", "--no-rewrite"],
+        ["eval", "run-benchmark", "--clear-cache"],
+    ):
+        result = runner.invoke(app, args)
+        assert result.exit_code == 2, f"{args} should be rejected as unknown option"

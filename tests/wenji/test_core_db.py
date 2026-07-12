@@ -35,7 +35,6 @@ def test_initialise_schema_creates_required_tables():
         "chunks_fts",
         "doc_vectors",
         "article_axes",
-        "query_rewrite_cache",
     }
     assert required.issubset(tables)
 
@@ -95,6 +94,56 @@ def test_initialise_schema_detects_version_mismatch():
     conn.commit()
     with pytest.raises(SchemaError, match="schema_version"):
         initialise_schema(conn)
+
+
+def test_initialise_schema_migrates_v2_in_place():
+    """v2 db (rewrite cache present, corpus rows populated) upgrades to v3
+    with the cache table dropped and every other row preserved."""
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    # Reconstruct a v2 database: re-create the dropped table + stamp v2.
+    conn.execute(
+        "CREATE TABLE query_rewrite_cache ("
+        "raw TEXT PRIMARY KEY, rewritten TEXT NOT NULL, created_at TEXT NOT NULL)"
+    )
+    conn.execute("INSERT INTO query_rewrite_cache VALUES ('q', 'r', '2026-01-01')")
+    conn.execute("UPDATE wenji_meta SET value = '2' WHERE key = 'schema_version'")
+    conn.execute(
+        "INSERT INTO articles_meta (article_id, title, source_type, path) "
+        "VALUES ('a1', 't', 's', '/tmp/a1.md')"
+    )
+    conn.commit()
+
+    initialise_schema(conn)
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "query_rewrite_cache" not in tables
+    row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()
+    assert row[0] == "3"
+    kept = conn.execute("SELECT COUNT(*) FROM articles_meta").fetchone()[0]
+    assert kept == 1  # data preserved through migration
+
+
+def test_connect_alone_does_not_migrate_v2(tmp_path):
+    """Read-only entry points call connect() without initialise_schema and
+    must leave a v2 database untouched."""
+    db = tmp_path / "v2.db"
+    conn = connect(db)
+    initialise_schema(conn)
+    conn.execute(
+        "CREATE TABLE query_rewrite_cache ("
+        "raw TEXT PRIMARY KEY, rewritten TEXT NOT NULL, created_at TEXT NOT NULL)"
+    )
+    conn.execute("UPDATE wenji_meta SET value = '2' WHERE key = 'schema_version'")
+    conn.commit()
+    conn.close()
+
+    conn = connect(db)  # read path: no initialise_schema
+    row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()
+    assert row[0] == "2"
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "query_rewrite_cache" in tables
+    conn.close()
 
 
 def test_article_axes_primary_uniqueness():

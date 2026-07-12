@@ -43,12 +43,6 @@ chunk_strategies:
 search:
   alpha: 0.4
   candidate_pool: 30
-  rerank:
-    enabled: true
-  rewrite:
-    enabled: true
-    api_url: https://api.groq.com/openai/v1/chat/completions
-    timeout: 2.0
 """,
     )
     cfg = load_config(cfg_path)
@@ -56,9 +50,6 @@ search:
     assert cfg.chunk_strategies["sermon"]["max_chars"] == 1500
     assert cfg.search.alpha == 0.4
     assert cfg.search.candidate_pool == 30
-    assert cfg.search.rerank.enabled is True
-    assert cfg.search.rewrite.enabled is True
-    assert cfg.search.rewrite.timeout == 2.0
 
 
 def test_partial_search_config_merges_defaults(tmp_path):
@@ -67,7 +58,6 @@ def test_partial_search_config_merges_defaults(tmp_path):
     assert cfg.search.alpha == 0.6
     # other defaults preserved
     assert cfg.search.candidate_pool == 50
-    assert cfg.search.rewrite.enabled is False
 
 
 def test_alpha_out_of_range_raises(tmp_path):
@@ -104,5 +94,3 @@ def test_search_config_defaults_match_module():
     sc = SearchConfig()
     assert sc.alpha == 0.25
     assert sc.candidate_pool == 50
-    assert sc.rerank.enabled is False
-    assert sc.rewrite.enabled is False

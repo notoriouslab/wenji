@@ -7,7 +7,6 @@ import pytest
 from wenji.core.db import connect, initialise_schema
 from wenji.ingest import ingest_one
 from wenji.search import Searcher, _hydrate_chunk_hits, _strip_markdown_for_snippet
-from wenji.search.rerank import CrossEncoderReranker
 
 
 def test_searcher_returns_results(populated_db, mock_embedder):
@@ -71,29 +70,6 @@ def test_searcher_empty_query_returns_empty(populated_db, mock_embedder):
     assert s.search("") == []
 
 
-def test_searcher_with_disabled_reranker_unchanged(populated_db, mock_embedder):
-    rer = CrossEncoderReranker(enabled=False)
-    s = Searcher(populated_db, mock_embedder, reranker=rer)
-    results = s.search("禱告", limit=5)
-    assert "rerank_score" not in (results[0] if results else {})
-
-
-def test_searcher_with_mock_reranker_reorders(populated_db, mock_embedder):
-    class MockRer:
-        enabled = True
-
-        def score(self, query, candidates):
-            for i, c in enumerate(candidates):
-                c["rerank_score"] = float(len(candidates) - i)  # reverse order from input
-            return candidates
-
-    s = Searcher(populated_db, mock_embedder, reranker=MockRer())
-    results = s.search("禱告", limit=5)
-    if len(results) >= 2:
-        scores = [r["rerank_score"] for r in results]
-        assert scores == sorted(scores, reverse=True)
-
-
 def test_make_snippet_escapes_html_content():
     """Regression: make_snippet must HTML-escape excerpt to prevent XSS via |safe."""
     from wenji.search import make_snippet
@@ -126,18 +102,6 @@ def test_searcher_results_include_chunk_hits_and_matched_chunks(populated_db, mo
         assert "chunk_hits" in r
         assert "matched_chunks" in r
         assert isinstance(r["matched_chunks"], list)
-
-
-def test_searcher_with_rewriter_uses_rewritten_query(populated_db, mock_embedder):
-    class MockRewriter:
-        def rewrite(self, raw):
-            return "禱告" if raw == "raw query" else raw
-
-    s = Searcher(populated_db, mock_embedder, rewriter=MockRewriter())
-    results = s.search("raw query", limit=5)
-    # Rewriter changed query to 禱告; should hit prayer article
-    titles = [r.get("title", "") for r in results]
-    assert any("禱告" in t for t in titles)
 
 
 # ---------------------------------------------------------------------------
@@ -235,3 +199,22 @@ def test_snippet_strip_handles_empty_input():
     """L2: empty / whitespace-only inputs short-circuit cleanly."""
     assert _strip_markdown_for_snippet("") == ""
     assert _strip_markdown_for_snippet("plain text") == "plain text"
+
+
+def test_searcher_rejects_removed_keyword_arguments(populated_db, mock_embedder):
+    """0.5.0 contract: the removed rewrite/rerank/hook params fail loudly."""
+    for kwarg in ("rewriter", "reranker", "ranker_hooks"):
+        with pytest.raises(TypeError):
+            Searcher(populated_db, mock_embedder, **{kwarg: object()})
+
+
+def test_searcher_six_parameter_construction(populated_db, mock_embedder):
+    s = Searcher(
+        populated_db,
+        mock_embedder,
+        alpha=0.25,
+        candidate_pool=50,
+        entity_scorer=None,
+        intent_classifier=None,
+    )
+    assert s.search("禱告", limit=3) is not None

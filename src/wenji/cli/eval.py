@@ -43,10 +43,7 @@ app = typer.Typer(
 def run_command(
     candidates: Path = typer.Option(..., "--candidates", exists=True, help="JSONL eval set path."),
     port: int = typer.Option(8000, help="wenji serve port."),
-    db: Path | None = typer.Option(None, help="SQLite DB path (required when --clear-cache)."),
-    clear_cache: bool = typer.Option(
-        False, "--clear-cache", help="Wipe query_rewrite_cache before queries fire."
-    ),
+    db: Path | None = typer.Option(None, help="SQLite DB path (consistency-checked when given)."),
     output: Path | None = typer.Option(
         None, "-o", "--output", help="Write full per-question JSON to this path."
     ),
@@ -59,12 +56,6 @@ def run_command(
     candidates = _check_in_cwd(candidates, "--candidates")
     api_url = f"http://localhost:{port}/api/search"
     typer.echo(f"running multi-path eval against {api_url}", err=True)
-    if clear_cache:
-        if db is None:
-            typer.echo("--clear-cache requires --db <path>", err=True)
-            sys.exit(2)
-        db = _check_in_cwd(db, "--db")
-        typer.echo(f"clearing query_rewrite_cache in {db}", err=True)
     if db is not None:
         _ensure_consistency(db)
 
@@ -72,7 +63,6 @@ def run_command(
         candidates,
         api_url=api_url,
         db_path=db,
-        clear_cache=clear_cache,
         top_k=top_k,
     )
 
@@ -110,16 +100,6 @@ def run_benchmark_command(
     pipeline_mode: str = typer.Option(
         "rag_full", help="Tag for pipeline mode in run output (e.g. rag_full / hybrid_only)."
     ),
-    enable_rewrite: bool = typer.Option(
-        False,
-        "--enable-rewrite",
-        help="Tag this run as rewrite-on (server must be started with rewrite enabled).",
-    ),
-    no_rewrite: bool = typer.Option(
-        False,
-        "--no-rewrite",
-        help="Tag this run as rewrite-off (overrides env-derived default).",
-    ),
 ) -> None:
     """Run the 80-question v2 baseline against a running wenji serve.
 
@@ -127,27 +107,13 @@ def run_benchmark_command(
     ``<out>.summary.json`` digest. The output conforms to the benchmark v2
     schema: each question gets per-hit ``gold_path_match`` (none/partial/full)
     and a question-level ``pass`` plus ``passing_paths``.
-
-    The ``--enable-rewrite`` / ``--no-rewrite`` flags do NOT control the
-    running server's rewrite state — they only tag the run output's
-    ``rewrite_enabled`` field for A/B comparison. Start the server with the
-    matching flag (e.g. ``wenji serve --enable-rewrite``) before running.
     """
     from wenji.observability.health import _ensure_consistency
 
-    if enable_rewrite and no_rewrite:
-        typer.echo("--enable-rewrite and --no-rewrite are mutually exclusive", err=True)
-        sys.exit(2)
     snapshot = _check_in_cwd(snapshot, "--snapshot")
     db = _check_in_cwd(db, "--db")
     out = _check_in_cwd(out, "--out")
     _ensure_consistency(db)
-    rewrite_enabled = enable_rewrite or (
-        not no_rewrite
-        and __import__("wenji.config", fromlist=["load_llm_config_from_env"])
-        .load_llm_config_from_env()
-        .enabled
-    )
     import datetime
     import time
 
@@ -174,8 +140,7 @@ def run_benchmark_command(
     elapsed = time.time() - t0
 
     # Wrap in benchmark-v2-compatible run output schema.
-    suffix = "_rewrite_on" if rewrite_enabled else "_rewrite_off"
-    run_id = f"wenji_r0_{datetime.date.today().isoformat()}{suffix}"
+    run_id = f"wenji_r0_{datetime.date.today().isoformat()}"
     wenji_version = _detect_wenji_version()
     run_output = {
         "run_id": run_id,
@@ -186,7 +151,6 @@ def run_benchmark_command(
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "pipeline_mode": pipeline_mode,
         "top_k_requested": top_k,
-        "rewrite_enabled": rewrite_enabled,
         "questions": result["results"],
         "summary": {
             **result["summary"],

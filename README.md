@@ -29,8 +29,7 @@ wenji 走相反路線 — **LLM-essential, not LLM-default**：建索引零 LLM 
 - 📚 **中文知識語料搜尋** — 講道、課堂筆記、法律條文、古典詩詞、技術文章，中英混合支援
 - 🖥️ **本地部署，零外部服務** — 一個 Python 行程 + 一個 SQLite 檔，不租 vector DB
 - 🏷️ **Tag + 分類軸瀏覽** — Web UI sidebar 篩選，`/tags` tag 索引頁，`?tag=X` 精確過濾
-- 🤖 **選配 LLM query rewrite** — 短查詢擴詞，任何 OpenAI-compatible endpoint，結果 SQLite cache
-- 📊 **Eval 對齊** — JSONL eval runner，80q 基準，pass@3 partial+ 77.5%（v0.3.6 rewrite-off）
+- 📊 **Eval 對齊** — JSONL eval runner + 80 題回歸基準，檢索改動必過 before/after 對比
 
 **3 大特色**
 
@@ -38,7 +37,7 @@ wenji 走相反路線 — **LLM-essential, not LLM-default**：建索引零 LLM 
 |------|---------|
 | 零 LLM 建索引 | SQLite FTS5 (BM25) + ONNX BGE-M3 INT8，byte-identical 重建 |
 | 完全本地 | 無 vector DB，無外部 API，一個 SQLite 檔 |
-| 可量測 | JSONL eval runner，80q 基準，pass@3 partial+ 77.5%（v0.3.6 rewrite-off） |
+| 可量測 | JSONL eval runner + 80 題回歸基準，byte-identical rebuild 可覆驗 |
 
 ---
 
@@ -91,25 +90,7 @@ wenji serve --db wenji.db --port 8000
 > - Docker / systemd：用 `EnvironmentFile=/etc/wenji.env` 載入 `WENJI_*`（不要 inline `Environment=` 或 docker `-e`，會被 `systemctl show` / `ps` 看到）
 > - `axes.yaml` 為選配；缺檔不影響 ingest/search，只是 sidebar 不會有分軸
 
-#### 場景 3：選配 LLM query rewrite
-
-```bash
-# 複製 .env.example 為 .env 後填入下列值（請勿 commit；.gitignore 已內建）：
-#   WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
-#   WENJI_LLM_API_KEY=<your-key>
-#   WENJI_LLM_MODEL=llama-3.3-70b-versatile
-
-direnv allow .   # 或 `source .env`，二選一載入
-wenji serve --db wenji.db
-```
-
-詳細的 `.env` 安全建議（不要 `export` 進 shell rc、不要 `-e` 給 docker）見「進階設定 → LLM Query Rewrite」。
-
-rewrite 格式：1-3 組關鍵詞以 `|` 分隔（BM25-friendly）；結果 SQLite cache（預設 30 天 TTL）。
-
-> **注意**：v0.3.6 rewrite-on 比 rewrite-off 低 3.7pp（73.8% vs 77.5%），wenji 預設 rewrite-off。建議先跑 rewrite-off 基準再決定是否開啟。
-
-#### 場景 4：Domain corpus（corpus-christian 範例）
+#### 場景 3：Domain corpus（corpus-christian 範例）
 
 ```bash
 wenji serve --db wenji.db \
@@ -119,20 +100,17 @@ wenji serve --db wenji.db \
 
 啟動 entity scoring + intent classification 層，Searcher pipeline 升級為：RRF merge with intent boost → entity scoring/filter。省略 flags 時退化為純 RRF + chunk signals（仍優於 v0.3.5 線性 hybrid）。
 
-#### 場景 5：Eval A/B 基準測試
+#### 場景 4：Eval 回歸基準
 
 > 前置：先在另一 terminal 跑 `wenji serve --db wenji.db`（eval runner 透過 `/api/search` 打 80q 基準）；snapshot `tests/benchmark_80_v2_snapshot.json` 已內建 repo 內。
 >
 > Smoke 建議：改動 retrieval pipeline 後，先用 snapshot 前 10 題跑 mini-baseline（手動 `jq '.categories[].questions |= .[:3]' snapshot.json > smoke.json` 之類）確認沒大幅退步，再跑全 80q。
 
 ```bash
-wenji eval run-benchmark --no-rewrite     --db wenji.db --out r0_off.json
-wenji eval run-benchmark --enable-rewrite --db wenji.db --out r0_on.json
+wenji eval run-benchmark --db wenji.db --out r0.json
 ```
 
-輸出標準 JSON 格式（per-question `gold_path_match`、`pass@3`、`MRR@5`）。`run_id` 自動補 `_rewrite_on` / `_rewrite_off` 後綴。用 `wenji eval sanity-eyeball --baseline-output <path>` 做人工雙閘門驗收。
-
-> 數值有 LLM 抖動：rewrite-on 數值 ±1.5pp 視為 jitter 範圍內（同一基準重跑可能差 ±1.5pp）；超過 1.5pp 才算 retrieval regression。
+輸出標準 JSON 格式（per-question `gold_path_match`、`pass@3`、`MRR@5`）。用 `wenji eval sanity-eyeball --baseline-output <path>` 做人工雙閘門驗收。改動 retrieval pipeline 前後各跑一次，pass 數與 miss 清單不得劣化。
 
 ---
 
@@ -140,12 +118,12 @@ wenji eval run-benchmark --enable-rewrite --db wenji.db --out r0_on.json
 
 #### 搜尋架構
 
-`Searcher.search()` v0.3.6 執行 11 步 pipeline：
+`Searcher.search()` 執行 8 步 pipeline：
 
 ```
-query rewrite → entity detect → intent detect → alias expand
+entity detect → intent detect → alias expand
   → BM25 + vector → chunk BM25 → RRF merge (intent boost)
-  → entity scoring + filter → ranker hooks → cross-encoder rerank → snippet hydration
+  → entity scoring + filter → snippet hydration
 ```
 
 省略 `--entity-source` / `--intent-source` 時，entity/intent 步驟 skip，降級為 RRF + chunk signals。
@@ -155,7 +133,7 @@ query rewrite → entity detect → intent detect → alias expand
 | 模組 | 作用 |
 |------|------|
 | `wenji.ingest` | Disk-as-SSOT 切入：frontmatter、NFKC 正規化、deterministic ID、content hash、4 種切塊策略 |
-| `wenji.search` | 混合檢索 11 步 pipeline（BM25 + vector + RRF + entity/intent + rerank） |
+| `wenji.search` | 混合檢索 8 步 pipeline（BM25 + vector + RRF + entity/intent） |
 | `wenji.classify` | 跟語料無關的多軸 rule engine，user-supplied `axes.yaml` |
 | `wenji.eval` | JSONL eval runner，multi-path gold set，jitter-aware gate |
 | `wenji.ask` | RAG 問答（`POST /api/ask`），chunk-level citation，30 天 LLM cache |
@@ -182,7 +160,7 @@ axes:
 
 ```bash
 wenji stats   --db wenji.db            # articles / chunks / indices 快照
-wenji segment "因信稱義" --db wenji.db  # query pipeline trace（tokens、fts_form、rewrite）
+wenji segment "因信稱義"               # query pipeline trace（tokens、fts_form、dict hits）
 ```
 
 等效 HTTP 端點：`GET /api/stats`、`GET /api/segment?q=`。
@@ -191,7 +169,7 @@ wenji segment "因信稱義" --db wenji.db  # query pipeline trace（tokens、ft
 
 ### 進階設定
 
-#### LLM Query Rewrite
+#### LLM 設定（`/api/ask` 問答用）
 
 任何 OpenAI-compatible endpoint（Groq、OpenRouter、Together、Gemini、vLLM、llama.cpp …）。**強烈建議**用 `.env` + `direnv` 載入，避免 API key 寫進 shell rc 或被 process listing 看到：
 
@@ -201,14 +179,11 @@ WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
 WENJI_LLM_API_KEY=<your-key>
 WENJI_LLM_MODEL=llama-3.3-70b-versatile
 WENJI_LLM_TIMEOUT=10.0                # 選配，預設 10s
-WENJI_LLM_REWRITE_CACHE_TTL_DAYS=30   # 選配，預設 30 天
 ```
 
 > ⚠️ 確認 `.gitignore` 含 `.env` 與 `.env.*`（已內建）。**不要** `export WENJI_LLM_API_KEY=...` 寫進 `~/.zshrc`／`~/.bashrc`，也不要傳 `-e WENJI_LLM_API_KEY=...` 給 docker（會被 `ps` 看到）。
 
-單次覆蓋：`wenji serve --enable-rewrite` / `--no-rewrite`（兩者互斥）。
-
-**LLM 失敗 fallback**：rewrite endpoint 超時 / 5xx → rewriter skip，retrieval pipeline 不受影響（仍走原 query）；`/api/ask` 在 LLM 失敗時 `answer=null` 但 `citations` 仍正常填值。
+**LLM 失敗 fallback**：`/api/ask` 在 LLM 失敗時 `answer=null` 但 `citations` 仍正常填值；檢索本身零 LLM 依賴。
 
 #### Entity / Intent Sources
 
@@ -295,14 +270,6 @@ rm wenji.db && wenji ingest dir <markdown-dir> --db wenji.db
 
 #### 選型建議
 
-**何時開 rewrite？**
-
-| 情境 | 建議 |
-|------|------|
-| 短查詢（1-2 字）召回率差 | 嘗試 rewrite-on，先跑 A/B 確認效果 |
-| 向量召回已夠強 | 預設 off（rewrite 可能注入噪音） |
-| Baseline 重現 | `--no-rewrite` 鎖定 |
-
 **何時用 entity/intent？**
 
 | 情境 | 建議 |
@@ -322,7 +289,7 @@ rm wenji.db && wenji ingest dir <markdown-dir> --db wenji.db
 | [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | 繁體中文文本預處理工具 — CKIP 分詞 + bigram 索引生成，附可選擇的領域字典系統；可單獨搭配主流搜尋引擎使用 |
 | [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian 本地語意搜尋與發掘 — 中文友善，無雲端、無 API Key、無訂閱費 |
 
-**擴展點**：`RankerHook` Protocol — `boost(article, query, context) -> float`，duck typing 滿足即可。詳見 [docs/extending.md](docs/extending.md)。
+**擴展點**：entity/intent 詞典多來源組合（`from_sources`，last-write-wins）。詳見 [docs/extending.md](docs/extending.md)。
 
 ---
 
@@ -396,18 +363,17 @@ wenji search "勞動契約" --db wenji.db --top-k 5
 |----------|---------|
 | CLI search | `wenji search "<query>" --db wenji.db` |
 | Web UI + tag browsing | `wenji serve --db wenji.db` → `/tags`, `/tag/<name>` |
-| LLM query rewrite | Set `WENJI_LLM_*` env vars (see below) |
 | Domain corpus (entity/intent) | `wenji serve --entity-source example:corpus-christian --intent-source example:corpus-christian` |
-| Eval A/B | `wenji eval run-benchmark --no-rewrite` vs `--enable-rewrite` |
+| Eval regression baseline | `wenji eval run-benchmark --db wenji.db` before/after any retrieval change |
 
-### Search pipeline (v0.3.6)
+### Search pipeline
 
-`Searcher.search()` runs an 11-step pipeline:
+`Searcher.search()` runs an 8-step pipeline:
 
 ```
-query rewrite → entity detect → intent detect → alias expand
+entity detect → intent detect → alias expand
   → BM25 + vector → chunk BM25 → RRF merge (intent boost)
-  → entity scoring + filter → ranker hooks → cross-encoder rerank → snippet hydration
+  → entity scoring + filter → snippet hydration
 ```
 
 Without `--entity-source` / `--intent-source`, the entity/intent steps are skipped and the pipeline degrades to RRF + chunk signals (still an improvement over v0.3.5 linear hybrid).
@@ -417,13 +383,13 @@ Without `--entity-source` / `--intent-source`, the entity/intent steps are skipp
 | Module | Purpose |
 |--------|---------|
 | `wenji.ingest` | Disk-as-SSOT markdown ingest: frontmatter, NFKC normalization, deterministic IDs, content hashing, 4 chunking strategies. |
-| `wenji.search` | Hybrid retrieval: 11-step pipeline (BM25 + vector + RRF + entity/intent + rerank). |
+| `wenji.search` | Hybrid retrieval: 8-step pipeline (BM25 + vector + RRF + entity/intent). |
 | `wenji.classify` | Corpus-agnostic multi-axis rule engine. Drop your `axes.yaml`, get tagged articles. |
 | `wenji.eval` | JSONL-driven eval runner with jitter-aware gates. |
 | `wenji.ask` | RAG question answering (`POST /api/ask`), chunk-level citations, 30-day LLM cache. |
 | `wenji.observability` | Corpus snapshot + query pipeline trace (`/api/stats`, `/api/segment`). |
 
-### LLM query rewrite (optional, v0.3.2+)
+### LLM setup (optional, for `/api/ask`)
 
 Any OpenAI-compatible endpoint (Groq, OpenRouter, Together, Gemini, vLLM, llama.cpp…):
 
@@ -433,9 +399,7 @@ export WENJI_LLM_API_KEY=<your-key>
 export WENJI_LLM_MODEL=llama-3.3-70b-versatile
 ```
 
-Per-invocation override: `wenji serve --enable-rewrite` / `--no-rewrite`. The `/api/search` response includes a `rewritten_query` field (`null` when unchanged).
-
-> **Note**: v0.3.6 rewrite-on (73.8%) is 3.7pp below rewrite-off (77.5%) because wenji's vector recall is already strong. Default is rewrite-off. Run A/B with `wenji eval run-benchmark` before enabling in production.
+Retrieval itself never calls an LLM; on LLM failure `/api/ask` returns `answer=null` with citations intact.
 
 ### Configuration
 
@@ -461,7 +425,7 @@ Each rule supports `source_type` / `tag` / `title_regex` (regex search) / `subty
 | [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | Traditional Chinese text preprocessing: CKIP segmentation + bigram index generation, with optional domain dictionaries. Works standalone with any major search engine. |
 | [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian local semantic search and discovery — Chinese-friendly, no cloud, no API key, no subscription. Your notes never leave your machine. |
 
-Custom ranking: implement the `RankerHook` Protocol (`boost(article, query, context) -> float`) and pass it to `Searcher`. Duck typing — no import required. See [docs/extending.md](docs/extending.md).
+Extension point: compose entity/intent dictionaries from multiple sources (`from_sources`, last-write-wins). See [docs/extending.md](docs/extending.md).
 
 ### Star History
 

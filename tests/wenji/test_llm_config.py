@@ -16,7 +16,6 @@ def clean_env(monkeypatch):
         "WENJI_LLM_API_KEY",
         "WENJI_LLM_MODEL",
         "WENJI_LLM_TIMEOUT",
-        "WENJI_LLM_REWRITE_CACHE_TTL_DAYS",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -55,7 +54,6 @@ def test_enabled_when_all_three_set(monkeypatch):
     assert cfg.enabled is True
     assert cfg.missing_fields() == []
     assert cfg.timeout == 10.0
-    assert cfg.rewrite_cache_ttl_days == 30
 
 
 def test_custom_timeout(monkeypatch):
@@ -74,24 +72,6 @@ def test_invalid_timeout_falls_back(monkeypatch):
     monkeypatch.setenv("WENJI_LLM_TIMEOUT", "not-a-float")
     cfg = load_llm_config_from_env()
     assert cfg.timeout == 10.0
-
-
-def test_custom_rewrite_cache_ttl(monkeypatch):
-    monkeypatch.setenv("WENJI_LLM_BASE_URL", "u")
-    monkeypatch.setenv("WENJI_LLM_API_KEY", "k")
-    monkeypatch.setenv("WENJI_LLM_MODEL", "m")
-    monkeypatch.setenv("WENJI_LLM_REWRITE_CACHE_TTL_DAYS", "7")
-    cfg = load_llm_config_from_env()
-    assert cfg.rewrite_cache_ttl_days == 7
-
-
-def test_invalid_ttl_falls_back(monkeypatch):
-    monkeypatch.setenv("WENJI_LLM_BASE_URL", "u")
-    monkeypatch.setenv("WENJI_LLM_API_KEY", "k")
-    monkeypatch.setenv("WENJI_LLM_MODEL", "m")
-    monkeypatch.setenv("WENJI_LLM_REWRITE_CACHE_TTL_DAYS", "abc")
-    cfg = load_llm_config_from_env()
-    assert cfg.rewrite_cache_ttl_days == 30
 
 
 def test_empty_string_treated_as_unset(monkeypatch):

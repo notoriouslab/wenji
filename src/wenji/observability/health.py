@@ -78,6 +78,7 @@ class ConsistencyReport:
     row_counts: dict[str, int]
     sample_match_hits: dict[str, dict[str, int]]
     issues: list[str] = field(default_factory=list)
+    environment: str = "not recorded (pre-0.5 db)"
 
     @property
     def ok(self) -> bool:
@@ -88,6 +89,7 @@ class ConsistencyReport:
             f"schema_version = {self.schema_version}",
             f"row_counts     = {self.row_counts}",
             f"sample MATCH   = {self.sample_match_hits}",
+            f"environment    = {self.environment}",
         ]
         if self.issues:
             lines.append("")
@@ -116,6 +118,43 @@ def _sample_match_count(conn: sqlite3.Connection, table: str, keyword: str) -> i
         conn,
         f"SELECT COUNT(*) FROM {table} WHERE {table} MATCH ?",
         (fts_query,),
+    )
+
+
+def check_environment(conn: sqlite3.Connection) -> str:
+    """Compare recorded build environment against the current runtime.
+
+    Informational only — the result never affects the doctor exit code
+    (drift means silently degraded retrieval quality, not broken data;
+    measured cosine ~0.98 across onnxruntime 1.26/1.27 vectors). Three
+    states: ``ok`` / ``DRIFT`` / ``not recorded (pre-0.5 db)``.
+    """
+    rows = dict(
+        conn.execute(
+            "SELECT key, value FROM wenji_meta WHERE key IN "
+            "('env_onnxruntime_version', 'env_numpy_version')"
+        ).fetchall()
+    )
+    if not rows:
+        return "not recorded (pre-0.5 db)"
+
+    import numpy
+    import onnxruntime
+
+    current = {
+        "env_onnxruntime_version": onnxruntime.__version__,
+        "env_numpy_version": numpy.__version__,
+    }
+    drifts = [
+        f"{key.removeprefix('env_').removesuffix('_version')} db={recorded} runtime={current[key]}"
+        for key, recorded in sorted(rows.items())
+        if current.get(key) != recorded
+    ]
+    if drifts:
+        return "DRIFT (" + "; ".join(drifts) + ") — rebuild under the current runtime to realign"
+    return (
+        f"ok (onnxruntime {rows.get('env_onnxruntime_version')}, "
+        f"numpy {rows.get('env_numpy_version')})"
     )
 
 
@@ -182,6 +221,7 @@ def check_consistency(
         row_counts=row_counts,
         sample_match_hits=sample_hits,
         issues=issues,
+        environment=check_environment(conn),
     )
 
 

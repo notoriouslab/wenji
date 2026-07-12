@@ -1,12 +1,11 @@
-# Extending wenji's Ranker
+# Extending wenji's Retrieval Pipeline
 
-wenji v0.3.6 ships a multi-stage retrieval pipeline that combines:
+wenji ships a multi-stage retrieval pipeline that combines:
 
 1. Hybrid (BM25 + vector cosine) retrieval
 2. Chunk-level BM25 rollup
 3. Reciprocal Rank Fusion (RRF) merge with optional intent boost
 4. Entity scoring + hard filter (optional)
-5. Ranker hooks (optional, additive boosts)
 
 This document explains how to wire your corpus into the pipeline.
 
@@ -44,64 +43,50 @@ remote fetch.
 
 ```python
 from wenji.search import Searcher
-from wenji.search.ranker import ChunkHitBooster
 
 searcher = Searcher(
     conn,
     embedder,
-    rewriter=rewriter,                # v0.3.2 LLM query rewrite
-    entity_scorer=scorer,             # v0.3.6 entity scoring
-    intent_classifier=classifier,     # v0.3.6 intent boost in RRF
-    ranker_hooks=[ChunkHitBooster()], # v0.3.6 additive boosters
+    alpha=0.25,                       # BM25/vector fusion weight
+    candidate_pool=50,                # top-K per retriever before RRF
+    entity_scorer=scorer,             # entity scoring + hard filter
+    intent_classifier=classifier,     # intent boost in RRF
 )
 results = searcher.search("因信稱義", limit=10)
 ```
 
-When `entity_scorer`, `intent_classifier`, and `ranker_hooks` are all
-unset (None / empty), the pipeline degrades to pure RRF + chunk_signals
-— still a strict improvement over the v0.3.5 hybrid linear combine.
+When `entity_scorer` and `intent_classifier` are unset (None), the
+pipeline degrades to pure RRF + chunk_signals.
+
+## Tuning via `wenji.yaml` (v0.5.0)
+
+`search.alpha`, `search.candidate_pool`, and `search.default_limit` are
+read from the config file at every Searcher entry point (web app, `wenji
+search` fallback, `Asker`):
+
+```yaml
+search:
+  alpha: 0.25
+  candidate_pool: 50
+  default_limit: 10
+```
+
+Resolution order: CLI `--config` flag > `WENJI_CONFIG` environment
+variable > built-in defaults. An explicit per-request `limit` always
+beats `default_limit`.
 
 ## Setting components from environment variables
 
 `wenji serve` reads:
 
-| Variable                   | Effect                                         |
-|----------------------------|------------------------------------------------|
-| `WENJI_ENTITY_SOURCES`     | Comma-separated source list → `EntityScorer`   |
-| `WENJI_INTENT_SOURCES`     | Comma-separated source list → `IntentClassifier` |
-| `WENJI_LLM_*` (v0.3.2)     | LLM rewrite (see v0.3.2 changelog)             |
+| Variable               | Effect                                           |
+|------------------------|--------------------------------------------------|
+| `WENJI_CONFIG`         | Path to `wenji.yaml` (search tuning, see above)  |
+| `WENJI_ENTITY_SOURCES` | Comma-separated source list → `EntityScorer`     |
+| `WENJI_INTENT_SOURCES` | Comma-separated source list → `IntentClassifier` |
 
 CLI flags `--entity-source` and `--intent-source` (repeatable) override
 the env-derived defaults for one invocation.
-
-## Writing a custom `RankerHook`
-
-```python
-from wenji.search.ranker import RankerHook
-
-class TitleLengthBooster:
-    """Tiny boost favoring shorter titles."""
-
-    def __init__(self, weight: float = 0.01):
-        self.weight = weight
-
-    def boost(self, article, query, context) -> float:
-        title = article.get("title") or ""
-        return -self.weight * len(title)
-```
-
-`RankerHook` is a `typing.Protocol`, so any class with a matching
-`boost` signature is usable. Pass a list of hooks to `Searcher`:
-
-```python
-searcher = Searcher(
-    conn, embedder,
-    ranker_hooks=[ChunkHitBooster(), TitleLengthBooster()],
-)
-```
-
-Hooks are applied **additively** to `_rankingScore` in list order, after
-entity scoring.
 
 ## Setting `intent_source_types` (RRF intent boost)
 
@@ -120,10 +105,25 @@ classifier = IntentClassifier.from_sources(
 When detected intent matches a key, the RRF merge adds `1/(k+1) ≈ 0.0164`
 (with k=60) to articles whose `source_type` is in the set.
 
+## Declaring directory structure as source-type truth (v0.5.0)
+
+By default, an article's frontmatter `source_type` beats the
+`directory_map` fallback. Deployments whose taxonomy is carried by
+directory layout can invert that:
+
+```yaml
+directory_map:
+  tgc: tgc-theology
+directory_map_overrides_frontmatter: true
+```
+
+With the flag on, a `directory_map` hit wins over frontmatter; a miss
+still falls back to frontmatter (never an error for files mapped
+elsewhere).
+
 ## Spec / Decision references
 
-- `openspec/specs/wenji-search-engine/spec.md` — modified Searcher pipeline
-- `openspec/specs/wenji-ranker-pipeline/spec.md` — RRF / EntityScorer /
-  IntentClassifier / RankerHook contracts
-- `openspec/specs/wenji-corpus-examples/spec.md` — wheel-bundled examples + `from_sources` API
-- Change proposal: `wenji-ranker-port-v0-3-6` (v0.3.6)
+- `openspec/specs/` — capability specs, including `search-api-surface`
+  (Searcher construction contract, v0.5.0) and `source-type-resolution`
+- Removed in v0.5.0: LLM query rewrite, cross-encoder reranker hook, and
+  the `RankerHook` chain — see the 0.5.0 CHANGELOG entry for rationale
