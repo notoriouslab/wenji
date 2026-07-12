@@ -57,7 +57,6 @@ def test_searcher_with_entity_and_intent(populated_db, mock_embedder):
     assert isinstance(results, list)
 
 
-
 def test_searcher_empty_query_returns_empty(populated_db, mock_embedder):
     searcher = Searcher(populated_db, mock_embedder, alpha=0.25)
     assert searcher.search("", limit=5) == []

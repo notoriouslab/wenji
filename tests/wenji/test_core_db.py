@@ -116,9 +116,7 @@ def test_initialise_schema_migrates_v2_in_place():
 
     initialise_schema(conn)
 
-    tables = {
-        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "query_rewrite_cache" not in tables
     row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()
     assert row[0] == "3"
@@ -143,9 +141,7 @@ def test_connect_alone_does_not_migrate_v2(tmp_path):
     conn = connect(db)  # read path: no initialise_schema
     row = conn.execute("SELECT value FROM wenji_meta WHERE key = 'schema_version'").fetchone()
     assert row[0] == "2"
-    tables = {
-        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "query_rewrite_cache" in tables
     conn.close()
 

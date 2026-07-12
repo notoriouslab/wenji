@@ -96,5 +96,3 @@ def download_embed_model(
 
                 shutil.copyfile(nested, flat)
     return target
-
-

@@ -57,6 +57,3 @@ def test_segment_dict_hits_picks_user_dict_tokens(tmp_path):
 
     trace = compute_segment_trace("因信稱義是什麼")
     assert "因信稱義" in trace["dict_hits"]
-
-
-

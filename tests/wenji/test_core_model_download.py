@@ -77,5 +77,3 @@ def test_concurrent_lock_blocks_second_download(monkeypatch, tmp_path):
     monkeypatch.setattr(model_download, "snapshot_download", fake_snapshot)
     with pytest.raises(WenjiError, match="another download is in progress"):
         model_download.download_embed_model(target_dir=target)
-
-

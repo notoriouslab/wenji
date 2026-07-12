@@ -70,7 +70,6 @@ def test_searcher_empty_query_returns_empty(populated_db, mock_embedder):
     assert s.search("") == []
 
 
-
 def test_make_snippet_escapes_html_content():
     """Regression: make_snippet must HTML-escape excerpt to prevent XSS via |safe."""
     from wenji.search import make_snippet

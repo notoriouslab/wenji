@@ -42,9 +42,7 @@ def fresh_conn():
 
 def test_default_frontmatter_wins_over_directory_map(tmp_path):
     md = tmp_path / "tgc" / "foo.md"
-    st = derive_source_type(
-        {"source_type": "teaching"}, md, {"tgc": "tgc-theology"}
-    )
+    st = derive_source_type({"source_type": "teaching"}, md, {"tgc": "tgc-theology"})
     assert st == "teaching"
 
 
@@ -128,9 +126,7 @@ def test_successful_ingest_stamps_environment(tmp_path, fresh_conn):
 
     ingest_dir(_corpus(tmp_path), fresh_conn, DeterministicMockEmbedder())
     rows = dict(
-        fresh_conn.execute(
-            "SELECT key, value FROM wenji_meta WHERE key LIKE 'env_%'"
-        ).fetchall()
+        fresh_conn.execute("SELECT key, value FROM wenji_meta WHERE key LIKE 'env_%'").fetchall()
     )
     assert rows["env_onnxruntime_version"] == onnxruntime.__version__
     assert rows["env_numpy_version"] == np_mod.__version__
@@ -145,9 +141,7 @@ def test_crashed_ingest_leaves_no_stamp(tmp_path, fresh_conn, monkeypatch):
     monkeypatch.setattr(ingest_mod, "ingest_one", boom)
     with pytest.raises(RuntimeError):
         ingest_dir(_corpus(tmp_path), fresh_conn, DeterministicMockEmbedder())
-    rows = fresh_conn.execute(
-        "SELECT key FROM wenji_meta WHERE key LIKE 'env_%'"
-    ).fetchall()
+    rows = fresh_conn.execute("SELECT key FROM wenji_meta WHERE key LIKE 'env_%'").fetchall()
     assert rows == []
 
 

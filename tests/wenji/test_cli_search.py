@@ -94,7 +94,9 @@ def test_search_falls_back_to_in_process_when_server_unavailable(monkeypatch):
         "query": "Q",
     }
     monkeypatch.setattr(
-        search_cli, "_in_process_search", lambda db, query, axis, limit, search_cfg, **kw: fake_payload
+        search_cli,
+        "_in_process_search",
+        lambda db, query, axis, limit, search_cfg, **kw: fake_payload,
     )
 
     result = runner.invoke(app, ["search", "Q", "--json"])

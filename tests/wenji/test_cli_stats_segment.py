@@ -75,5 +75,3 @@ def test_cli_segment_json_output_parses(db_path: Path):
 def test_cli_segment_empty_query_exits_nonzero(db_path: Path):
     result = runner.invoke(app, ["segment", ""])
     assert result.exit_code != 0
-
-

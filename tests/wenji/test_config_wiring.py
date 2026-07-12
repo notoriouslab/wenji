@@ -79,9 +79,7 @@ def test_no_config_defaults_equal_0_4_hardcoded_values():
 
 
 def test_web_factory_injects_config_into_searcher(monkeypatch, tmp_path, populated_db):
-    yaml_path = _write_yaml(
-        tmp_path, "w.yaml", "search:\n  alpha: 0.9\n  default_limit: 3\n"
-    )
+    yaml_path = _write_yaml(tmp_path, "w.yaml", "search:\n  alpha: 0.9\n  default_limit: 3\n")
     monkeypatch.setenv("WENJI_CONFIG", str(yaml_path))
 
     captured: dict = {}
