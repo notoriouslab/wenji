@@ -20,103 +20,37 @@
 
 ### 為什麼選 wenji？
 
-大多數 RAG 框架預設「LLM-default」：建索引用 LLM 抽 entity、LLM 做 community summary、LLM 重排序。成本隨語料線性成長，LLM 不可用時整個系統停擺。
+大多數 RAG 框架預設「LLM-default」：建索引用 LLM 抽 entity、LLM 做摘要、LLM 重排序 — 成本隨語料線性成長，LLM 不可用時整個系統停擺。
 
-wenji 走相反路線 — **LLM-essential, not LLM-default**：建索引零 LLM 呼叫；LLM 只允許在查詢時用，必須 cache，必須有確定性 fallback。結果：LLM 成本 = `unique queries × cache miss rate`，與語料大小無關。
-
-**典型使用場景**
-
-- 📚 **中文知識語料搜尋** — 講道、課堂筆記、法律條文、古典詩詞、技術文章，中英混合支援
-- 🖥️ **本地部署，零外部服務** — 一個 Python 行程 + 一個 SQLite 檔，不租 vector DB
-- 🏷️ **Tag + 分類軸瀏覽** — Web UI sidebar 篩選，`/tags` tag 索引頁，`?tag=X` 精確過濾
-- 📊 **Eval 對齊** — JSONL eval runner + 80 題回歸基準，檢索改動必過 before/after 對比
-
-**3 大特色**
+wenji 走相反路線 — **LLM-essential, not LLM-default**：建索引零 LLM 呼叫、byte-identical 可重建；LLM 只允許在查詢時用（`/api/ask` 問答），必須 cache、必須有確定性 fallback。LLM 成本 = `unique queries × cache miss rate`，與語料大小無關。
 
 | 特色 | 實現方式 |
 |------|---------|
 | 零 LLM 建索引 | SQLite FTS5 (BM25) + ONNX BGE-M3 INT8，byte-identical 重建 |
-| 完全本地 | 無 vector DB，無外部 API，一個 SQLite 檔 |
-| 可量測 | JSONL eval runner + 80 題回歸基準，byte-identical rebuild 可覆驗 |
+| 完全本地 | 一個 Python 行程 + 一個 SQLite 檔，無 vector DB、無外部 API |
+| 可量測 | JSONL eval runner + 80 題回歸基準，檢索改動必過 before/after |
 
----
+適合：講道、課堂筆記、法律條文、古典詩詞、技術文章等中文（或中英混合）語料的本地搜尋與瀏覽。
 
-### 三行快速上手
-
-> 示範語料 `examples/articles/` 只隨 source checkout 提供；有自己的 markdown 目錄可直接 ingest。
+### 快速上手
 
 ```bash
 pip install wenji
-git clone https://github.com/notoriouslab/wenji   # 只為了拿示範語料
-wenji ingest dir wenji/examples/articles/ --db wenji.db
+wenji ingest dir <你的-markdown-目錄>/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
 
-打開瀏覽器 `http://127.0.0.1:8000`，得到完整 Web UI（搜尋 + tag 瀏覽 + 文章閱讀器）。
+打開 `http://127.0.0.1:8000` — 完整 Web UI：搜尋（分軸 sidebar）、`/tags` 瀏覽、文章閱讀器（TOC + query-aware 捲動）。沒有語料可先 `git clone` 本 repo 用 `examples/articles/` 示範集。
 
-大語料運維：中斷的批次匯入直接**重跑同一個 `wenji ingest dir` 命令**即可續跑（未變更的文章走 content-hash 快路徑、不重算 embedding；`rebuild` 永遠從 wipe 開始，不用它續跑）；語料含少數壞 frontmatter 檔時加 `--skip-bad`（結尾列清單、exit 1）。
-
-支援 Python 3.10–3.12（3.13 尚未支援）。第一次跑 `wenji ingest` 或 `wenji search` 會自動下載 ONNX BGE-M3 INT8 embed model（~600 MB）至 user cache。macOS arm64 / Linux x86_64 內建 `libsimple` binary；其他平台用 `wenji download-model` 手動抓。
-
----
-
-### 常見使用路徑
-
-#### 場景 1：CLI 快速搜尋
+CLI 搜尋：
 
 ```bash
-wenji search "勞動契約" --db wenji.db --top-k 5
+wenji search "勞動契約" --db wenji.db
 ```
 
-輸出前 5 筆，含 BM25 / 向量分數、chunk-level 摘要、chunk 索引（可 deep link 至 `/article/<id>#c<n>`）。
+首次執行自動下載 embed model（~600 MB）。支援 Python 3.10–3.12；平台支援與大語料運維（續跑、`--skip-bad`）見 [docs/deployment.md](docs/deployment.md)。
 
-#### 場景 2：Web UI + tag 瀏覽
-
-```bash
-wenji serve --db wenji.db --port 8000
-```
-
-| 路由 | 功能 |
-|------|------|
-| `/` | 搜尋頁，含分軸 sidebar filter |
-| `/tags` | tag 索引頁（tag → 文章數） |
-| `/tag/<name>` | 單一 tag 的文章列表 |
-| `/article/<id>` | 文章閱讀器（sticky TOC、scroll-spy、query-aware 自動捲動） |
-
-> ⚠️ **Production 部署 checklist**（`wenji serve` 預設沒有認證、沒有速率限制）：
-> - 設 `WENJI_API_KEY=<random-32-bytes>` 開啟 API key auth；同時關掉 `/docs` `/openapi.json` 自動文件（沒設 API key 時這兩個端點公開）
-> - 設 `WENJI_CORS_ORIGINS=https://your-frontend.example.com`（預設 empty 拒所有 cross-origin）
-> - 綁 `127.0.0.1` 走反代（nginx / Caddy）+ 反代層做 rate limit（`/api/ask` 一次呼叫等於一次 LLM 計費）
-> - Docker / systemd：用 `EnvironmentFile=/etc/wenji.env` 載入 `WENJI_*`（不要 inline `Environment=` 或 docker `-e`，會被 `systemctl show` / `ps` 看到）
-> - `axes.yaml` 為選配；缺檔不影響 ingest/search，只是 sidebar 不會有分軸
-
-#### 場景 3：Domain corpus（corpus-christian 範例）
-
-```bash
-wenji serve --db wenji.db \
-  --entity-source example:corpus-christian \
-  --intent-source example:corpus-christian
-```
-
-啟動 entity scoring + intent classification 層，Searcher pipeline 升級為：RRF merge with intent boost → entity scoring/filter。省略 flags 時退化為純 RRF + chunk signals（仍優於 v0.3.5 線性 hybrid）。
-
-#### 場景 4：Eval 回歸基準
-
-> 前置：先在另一 terminal 跑 `wenji serve --db wenji.db`（eval runner 透過 `/api/search` 打 80q 基準）；snapshot `tests/benchmark_80_v2_snapshot.json` 已內建 repo 內。
->
-> Smoke 建議：改動 retrieval pipeline 後，先用 snapshot 前 10 題跑 mini-baseline（手動 `jq '.categories[].questions |= .[:3]' snapshot.json > smoke.json` 之類）確認沒大幅退步，再跑全 80q。
-
-```bash
-wenji eval run-benchmark --db wenji.db --out r0.json
-```
-
-輸出標準 JSON 格式（per-question `gold_path_match`、`pass@3`、`MRR@5`）。用 `wenji eval sanity-eyeball --baseline-output <path>` 做人工雙閘門驗收。改動 retrieval pipeline 前後各跑一次，pass 數與 miss 清單不得劣化。
-
----
-
-### 核心概念
-
-#### 搜尋架構
+### 搜尋架構
 
 `Searcher.search()` 執行 8 步 pipeline：
 
@@ -126,187 +60,56 @@ entity detect → intent detect → alias expand
   → entity scoring + filter → snippet hydration
 ```
 
-省略 `--entity-source` / `--intent-source` 時，entity/intent 步驟 skip，降級為 RRF + chunk signals。
+entity/intent 層為選配（`--entity-source example:corpus-christian --intent-source example:corpus-christian` 啟用，可多來源組合，詳見 [docs/extending.md](docs/extending.md)）；省略時退化為純 RRF + chunk signals。`search.alpha` 等調參走 `wenji.yaml`（[docs/deployment.md](docs/deployment.md#search-tuning-wenji_config)）。
 
-#### 核心模組
-
-| 模組 | 作用 |
-|------|------|
-| `wenji.ingest` | Disk-as-SSOT 切入：frontmatter、NFKC 正規化、deterministic ID、content hash、4 種切塊策略 |
-| `wenji.search` | 混合檢索 8 步 pipeline（BM25 + vector + RRF + entity/intent） |
-| `wenji.classify` | 跟語料無關的多軸 rule engine，user-supplied `axes.yaml` |
-| `wenji.eval` | JSONL eval runner，multi-path gold set，jitter-aware gate |
-| `wenji.ask` | RAG 問答（`POST /api/ask`），chunk-level citation，30 天 LLM cache |
-| `wenji.observability` | corpus 快照 + query pipeline trace |
-
-#### 分類引擎
+### 分類引擎
 
 ```yaml
 # axes.yaml — 摘錄自 examples/axes.yaml
 axes:
   - id: sermon
     name: 講道
-    short: 講道
-    order: 1
-    description: 講道 / 信仰主題長文
     rules:
       - source_type: sermon
         primary: true
 ```
 
-每條 rule 支援 `source_type` / `tag` / `title_regex`（regex search）/ `subtype` 多欄位 AND 組合，及 hierarchical `parent: <id>`。Axes 是 derived data，隨時 `wenji classify` / `wenji rebuild` 重建，不動原始 markdown。
+每條 rule 支援 `source_type` / `tag` / `title_regex` / `subtype` 的 AND 組合與階層 `parent`。Axes 是 derived data — `wenji classify` 隨時重建，不動原始 markdown。
 
-#### Observability
-
-```bash
-wenji stats   --db wenji.db            # articles / chunks / indices 快照
-wenji segment "因信稱義"               # query pipeline trace（tokens、fts_form、dict hits）
-```
-
-等效 HTTP 端點：`GET /api/stats`、`GET /api/segment?q=`。
-
----
-
-### 進階設定
-
-#### LLM 設定（`/api/ask` 問答用）
-
-任何 OpenAI-compatible endpoint（Groq、OpenRouter、Together、Gemini、vLLM、llama.cpp …）。**強烈建議**用 `.env` + `direnv` 載入，避免 API key 寫進 shell rc 或被 process listing 看到：
-
-```bash
-# .env （請複製 .env.example 為 .env 後填入；不要 commit）
-WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
-WENJI_LLM_API_KEY=<your-key>
-WENJI_LLM_MODEL=llama-3.3-70b-versatile
-WENJI_LLM_TIMEOUT=10.0                # 選配，預設 10s
-```
-
-> ⚠️ 確認 `.gitignore` 含 `.env` 與 `.env.*`（已內建）。**不要** `export WENJI_LLM_API_KEY=...` 寫進 `~/.zshrc`／`~/.bashrc`，也不要傳 `-e WENJI_LLM_API_KEY=...` 給 docker（會被 `ps` 看到）。
-
-**LLM 失敗 fallback**：`/api/ask` 在 LLM 失敗時 `answer=null` 但 `citations` 仍正常填值；檢索本身零 LLM 依賴。
-
-#### Entity / Intent Sources
-
-多來源，last-write-wins on key collision：
-
-```bash
-wenji serve --db wenji.db \
-  --entity-source example:corpus-christian \
-  --entity-source /path/to/my_entities.json \
-  --intent-source example:corpus-christian
-```
-
-或 env var（comma-separated）：
-
-```bash
-export WENJI_ENTITY_SOURCES=example:corpus-christian,/path/to/my_entities.json
-export WENJI_INTENT_SOURCES=example:corpus-christian
-```
-
-Network URLs（`http://`、`https://`）被 source loader 拒絕；只接受 `example:<name>` 和本機路徑。**注意**：本機路徑目前沒有沙箱（Path traversal 防護待 v0.4），請只指向你信任的目錄。多來源 last-write-wins：右邊覆蓋左邊（`--entity-source A --entity-source B` → B 的 keys 優先）。
-
-#### Web 部署：站點 URL / SEO / CORS（v0.3.7+）
-
-對外發行時，由 env vars 控制 SEO meta 與 CORS（**全部 unset 時預設不暴露任何品牌 / 不允許任何 cross-origin**，最安全 zero-config）：
-
-```bash
-# .env
-WENJI_SITE_URL=https://wenji.example.com           # 啟用 canonical / og:* / JSON-LD
-WENJI_SITE_NAME=My Wenji                          # 可選，最長 256 字
-WENJI_OG_IMAGE_URL=https://wenji.example.com/og.png  # 可選；⚠️ 此 host 會收到所有訪客 IP / UA
-WENJI_CORS_ORIGINS=https://my-frontend.example.com,https://api.example.com
-```
-
-URL host 啟動時做白名單驗證：拒 userinfo（`https://a@b.com`）、私網 IP、IDN homograph、控制字元、非預設 port、percent-encoded host —— fail-fast 啟動失敗。CORS 拒 `*` / `null` / wildcard subdomain / 非 https。
-
-> Local dev SPA：跑 `localhost:5173` 連 `/api/*` 會被預設 CORS 擋下；開發時設 `WENJI_CORS_ORIGINS=http://localhost:5173 WENJI_ALLOW_HTTP_CORS=1`。
-
-部署前用 `wenji doctor --db wenji.db` 驗 db 一致性（cross-table sanity + sample FTS MATCH）；exit 1 代表 db 不一致、`wenji serve` 啟動會拒絕 bind port。非中文 corpus 加 `--sample-keywords k1,k2,k3` override。
-
-#### 升級指南
-
-wenji 用 markdown 為 SSOT，舊 db 升級沒有 migration script —— 直接重建：
-
-```bash
-rm wenji.db && wenji ingest dir <markdown-dir> --db wenji.db
-```
-
-支援平台：
-
-| 平台 | 狀態 | 備註 |
-|------|------|------|
-| macOS arm64（M1+） | ✅ supported | 內建 libsimple binary |
-| Linux x86_64 | ✅ supported | 內建 libsimple binary |
-| macOS x86_64（Intel） | ⚠️ experimental | 需自行編譯 libsimple |
-| Linux ARM | ⚠️ experimental | 需自行編譯 libsimple |
-| Windows | ❌ unsupported | libsimple 無 .dll |
-
-中國大陸 / 受限網路：Hugging Face 模型下載可設 `HF_ENDPOINT=https://hf-mirror.com`。
-
----
-
-### 進階參考
-
-#### CLI 子命令
+### 常用命令
 
 | 命令 | 用途 |
 |------|------|
-| `wenji ingest dir <path>` | 從 markdown 目錄建索引 |
-| `wenji search <query>` | CLI 搜尋 |
-| `wenji serve` | 啟動 FastAPI + Web UI |
-| `wenji classify` | 套用 axes.yaml |
-| `wenji rebuild` | 重建 derived tables（byte-identical） |
-| `wenji stats` | corpus 快照 |
-| `wenji segment <query>` | query pipeline trace |
-| `wenji eval run-benchmark` | 跑 80q 基準 |
-| `wenji eval sanity-eyeball` | 人工雙閘門驗收 |
-| `wenji eval migrate-jsonl` | 舊版 eval JSONL 轉換 |
-| `wenji doctor` | db consistency 健康檢查（部署前驗 db） |
-| `wenji inspect-chunks <file>` | 預覽單檔切塊結果 |
-| `wenji set-chunk-strategy` | 寫 frontmatter `chunk_strategy` |
-| `wenji corpus trim` | 按 article_id / content_hash 刪除 |
-| `wenji download-model` | 手動下載 ONNX model + libsimple |
-| `wenji aggregate clear-cache` | 清除 LLM cache |
+| `wenji ingest dir <path>` | 建索引（中斷後重跑同命令即續跑） |
+| `wenji search` / `wenji serve` | CLI 搜尋 / Web UI |
+| `wenji classify --config axes.yaml` | 套用分類軸 |
+| `wenji doctor` | db 一致性 + 建庫環境健檢（部署前必跑） |
+| `wenji eval run-benchmark` | 80 題回歸基準（改檢索前後各跑一次） |
+| `wenji stats` / `wenji segment <q>` | corpus 快照 / query pipeline trace |
 
-#### 選型建議
+完整子命令 `wenji --help`；`/api/ask` 問答的 LLM 設定（任何 OpenAI-compatible endpoint）與密鑰安全見 [docs/deployment.md](docs/deployment.md#secrets-hygiene-wenji_llm_)。
 
-**何時用 entity/intent？**
+### 部署
 
-| 情境 | 建議 |
-|------|------|
-| 純 RRF 效果已夠 | 省略 `--entity-source`，不需準備詞典 |
-| 專業語料（神學、法律、醫學） | `--entity-source` + `--intent-source` 提升精確度 |
-| 自訂 domain | Python API: `EntityScorer.from_sources()` / `IntentClassifier.from_sources()` |
+`wenji serve` 預設無認證、無速率限制 — 對外發布前請照 [docs/deployment.md](docs/deployment.md) 走一遍：API key / CORS / 反代 / SEO meta / `wenji doctor` 驗庫。
 
----
-
-### 整合與生態
-
-**notoriouslab 相關專案**
+### 生態
 
 | 專案 | 說明 |
 |------|------|
-| [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | 繁體中文文本預處理工具 — CKIP 分詞 + bigram 索引生成，附可選擇的領域字典系統；可單獨搭配主流搜尋引擎使用 |
-| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian 本地語意搜尋與發掘 — 中文友善，無雲端、無 API Key、無訂閱費 |
+| [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | 繁體中文文本預處理 — CKIP 分詞 + bigram 索引，可搭配主流搜尋引擎 |
+| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian 本地語意搜尋 — 中文友善、無雲端、無 API Key |
 
-**擴展點**：entity/intent 詞典多來源組合（`from_sources`，last-write-wins）。詳見 [docs/extending.md](docs/extending.md)。
-
----
-
-### 貢獻
+### 貢獻與授權
 
 ```bash
 pip install -e ".[dev]"
-ruff check src/wenji tests/wenji   # linter
-pytest                              # unit（634 tests）
-pytest -m integration              # 真實 ONNX（需下載 ~600 MB）
+ruff check src/wenji tests/wenji && ruff format --check src/wenji tests/wenji
+pytest                              # unit
+pytest -m integration               # 真實 ONNX（需下載 ~600 MB）
 ```
 
-詳見 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-### 授權
-
-[MIT](LICENSE) © 2026 notoriouslab
+詳見 [CONTRIBUTING.md](CONTRIBUTING.md)。[MIT](LICENSE) © 2026 notoriouslab
 
 ---
 
@@ -317,58 +120,23 @@ pytest -m integration              # 真實 ONNX（需下載 ~600 MB）
 | | |
 |---|---|
 | **What** | Drop a folder of markdown files in, get hybrid search + a web UI out. |
-| **Who for** | Anyone with a Chinese (or mixed-language) markdown corpus — sermons, lecture notes, legal text, classical poetry, blog posts — who wants real search without renting a vector DB. |
-| **Stack** | SQLite FTS5 (BM25) + ONNX BGE-M3 (vector) + libsimple (CJK tokenizer) + FastAPI + Jinja2 |
-| **Indexing cost** | **Zero LLM calls.** Deterministic, byte-identical rebuild from disk. |
-| **LLM use** | Optional, query-time only, cached, with a structured fallback that works without any LLM. |
-| **Deploy size** | One Python process, one SQLite file. No external services. |
-| **Tested on** | Python 3.10 / 3.11 / 3.12 — 641 tests (634 unit + 7 integration). 3.13 not yet supported (`pyproject.toml` pins `requires-python = ">=3.10,<3.13"`). |
+| **Who for** | Anyone with a Chinese (or mixed-language) markdown corpus who wants real search without renting a vector DB. |
+| **Stack** | SQLite FTS5 (BM25) + ONNX BGE-M3 (vector) + libsimple (CJK tokenizer) + FastAPI |
+| **Indexing** | **Zero LLM calls.** Deterministic, byte-identical rebuild from disk. |
+| **LLM use** | Optional, query-time only (`/api/ask`), cached, with a deterministic fallback. |
+| **Deploy** | One Python process, one SQLite file. Python 3.10–3.12. |
 
-### Why wenji?
-
-Most RAG frameworks are built around an "LLM-default" assumption: extract entities with an LLM during ingest, build community summaries with an LLM, re-rank with an LLM. The cost grows with the corpus, and the system stops working when the LLM is unavailable.
-
-wenji is built on the opposite premise — **LLM-essential, not LLM-default**:
-
-1. The indexing pipeline performs **zero** LLM calls.
-2. LLM use is restricted to query time, must be cached, and must have a deterministic structured fallback.
-3. Entity dictionaries, classification axes, and chunking strategies are user-supplied, not LLM-derived.
-
-The result: LLM cost scales with `unique queries × cache miss rate`, not with corpus size.
-
-### Quickstart (4 commands)
-
-> The demo corpus in `examples/articles/` ships only with the source checkout; point `ingest` at your own markdown directory otherwise.
+### Quickstart
 
 ```bash
 pip install wenji
-git clone https://github.com/notoriouslab/wenji   # demo corpus only
-wenji ingest dir wenji/examples/articles/ --db wenji.db
+wenji ingest dir <your-markdown-dir>/ --db wenji.db
 wenji serve --db wenji.db --port 8000
 ```
 
-Bulk-ingest operations: resume an interrupted run by **re-running the same `wenji ingest dir` command** (unchanged articles take the content-hash fast path, no re-embedding; `rebuild` always starts from a wipe — don't use it to resume). Add `--skip-bad` to skip files with broken frontmatter (listed at the end, exit 1).
-
-Then open `http://127.0.0.1:8000` — full Web UI with search, tag browsing, and article viewer.
-
-To search from the command line:
-
-```bash
-wenji search "勞動契約" --db wenji.db --top-k 5
-```
-
-### Common paths
-
-| Scenario | Command |
-|----------|---------|
-| CLI search | `wenji search "<query>" --db wenji.db` |
-| Web UI + tag browsing | `wenji serve --db wenji.db` → `/tags`, `/tag/<name>` |
-| Domain corpus (entity/intent) | `wenji serve --entity-source example:corpus-christian --intent-source example:corpus-christian` |
-| Eval regression baseline | `wenji eval run-benchmark --db wenji.db` before/after any retrieval change |
+Open `http://127.0.0.1:8000` for the full web UI (search, tag browsing, article viewer). No corpus handy? Clone this repo and ingest `examples/articles/`.
 
 ### Search pipeline
-
-`Searcher.search()` runs an 8-step pipeline:
 
 ```
 entity detect → intent detect → alias expand
@@ -376,72 +144,31 @@ entity detect → intent detect → alias expand
   → entity scoring + filter → snippet hydration
 ```
 
-Without `--entity-source` / `--intent-source`, the entity/intent steps are skipped and the pipeline degrades to RRF + chunk signals (still an improvement over v0.3.5 linear hybrid).
+The entity/intent layer is optional (`--entity-source example:corpus-christian`); without it the pipeline degrades to RRF + chunk signals. Classification axes come from a user-supplied `axes.yaml` (rules on `source_type` / `tag` / `title_regex` / `subtype`) and are derived data — rebuilt any time.
 
-### Core modules
+### Going further
 
-| Module | Purpose |
-|--------|---------|
-| `wenji.ingest` | Disk-as-SSOT markdown ingest: frontmatter, NFKC normalization, deterministic IDs, content hashing, 4 chunking strategies. |
-| `wenji.search` | Hybrid retrieval: 8-step pipeline (BM25 + vector + RRF + entity/intent). |
-| `wenji.classify` | Corpus-agnostic multi-axis rule engine. Drop your `axes.yaml`, get tagged articles. |
-| `wenji.eval` | JSONL-driven eval runner with jitter-aware gates. |
-| `wenji.ask` | RAG question answering (`POST /api/ask`), chunk-level citations, 30-day LLM cache. |
-| `wenji.observability` | Corpus snapshot + query pipeline trace (`/api/stats`, `/api/segment`). |
-
-### LLM setup (optional, for `/api/ask`)
-
-Any OpenAI-compatible endpoint (Groq, OpenRouter, Together, Gemini, vLLM, llama.cpp…):
-
-```bash
-export WENJI_LLM_BASE_URL=https://api.groq.com/openai/v1
-export WENJI_LLM_API_KEY=<your-key>
-export WENJI_LLM_MODEL=llama-3.3-70b-versatile
-```
-
-Retrieval itself never calls an LLM; on LLM failure `/api/ask` returns `answer=null` with citations intact.
-
-### Configuration
-
-```yaml
-# axes.yaml — excerpt from examples/axes.yaml
-axes:
-  - id: sermon
-    name: 講道
-    short: 講道
-    order: 1
-    description: 講道 / 信仰主題長文
-    rules:
-      - source_type: sermon
-        primary: true
-```
-
-Each rule supports `source_type` / `tag` / `title_regex` (regex search) / `subtype` fields combined with AND, plus hierarchical `parent: <id>`. Axes are derived data — `wenji rebuild` always regenerates them deterministically.
+- **Deployment** (auth, CORS, SEO meta, secrets hygiene, platforms, ops): [docs/deployment.md](docs/deployment.md)
+- **Extending** (entity/intent dictionaries, `wenji.yaml` tuning, `from_sources`): [docs/extending.md](docs/extending.md)
+- **Eval**: `wenji eval run-benchmark` — run before/after any retrieval change; pass counts and miss lists must not regress.
 
 ### Ecosystem
 
 | Project | Description |
 |---------|-------------|
-| [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | Traditional Chinese text preprocessing: CKIP segmentation + bigram index generation, with optional domain dictionaries. Works standalone with any major search engine. |
-| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian local semantic search and discovery — Chinese-friendly, no cloud, no API key, no subscription. Your notes never leave your machine. |
-
-Extension point: compose entity/intent dictionaries from multiple sources (`from_sources`, last-write-wins). See [docs/extending.md](docs/extending.md).
+| [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | Traditional Chinese preprocessing: CKIP segmentation + bigram index generation. |
+| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian local semantic search — Chinese-friendly, no cloud, no API key. |
 
 ### Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=notoriouslab/wenji&type=Date)](https://star-history.com/#notoriouslab/wenji&Date)
 
-### Development
+### Development & license
 
 ```bash
 pip install -e ".[dev]"
-ruff check src/wenji tests/wenji
-pytest                    # unit
-pytest -m integration     # ~600 MB model download, real ONNX
+ruff check src/wenji tests/wenji && ruff format --check src/wenji tests/wenji
+pytest && pytest -m integration
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR flow.
-
-### License
-
-[MIT](LICENSE) © 2026 notoriouslab
+See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE) © 2026 notoriouslab
