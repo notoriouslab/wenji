@@ -98,7 +98,7 @@ axes:
 | 專案 | 說明 |
 |------|------|
 | [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | 繁體中文文本預處理 — CKIP 分詞 + bigram 索引，可搭配主流搜尋引擎 |
-| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian 本地語意搜尋 — 中文友善、無雲端、無 API Key |
+| [vault-curate](https://github.com/notoriouslab/vault-curate) | Obsidian 本地語意搜尋 — 中文友善、無雲端、無 API Key |
 
 ### 貢獻與授權
 
@@ -157,7 +157,7 @@ The entity/intent layer is optional (`--entity-source example:corpus-christian`)
 | Project | Description |
 |---------|-------------|
 | [trad-zh-search](https://github.com/notoriouslab/trad-zh-search) | Traditional Chinese preprocessing: CKIP segmentation + bigram index generation. |
-| [vault-search](https://github.com/notoriouslab/vault-search) | Obsidian local semantic search — Chinese-friendly, no cloud, no API key. |
+| [vault-curate](https://github.com/notoriouslab/vault-curate) | Obsidian local semantic search — Chinese-friendly, no cloud, no API key. |
 
 ### Star History
 
