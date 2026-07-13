@@ -35,7 +35,8 @@
 ## Phase 4 — D5: G4 實驗（主實驗 + 權重 fallback 對照）
 
 - [ ] 4.1 **退化持平驗證**（先行）：v4 未 backfill 的 parity db 副本跑 80q+r14 → 必須 = 75/80 同 miss 清單（D6 合約的真基準驗證）
-- [ ] 4.2 parity db backfill 全量（時長按 0.3 外推；`caffeinate` 防睡眠；中斷用續跑）；記錄實際時長 + 完成後 doctor 覆蓋率 100%；實測查詢延遲（before/after 各 20 query 中位數）與 serve RSS（D3 記憶體帳驗證）
+- [ ] 4.2a **兩階段 G4 之先導（cheap-first）**：(i) threads 前置驗證 — 同一 chunk 在 `WENJI_ONNX_THREADS=2` vs 8 下 encode，vec **bytewise 比對**（漂移 → 全程鎖 2；一致 → 本機開高加速）；(ii) 注入式 backfill — 只對 v3 35 題的 gold + 各題現有 top-50 候選文章（去重 ~1,500 篇 ≈ 1.2 萬 chunks，<1h）建向量（臨時腳本按 article_id 白名單跑 backfill 差集邏輯）；(iii) 跑 v3 Part A — **偏差方向已知（只會高估）→ 先導無改善 = 呈維護者提前 discard，全量不跑**；有改善 → 4.2b
+- [ ] 4.2b **（條件式）parity db backfill 全量**：先清掉先導向量（DELETE 全表）再全量跑（避免混批），threads 按 4.2a 結果；nohup + `caffeinate` 過夜、中斷用續跑；記錄實際時長 + doctor 覆蓋率 100%；實測查詢延遲（before/after 各 20 query 中位數）與 serve RSS（D3 記憶體帳驗證）
 - [ ] 4.3 落實 D5: G4 實驗設計 — 主實驗與權重 fallback 對照分開判。主實驗：backfill 後跑 v3 Part A（hit@1/3/10 + MRR）+ 80q+r14；判準 = **v3 hit@3 上升 且 80q 不劣化** → keep，否則整路 revert；per-題翻轉清單記入 change 附錄
 - [ ] 4.4 對照實驗：BM25 零訊號時 vector 系權重 ×1.5 / ×2.0 疊加量測（v3 + 80q 同跑）；獨立 keep/discard；結果入附錄
 - [ ] 4.5 G4 判決記錄 + 維護者確認 → **commit boundary**（判決為 discard 時：revert 檢索側、保留 schema/backfill 基建與否交維護者裁決）

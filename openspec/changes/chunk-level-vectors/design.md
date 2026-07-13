@@ -78,7 +78,8 @@
 
 ### D5: G4 實驗設計 — 主實驗與權重 fallback 對照分開判
 
-- **主實驗（3-way）**：parity db backfill → 跑 v3 Part A（35 題 hit@1/3/10 + MRR）+ 80q+r14 → 對照 baseline（v3 51.4% / 80q 75）。**keep = v3 hit@3 上升 且 80q pass 數與 miss 清單不劣化**；v3 下降或 80q 劣化 → discard（feature flag 不留，整路 revert — 半殘通道是維護債）
+- **兩階段執行（維護者 2026-07-13 拍板）**：先導 = 注入式 backfill（v3 gold + 各題 top-50 候選 ≈ 1.2 萬 chunks，<1h）跑 v3 — 偏差方向已知（未覆蓋文章在 chunk 通道隱形 → 只會**高估**改善），故先導無改善即可提前 discard 省下全量；先導有效才付全量成本做真判決（keep 判決永遠以全量為準，先導分數不作 keep 依據）。threads 前置驗證（2 vs 8 bytewise）決定本機 backfill 併發度。
+- **主實驗(3-way)**：parity db **全量** backfill → 跑 v3 Part A（35 題 hit@1/3/10 + MRR）+ 80q+r14 → 對照 baseline（v3 51.4% / 80q 75）。**keep = v3 hit@3 上升 且 80q pass 數與 miss 清單不劣化**；v3 下降或 80q 劣化 → discard（feature flag 不留，整路 revert — 半殘通道是維護債）
 - **對照實驗（向量權重 fallback）**：BM25 通道（article+chunk-BM25）皆零訊號時，RRF 中 vector 系通道權重 ×w（w 掃 1.5/2.0）— 在 3-way 架構上疊加量測；獨立 keep/discard
 - **量測紀錄**：兩實驗的 per-題翻轉清單（哪些 miss→hit、哪些 hit→miss）入 change 附錄 — 防「總分升但個題劣化被平均掩蓋」
 - 環境：本機 parity db + ort 1.26 鎖版；`unset WENJI_CONFIG`
