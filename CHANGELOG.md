@@ -5,6 +5,14 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] — 2026-07-13
+
+### Fixed
+
+- Search-result snippets no longer leak raw markdown image/link syntax:
+  `content_snippet` now strips markdown via the same AST pass the
+  chunk-level snippets have used since 0.4.
+
 ## [0.5.0] — 2026-07-12
 
 ### Removed (BREAKING)

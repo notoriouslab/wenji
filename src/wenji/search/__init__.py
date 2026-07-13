@@ -333,7 +333,12 @@ class Searcher:
             for r in top_n:
                 cr, tr = content_map.get(r["article_id"], ("", None))
                 r["content_full"] = cr[:500]
-                r["content_snippet"] = make_snippet(cr, [effective_query])
+                # Strip markdown before excerpting — raw image/link syntax in
+                # content_raw otherwise leaks into the search-result snippet
+                # (the chunk-level snippet path has done this since v0.4).
+                r["content_snippet"] = make_snippet(
+                    _strip_markdown_for_snippet(cr), [effective_query]
+                )
                 if "tags" not in r:
                     try:
                         r["tags"] = json.loads(tr) if tr and tr.strip() else []

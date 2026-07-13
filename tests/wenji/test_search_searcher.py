@@ -218,3 +218,34 @@ def test_searcher_six_parameter_construction(populated_db, mock_embedder):
         intent_classifier=None,
     )
     assert s.search("禱告", limit=3) is not None
+
+
+def test_content_snippet_strips_markdown_image_syntax(populated_db, mock_embedder):
+    """Raw image markdown in content_raw must not leak into search snippets
+    (prod report 2026-07-13: snippets showed ![](https://...jpeg))."""
+    populated_db.execute(
+        "INSERT INTO articles_meta (article_id, title, source_type, path, indexed_at) "
+        "VALUES ('img1', '圖片文', 'sermon', '/tmp/img1.md', '2026-07-13T00:00:00')"
+    )
+    body = "![](https://example.com/photo.jpeg)\n\n這是關於禱告生活的一段內文，前面有一張圖片。"
+    populated_db.execute(
+        "INSERT INTO articles_fts (article_id, title, title_raw, content, content_raw, "
+        "tags, tags_raw, category, source_type, pub_date, pub_year) "
+        "VALUES ('img1', '圖片文', '圖片文', ?, ?, '', '', '', 'sermon', '', '')",
+        (body, body),
+    )
+    import numpy as np
+
+    vec = np.ones(1024, dtype=np.float32) / 32.0
+    populated_db.execute(
+        "INSERT INTO doc_vectors (article_id, vec) VALUES ('img1', ?)", (vec.tobytes(),)
+    )
+    populated_db.commit()
+
+    s = Searcher(populated_db, mock_embedder)
+    results = s.search("禱告生活", limit=10)
+    target = next((r for r in results if r["article_id"] == "img1"), None)
+    assert target is not None
+    assert "![](" not in target["content_snippet"]
+    assert "https://example.com/photo.jpeg" not in target["content_snippet"]
+    assert "禱告生活" in target["content_snippet"].replace("<mark>", "").replace("</mark>", "")
