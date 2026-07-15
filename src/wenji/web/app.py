@@ -53,17 +53,6 @@ WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
 
-TOPIC_SHORTCUTS = [
-    {
-        "category": "靈修與實踐",
-        "topics": ["禱告的意義", "禁食禱告", "靈命成長", "屬靈爭戰", "讀經方法"],
-    },
-    {
-        "category": "教會與事工",
-        "topics": ["門訓落實", "小組事工", "宣教策略", "青年牧區", "領袖培育"],
-    },
-]
-
 
 _MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
@@ -208,12 +197,15 @@ def create_app(
         Path(db_path) if db_path else Path(os.environ.get("WENJI_DB_PATH", "data/wenji.db"))
     )
 
-    # search.* tuning (alpha / candidate_pool / default_limit) resolves from
-    # WENJI_CONFIG at factory time; a broken config file fails app startup
-    # loudly instead of silently falling back to defaults.
+    # search.* tuning (alpha / candidate_pool / default_limit) and web.*
+    # homepage strings resolve from WENJI_CONFIG at factory time; a broken
+    # config file fails app startup loudly instead of silently falling back
+    # to defaults.
     from wenji.config import load_config, resolve_config_path
 
-    search_cfg = load_config(resolve_config_path()).search
+    _cfg = load_config(resolve_config_path())
+    search_cfg = _cfg.search
+    web_cfg = _cfg.web
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -1052,7 +1044,10 @@ def create_app(
                 "tag": tag,
                 "source_type": source_type,
                 "year": year,
-                "topic_shortcuts": TOPIC_SHORTCUTS,
+                "topic_shortcuts": web_cfg.topic_shortcuts,
+                "hero_title": web_cfg.hero_title,
+                "hero_subtitle": web_cfg.hero_subtitle,
+                "search_placeholder": web_cfg.search_placeholder,
                 "results": results,
                 "axes": axes,
                 "facets": facets,

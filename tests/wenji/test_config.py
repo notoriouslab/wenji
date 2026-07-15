@@ -94,3 +94,68 @@ def test_search_config_defaults_match_module():
     sc = SearchConfig()
     assert sc.alpha == 0.25
     assert sc.candidate_pool == 50
+
+
+# ---- web section (0.5.2) ----
+
+
+def test_web_defaults_when_unset(tmp_path):
+    cfg = load_config(None)
+    assert cfg.web.hero_title == "UNCOVER DEEPER TRUTH."
+    assert cfg.web.hero_subtitle is None
+    assert "屬靈操練" in cfg.web.search_placeholder
+    assert len(cfg.web.topic_shortcuts) == 2
+    assert cfg.web.topic_shortcuts[0]["icon"] == "🧘"
+    # yaml without a web: key behaves identically
+    cfg2 = load_config(write_yaml(tmp_path / "w.yaml", "search: {alpha: 0.3}\n"))
+    assert cfg2.web == cfg.web
+
+
+def test_web_custom_values(tmp_path):
+    cfg = load_config(
+        write_yaml(
+            tmp_path / "w.yaml",
+            """
+web:
+  hero_title: 教會規章搜尋
+  hero_subtitle: 內部規章知識庫
+  search_placeholder: 例如：會議室怎麼借？
+  topic_shortcuts:
+    - category: 行政庶務
+      icon: "🏢"
+      topics: [場地借用, 車馬費]
+""",
+        )
+    )
+    assert cfg.web.hero_title == "教會規章搜尋"
+    assert cfg.web.hero_subtitle == "內部規章知識庫"
+    assert cfg.web.search_placeholder == "例如：會議室怎麼借？"
+    assert cfg.web.topic_shortcuts == (
+        {"category": "行政庶務", "icon": "🏢", "topics": ["場地借用", "車馬費"]},
+    )
+
+
+def test_web_empty_shortcuts_is_explicit_hide(tmp_path):
+    cfg = load_config(write_yaml(tmp_path / "w.yaml", "web:\n  topic_shortcuts: []\n"))
+    assert cfg.web.topic_shortcuts == ()
+
+
+def test_web_shortcut_missing_category_raises(tmp_path):
+    p = write_yaml(tmp_path / "w.yaml", "web:\n  topic_shortcuts:\n    - topics: [a]\n")
+    with pytest.raises(ConfigError, match="category"):
+        load_config(p)
+
+
+def test_web_shortcut_bad_topics_raises(tmp_path):
+    p = write_yaml(
+        tmp_path / "w.yaml",
+        "web:\n  topic_shortcuts:\n    - category: x\n      topics: 場地\n",
+    )
+    with pytest.raises(ConfigError, match="topics"):
+        load_config(p)
+
+
+def test_web_must_be_mapping(tmp_path):
+    p = write_yaml(tmp_path / "w.yaml", "web: [1, 2]\n")
+    with pytest.raises(ConfigError, match="'web' must be a mapping"):
+        load_config(p)
