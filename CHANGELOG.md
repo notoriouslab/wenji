@@ -5,6 +5,15 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] — 2026-07-15
+
+### Added
+
+- Homepage strings are now configurable via a `web:` section in `wenji.yaml`
+  (`hero_title`, `hero_subtitle`, `search_placeholder`, `topic_shortcuts`).
+  Unset keys keep the previous built-in defaults; `topic_shortcuts: []`
+  hides the section.
+
 ## [0.5.1] — 2026-07-13
 
 ### Fixed
