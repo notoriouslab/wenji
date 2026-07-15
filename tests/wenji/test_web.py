@@ -648,3 +648,60 @@ def test_unset_cors_does_not_install_middleware(populated_db, tmp_path, monkeypa
     # Inspect middleware stack: starlette stores middlewares in user_middleware
     middleware_classes = [m.cls.__name__ for m in app.user_middleware]
     assert "CORSMiddleware" not in middleware_classes
+
+
+# ---- web.* homepage config (0.5.2) ----
+
+
+def test_homepage_renders_default_shortcuts(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "禱告的意義" in r.text
+    assert "UNCOVER DEEPER TRUTH." in r.text
+
+
+def test_homepage_renders_configured_shortcuts(populated_db, tmp_path, monkeypatch):
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    cfg = tmp_path / "wenji.yaml"
+    cfg.write_text(
+        """
+web:
+  hero_title: 教會規章搜尋
+  hero_subtitle: 內部規章知識庫
+  search_placeholder: 例如：會議室怎麼借？
+  topic_shortcuts:
+    - category: 行政庶務
+      icon: "🏢"
+      topics: [場地借用, 車馬費請領]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WENJI_CONFIG", str(cfg))
+    app = create_app(db_path=file_db, searcher=_FakeSearcher())
+    r = TestClient(app).get("/")
+    assert r.status_code == 200
+    assert "教會規章搜尋" in r.text
+    assert "內部規章知識庫" in r.text
+    assert "會議室怎麼借" in r.text
+    assert "場地借用" in r.text
+    assert "🏢" in r.text
+    assert "禱告的意義" not in r.text
+    assert "UNCOVER DEEPER TRUTH." not in r.text
+
+
+def test_homepage_empty_shortcuts_hides_section(populated_db, tmp_path, monkeypatch):
+    file_db = tmp_path / "wenji.db"
+    backup_conn = __import__("sqlite3").connect(str(file_db))
+    populated_db.backup(backup_conn)
+    backup_conn.close()
+    cfg = tmp_path / "wenji.yaml"
+    cfg.write_text("web:\n  topic_shortcuts: []\n", encoding="utf-8")
+    monkeypatch.setenv("WENJI_CONFIG", str(cfg))
+    app = create_app(db_path=file_db, searcher=_FakeSearcher())
+    r = TestClient(app).get("/")
+    assert r.status_code == 200
+    assert "topic-discovery" not in r.text
+    assert "禱告的意義" not in r.text
