@@ -63,14 +63,16 @@
 
 ## Phase 5 — 前端（D6、D7、D10）
 
-- [ ] 5.1 `config/defaults.py` 新增 `ask_hint`、`ask_placeholder`、`ask_examples` 三鍵，預設值逐字沿用 `base.html` 現行文案（`直接輸入問題，由 AI 從語料中檢索並總結回答。`／`例如：靈命成長的關鍵是什麼？`／`[]`）
-- [ ] 5.2 `config/loader.py` 的 `WebConfig` 加三個欄位與型別驗證（`ask_examples` 非 list 時 raise `ConfigError`） ｜ Requirement: Ask copy is configurable
-- [ ] 5.3 新增 `templates/ask.html`：兩欄版面、`?q=` 預填、noindex meta、範例題區（`ask_examples` 為空則不渲染） ｜ Requirement: Dedicated ask page
-- [ ] 5.4 `web/app.py` 新增 `GET /ask` route；`robots.txt` 加 `Disallow: /ask`
+- [x] 5.1 `config/defaults.py` 新增 `ask_hint`、`ask_placeholder`、`ask_examples` 三鍵，預設值逐字沿用 `base.html` 現行文案（`直接輸入問題，由 AI 從語料中檢索並總結回答。`／`例如：靈命成長的關鍵是什麼？`／`[]`）
+- [x] 5.2 `config/loader.py` 的 `WebConfig` 加三個欄位與型別驗證（`ask_examples` 非 list 時 raise `ConfigError`） ｜ Requirement: Ask copy is configurable
+- [x] 5.3 新增 `templates/ask.html`：兩欄版面、`?q=` 預填、noindex meta、範例題區（`ask_examples` 為空則不渲染） ｜ Requirement: Dedicated ask page
+- [x] 5.4 `web/app.py` 新增 `GET /ask` route；`robots.txt` 加 `Disallow: /ask`
+**段 A 完成（5.1-5.4、5.8）；段 B 待做（5.5-5.7、5.9）**。段 A 後的暫時狀態：`/ask` 讀 config 文案，但側欄 panel 的文案仍寫死在 `base.html:56,58`（5.7 才接），因此三個 config 鍵目前只接了一半。
+
 - [ ] 5.5 `static/ask.js` 改寫：SSE 優先、503 時降級為 `POST /api/ask`；維護 client-side turn 陣列；引用區渲染 `chunk_texts` 並 clamp 3 行 + 展開；複製答案按鈕
 - [ ] 5.6 `static/style.css` 新增 `.chat-input-area`、`.chat-input-area textarea`、`.chat-submit`、`.chat-select`、`.ask-two-col`、`.ask-citation-clamp` 規則；submit 對比 ≥4.5:1；textarea 撐滿容器寬 ｜ Requirement: Ask input controls have explicit styling
 - [ ] 5.7 `base.html` 移除問答區 inline `style` 與 `space-between` 佈局，文案改讀 config；側欄面板寬度 500→640px（<900px 全螢幕）
-- [ ] 5.8 測試：`GET /ask` 回 200 且含 noindex；`robots.txt` 含 `Disallow: /ask`；`ask_examples: []` 時 HTML 無範例區；未配置 `web:` 時文案與 0.5.2 逐字相同
+- [x] 5.8 測試：`GET /ask` 回 200 且含 noindex；`robots.txt` 含 `Disallow: /ask`；`ask_examples: []` 時 HTML 無範例區；未配置 `web:` 時文案與 0.5.2 逐字相同
 - [ ] 5.9 Dogfood：本機 :8803 規章鏡像用 browse 截圖（空狀態／串流中／有答案／375px 手機），確認 submit 對比與 textarea 寬度符合 spec；**同步截圖文章彙整報告面板（`#chat-panel`／`aggregate-form`）確認按鈕與下拉外觀未回歸**（三個 class 為兩區共用，見 design D10 共用範圍）
 
 ## Phase 6 — over-fetch 修復（D8）

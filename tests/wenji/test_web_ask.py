@@ -351,3 +351,88 @@ def test_api_ask_stream_closes_db_when_client_disconnects_early(
                 break  # walk away mid-answer
 
     assert closed, "the generator's finally must close the connection on disconnect"
+
+
+# ---------------------------------------------------------------------------
+# GET /ask page (phase 5A)
+# ---------------------------------------------------------------------------
+
+
+def test_ask_page_renders_and_is_noindex(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_FakeLLM())
+    r = c.get("/ask")
+    assert r.status_code == 200
+    assert 'name="robots"' in r.text and "noindex" in r.text
+    assert "AI 自由問答" in r.text
+    # default copy comes from config, not a hardcoded template string
+    assert "直接輸入問題，由 AI 從語料中檢索並總結回答。" in r.text
+    assert "例如：靈命成長的關鍵是什麼？" in r.text
+
+
+def test_ask_page_prefills_query_from_querystring(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_FakeLLM())
+    r = c.get("/ask", params={"q": "特休假怎麼算"})
+    assert r.status_code == 200
+    assert "特休假怎麼算" in r.text
+    assert "window.WENJI_ASK_AUTOSUBMIT = true" in r.text
+
+
+def test_ask_page_does_not_autosubmit_without_query(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_FakeLLM())
+    assert "window.WENJI_ASK_AUTOSUBMIT = false" in c.get("/ask").text
+
+
+def test_ask_page_escapes_query_into_the_textarea(file_db: Path) -> None:
+    """?q= is attacker-controlled and lands in HTML."""
+    c = _make_client(file_db, llm=_FakeLLM())
+    r = c.get("/ask", params={"q": "<script>alert(1)</script>"})
+    assert "<script>alert(1)</script>" not in r.text
+    assert "&lt;script&gt;" in r.text
+
+
+def test_ask_page_hides_examples_when_unset(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_FakeLLM())
+    assert "ask-examples" not in c.get("/ask").text
+
+
+def test_ask_page_renders_configured_examples(
+    file_db: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = tmp_path / "wenji.yaml"
+    cfg.write_text(
+        "web:\n  ask_hint: 問規章\n  ask_placeholder: 例如：婚假幾天\n"
+        "  ask_examples:\n    - 婚假可以請幾天\n    - 借會議室怎麼申請\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WENJI_CONFIG", str(cfg))
+    c = _make_client(file_db, llm=_FakeLLM())
+    r = c.get("/ask")
+    assert "問規章" in r.text
+    assert "例如：婚假幾天" in r.text
+    assert "婚假可以請幾天" in r.text
+    assert "借會議室怎麼申請" in r.text
+
+
+def test_robots_txt_disallows_ask(file_db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WENJI_SITE_URL", "https://example.test")
+    c = _make_client(file_db, llm=_FakeLLM())
+    body = c.get("/robots.txt").text
+    assert "Disallow: /ask" in body
+
+    # Without a site URL the whole site is already denied, which covers /ask.
+    monkeypatch.delenv("WENJI_SITE_URL")
+    c2 = _make_client(file_db, llm=_FakeLLM())
+    assert c2.get("/robots.txt").text == "User-agent: *\nDisallow: /\n"
+
+
+def test_ask_page_loads_ask_js_exactly_once(file_db: Path) -> None:
+    """base.html already ships ask.js on every page.
+
+    A second tag on the ask page would fetch and execute the IIFE twice,
+    double-binding every handler.
+    """
+    c = _make_client(file_db, llm=_FakeLLM())
+    body = c.get("/ask").text
+    assert body.count("/static/ask.js") == 1

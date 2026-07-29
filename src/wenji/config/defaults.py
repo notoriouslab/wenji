@@ -23,6 +23,11 @@ DEFAULT_WEB_CONFIG: dict = {
     # None → template renders the built-in subtitle with site_name interpolated.
     "hero_subtitle": None,
     "search_placeholder": "搜尋關於屬靈操練、教會事工或神學的問題...",
+    # Ask panel / page copy. Defaults reproduce the strings that were hardcoded
+    # in base.html through 0.5.2, so an unconfigured deployment renders as before.
+    "ask_hint": "直接輸入問題，由 AI 從語料中檢索並總結回答。",
+    "ask_placeholder": "例如：靈命成長的關鍵是什麼？",
+    "ask_examples": [],
     "topic_shortcuts": [
         {
             "category": "靈修與實踐",
@@ -36,5 +41,6 @@ DEFAULT_WEB_CONFIG: dict = {
         },
     ],
 }
-"""Homepage strings/shortcuts. Deployers override via ``web:`` in wenji.yaml;
-``topic_shortcuts: []`` hides the section entirely."""
+"""Homepage + ask strings/shortcuts. Deployers override via ``web:`` in
+wenji.yaml; ``topic_shortcuts: []`` and ``ask_examples: []`` each hide their
+section entirely."""

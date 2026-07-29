@@ -159,3 +159,49 @@ def test_web_must_be_mapping(tmp_path):
     p = write_yaml(tmp_path / "w.yaml", "web: [1, 2]\n")
     with pytest.raises(ConfigError, match="'web' must be a mapping"):
         load_config(p)
+
+
+def test_web_ask_defaults_reproduce_pre_0_6_hardcoded_copy():
+    """An unconfigured deployment must render the strings 0.5.2 hardcoded."""
+    cfg = load_config(None)
+    assert cfg.web.ask_hint == "直接輸入問題，由 AI 從語料中檢索並總結回答。"
+    assert cfg.web.ask_placeholder == "例如：靈命成長的關鍵是什麼？"
+    assert cfg.web.ask_examples == ()
+
+
+def test_web_ask_custom_values(tmp_path):
+    cfg = load_config(
+        write_yaml(
+            tmp_path / "w.yaml",
+            """
+web:
+  ask_hint: 問一句，我幫你查規章
+  ask_placeholder: 例如：婚假可以請幾天？
+  ask_examples:
+    - 婚假可以請幾天
+    - 借六樓會議室要提前多久
+""",
+        )
+    )
+    assert cfg.web.ask_hint == "問一句，我幫你查規章"
+    assert cfg.web.ask_placeholder == "例如：婚假可以請幾天？"
+    assert cfg.web.ask_examples == ("婚假可以請幾天", "借六樓會議室要提前多久")
+
+
+def test_web_ask_examples_must_be_a_list(tmp_path):
+    p = write_yaml(tmp_path / "w.yaml", "web:\n  ask_examples: 婚假幾天\n")
+    with pytest.raises(ConfigError, match="ask_examples"):
+        load_config(p)
+
+
+def test_web_ask_examples_reject_blank_entries(tmp_path):
+    p = write_yaml(tmp_path / "w.yaml", 'web:\n  ask_examples: ["婚假幾天", "  "]\n')
+    with pytest.raises(ConfigError, match="non-empty"):
+        load_config(p)
+
+
+def test_web_ask_partial_override_keeps_other_defaults(tmp_path):
+    cfg = load_config(write_yaml(tmp_path / "w.yaml", "web:\n  ask_hint: 只改這一句\n"))
+    assert cfg.web.ask_hint == "只改這一句"
+    assert cfg.web.ask_placeholder == "例如：靈命成長的關鍵是什麼？"
+    assert cfg.web.hero_title == "UNCOVER DEEPER TRUTH."
