@@ -23,7 +23,7 @@ from typing import Any
 from wenji.aggregate import Filter, SourceRef
 from wenji.aggregate.cache import cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
-from wenji.ask.prompts import ASK_PROMPT
+from wenji.ask.prompts import ASK_PROMPT, FOLLOWUP_REWRITE_PROMPT
 from wenji.core.safety import sanitize_prompt_input
 from wenji.search import Searcher, strip_markdown_for_snippet
 from wenji.search.bm25 import build_fts_query_or
@@ -36,6 +36,10 @@ MAX_CHUNKS_PER_CITATION = 3
 
 #: Per-chunk character cap in the prompt, bounding token cost for long chunks.
 MAX_CHUNK_CHARS_IN_PROMPT = 1200
+
+#: Conversation turns considered when rewriting a follow-up. The web layer
+#: rejects longer histories; the library slices defensively for direct callers.
+MAX_HISTORY_TURNS = 10
 
 __all__ = [
     "Asker",
@@ -135,14 +139,63 @@ class Asker:
         k: int,
         axis: str | None,
         filter: Filter | None,
+        history: list[dict[str, Any]] | None = None,
     ) -> str:
-        canonical = {
+        """Key an answer by its inputs.
+
+        The same follow-up ("那病假呢？") means different things under different
+        histories, so the turns participate in the key. They are keyed rather
+        than the rewritten query so that a cache hit costs **zero** LLM calls —
+        keying on the rewrite would force a rewrite call before every lookup.
+
+        Single-turn keys stay byte-identical to 0.5.x (the ``history`` entry is
+        omitted when absent) so existing cache rows keep hitting.
+        """
+        canonical: dict[str, Any] = {
             "query": query,
             "k": k,
             "axis": axis,
             "filter": filter.canonical_dict() if filter is not None else None,
         }
+        if history:
+            canonical["history"] = [
+                {"role": t.get("role"), "content": t.get("content")}
+                for t in history[-MAX_HISTORY_TURNS:]
+            ]
         return cache_key("ask", canonical)
+
+    def _rewrite_for_retrieval(self, query: str, history: list[dict[str, Any]]) -> str:
+        """Condense history + follow-up into a self-contained retrieval query.
+
+        Used for retrieval only — the answer is always composed against the
+        user's own wording. On LLM failure this degrades to concatenating the
+        last user turn with the follow-up rather than aborting the request.
+        """
+        recent = history[-MAX_HISTORY_TURNS:]
+        fallback_parts = [
+            t.get("content", "")
+            for t in recent
+            if t.get("role") == "user" and str(t.get("content") or "").strip()
+        ]
+        fallback = f"{fallback_parts[-1]} {query}".strip() if fallback_parts else query
+
+        rendered = "\n".join(
+            f"{t.get('role')}: {sanitize_prompt_input(str(t.get('content') or ''))}" for t in recent
+        )
+        prompt = FOLLOWUP_REWRITE_PROMPT.format(
+            history=rendered,
+            followup=sanitize_prompt_input(query),
+        )
+        try:
+            raw = self.llm_client.chat([{"role": "user", "content": prompt}])
+        except LLMClientError as exc:
+            logger.warning(
+                "follow-up rewrite failed (%s); retrieving on concatenated turns",
+                exc,
+            )
+            return fallback
+        first_line = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
+        return first_line or fallback
 
     def _retrieve(
         self,
@@ -273,17 +326,25 @@ class Asker:
         k: int = 5,
         axis: str | None = None,
         filter: Filter | None = None,
+        history: list[dict[str, Any]] | None = None,
     ) -> Answer:
-        key = self._cache_key(query, k, axis, filter)
+        # Keyed on the turns, not the rewrite, so a repeat question costs no LLM
+        # call at all (rate limits are a real constraint on the deployments).
+        key = self._cache_key(query, k, axis, filter, history)
         cached = cache_get(self.db, key)
         if cached is not None:
             return _answer_from_dict(cached)
 
-        raw = self._retrieve(query, k=k, axis=axis, filter=filter)
+        # A follow-up ("那病假呢？") is not searchable on its own, so retrieval
+        # runs on a rewritten, self-contained query while the answer is still
+        # composed against the user's own wording.
+        retrieval_query = self._rewrite_for_retrieval(query, history) if history else query
+
+        raw = self._retrieve(retrieval_query, k=k, axis=axis, filter=filter)
         retrieval = self._to_source_refs(raw)
         # Citations carry the clause text the prompt is grounded on, so they are
         # built first and handed to _compose_prompt (SourceRef has no chunk text).
-        citations = self._build_citations(query, retrieval)
+        citations = self._build_citations(retrieval_query, retrieval)
 
         answer_text: str | None = None
         llm_failed = False

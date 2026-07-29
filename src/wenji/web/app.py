@@ -38,7 +38,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 
 from wenji.aggregate import Aggregator, Filter
 from wenji.aggregate.llm import LLMClient
-from wenji.ask import Asker
+from wenji.ask import MAX_HISTORY_TURNS, Asker
 from wenji.browse.tag import TagBrowser
 from wenji.classify.axes_loader import UNCLASSIFIED, AxesConfig, load_axes_config
 from wenji.core.db import connect
@@ -417,6 +417,40 @@ def create_app(
             return None
         value = value.strip()
         return int(value) if value.isdigit() else None
+
+    def _validate_history(raw: Any) -> list[dict[str, str]] | None:
+        """Validate caller-held conversation turns for a follow-up ask.
+
+        Mirrors the 400-on-bad-body style of this module rather than raising
+        422: every other field in ``/api/ask`` validates the same way.
+        """
+        if raw is None:
+            return None
+        if not isinstance(raw, list):
+            raise HTTPException(status_code=400, detail="'history' must be a list")
+        if len(raw) > MAX_HISTORY_TURNS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'history' accepts at most {MAX_HISTORY_TURNS} turns",
+            )
+        turns: list[dict[str, str]] = []
+        for turn in raw:
+            if not isinstance(turn, dict):
+                raise HTTPException(status_code=400, detail="'history' items must be objects")
+            role = turn.get("role")
+            content = turn.get("content")
+            if role not in ("user", "assistant"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="'history' role must be 'user' or 'assistant'",
+                )
+            if not isinstance(content, str) or not content.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="'history' content must be a non-empty string",
+                )
+            turns.append({"role": role, "content": content})
+        return turns or None
 
     def _build_filter(filter_dict: dict | None, demo_src: str | None = None) -> Filter | None:
         """Build a Filter from request body dict, merging demo_source constraint.
@@ -827,6 +861,7 @@ def create_app(
         axis = body.get("axis")
         if axis is not None and not isinstance(axis, str):
             raise HTTPException(status_code=400, detail="'axis' must be a string or null")
+        history = _validate_history(body.get("history"))
         filter_obj = _build_filter(body.get("filter"), demo_src=state["demo_source"])
         asker = _get_asker()
         try:
@@ -835,7 +870,7 @@ def create_app(
             # is acceptable for this deployment (single-tenant, /api/ask is
             # low-traffic); revisit if ask traffic grows.
             with _query_lock:
-                result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj)
+                result = asker.ask(q, k=k_raw, axis=axis, filter=filter_obj, history=history)
         finally:
             asker.db.close()
         payload = asdict(result)

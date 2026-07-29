@@ -42,7 +42,7 @@ Each citation object returned by `POST /api/ask` SHALL include `chunk_texts`: an
 
 ### Requirement: `/api/ask` accepts caller-held conversation history
 
-`POST /api/ask` SHALL accept an optional `history` field: a list of `{role, content}` objects where `role` is `"user"` or `"assistant"`. When `history` is non-empty, the server SHALL first call the LLM with the rewrite prompt to condense history plus the new question into one self-contained retrieval query, use that query for retrieval only, and SHALL NOT include the rewritten text in the response `answer`. When the rewrite call fails, the server SHALL fall back to concatenating the last user turn with the new question and SHALL still answer. The rewritten query SHALL be part of the answer cache key.
+`POST /api/ask` SHALL accept an optional `history` field: a list of `{role, content}` objects where `role` is `"user"` or `"assistant"`. When `history` is non-empty, the server SHALL first call the LLM with the rewrite prompt to condense history plus the new question into one self-contained retrieval query, use that query for retrieval only, and SHALL NOT include the rewritten text in the response `answer`. When the rewrite call fails, the server SHALL fall back to concatenating the last user turn with the new question and SHALL still answer. The conversation turns SHALL be part of the answer cache key. The key SHALL NOT depend on the rewritten query, so that a cache hit costs no LLM call at all. Single-turn requests SHALL produce the same key as before this change.
 
 #### Scenario: follow-up with elided subject retrieves the right document
 
@@ -53,6 +53,11 @@ Each citation object returned by `POST /api/ask` SHALL include `chunk_texts`: an
 
 - **WHEN** the rewrite LLM call raises `LLMClientError` and `history` is non-empty
 - **THEN** the endpoint returns HTTP 200 with an answer produced from the concatenated-query retrieval
+
+#### Scenario: repeated follow-up costs no LLM call
+
+- **WHEN** the same `q` and `history` are posted twice
+- **THEN** the second request makes zero LLM calls (neither rewrite nor answer) and returns the cached answer
 
 #### Scenario: history is optional
 

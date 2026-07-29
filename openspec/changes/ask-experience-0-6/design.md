@@ -70,7 +70,11 @@
 - 方案 B：前端字串串接（零 LLM 成本）。否決：追問三四輪後查詢被舊詞彙污染。
 - 方案 C：追問不重新檢索。否決：跨題追問（特休 → 借場地）直接答不出。
 
-**cache key**：改寫後的查詢字串納入 cache key，避免同一句追問在不同歷史下共用快取。
+**cache key（apply 中修正）**：初版設計寫「改寫後的查詢納入 cache key」。實作後發現這會迫使**每次查快取前都先呼叫一次改寫 LLM**（key 依賴改寫結果，形成雞生蛋問題），追問命中快取仍要付一次 LLM 成本；驗收期間已實際踩到 Groq 429，這個代價不可接受。改為**對話 turns 本身納入 key**（改寫前即可取得），快取命中則零 LLM 呼叫。代價是兩段不同歷史若改寫出相同查詢會各存一份，屬可接受的空間換取。單輪請求不含該鍵，key 與 0.5.x 逐位相同。
+
+**輸出形狀（apply 中補的決策）**：guard 傷疤一記載「rewrite prompt 從 keyword group（`|` 分隔）改成自然語句，80q 掉 10pp」。本案仍選**自然問句**輸出，理由：(a) 那個 rewriter 做的是查詢擴展、餵的是含 reranker 與 chunk 向量的舊 pipeline，兩者皆已移除，該對照不可直接套用；(b) 本案只解代詞與省略，輸出要繼續走向量通道，而規章語料實測顯示口語問句在向量通道表現正常（44 篇除巨檔外全 rank 1）；(c) 形狀已鎖進 `test_followup_rewrite_prompt_shape_is_locked`。若日後 80q 顯示追問型查詢退步，此決策是第一個該重驗的點。
+
+**history 是不可信輸入**：改寫 prompt 內每個 turn 的 content 都經 `sanitize_prompt_input` 後才插入，並有 `test_ask_history_content_is_sanitised_into_rewrite_prompt` 斷言注入的 `</history>` 被逃逸。
 
 ### D5 — streaming 傳輸形狀
 
