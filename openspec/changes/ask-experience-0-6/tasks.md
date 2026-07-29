@@ -109,7 +109,7 @@
 - [x] 7.9 `bash scripts/audit_release.sh`（檢查 exit code，不接 pipe）
 - [x] 7.10 `/code-self-review` 六點自審全過
 - [ ] 7.11 部署前置：清一次 `aggregate_cache`（`Citation` 欄位變更；預設值已防 `TypeError`，清快取確保引用立即帶 chunk 原文）
-- [ ] 7.12 CHANGELOG 0.6.0 條目（精簡風格，1-2 句帶過）+ `pyproject.toml` version bump + `pip install -e . --no-deps` 刷新本機 metadata
+- [x] 7.12 CHANGELOG 0.6.0 條目（精簡風格，1-2 句帶過）+ `pyproject.toml` version bump + `pip install -e . --no-deps` 刷新本機 metadata（2026-07-29 完成，`wenji.__version__` 實測回報 0.6.0）
 
 **Phase 7 驗收紀錄（2026-07-29，皆未碰 production）**
 

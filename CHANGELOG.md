@@ -5,6 +5,33 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-07-29
+
+### Added
+
+- `/ask` page: a dedicated Q&A UI with streamed answers, follow-up
+  questions, and expandable citations. Page copy is configurable via new
+  `web:` keys (`ask_hint`, `ask_placeholder`, `ask_examples`).
+- `GET /api/ask/stream` streams answers over SSE; the JSON endpoint
+  remains as fallback. The ask API also accepts conversation `history`
+  for follow-up questions.
+
+### Changed
+
+- Ask answers are now grounded on the retrieved chunk text instead of
+  document-level summaries, and citations carry the matched chunks
+  (`chunk_texts` / `chunk_indexes`). Markedly better at questions whose
+  answer is a specific figure inside a long document.
+- Failed LLM calls are no longer written to the answer cache.
+
+### Fixed
+
+- `/tags` returned HTTP 500 on Starlette ≥ 1.0.
+- `/api/search` with a demo-source filter could return fewer results
+  than `limit`.
+- `__version__` now derives from package metadata instead of a
+  hand-maintained constant.
+
 ## [0.5.2] — 2026-07-15
 
 ### Added
