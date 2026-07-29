@@ -105,10 +105,10 @@
 - [x] 7.5 G4 判定：80q 與 v3 皆不低於 before → Keep；任一低於 → 回退 7.1/7.2（D1-D8 不依賴 D9）；總分持平但 miss 題換人則逐題 diff 後再判。判定與逐題 diff 寫進本檔
 - [x] 7.6 5 題考卷 after 最終對照，結果寫進 `policy_qa_set.json` 的 `after_final` 區塊
 - [x] 7.7 規章站煙霧 4 題 rank-1 標題逐字比對（handoff runbook B）
-- [ ] 7.8 SSE 實機驗證（R1／common-ground K14）：規章站經 Cloudflare tunnel 確認逐字輸出未被緩衝；若被緩衝則前端降級並記錄
+- [x] 7.8 SSE 實機驗證（R1／common-ground K14）：規章站經 Cloudflare tunnel 確認逐字輸出未被緩衝（2026-07-29 維護者瀏覽器實測「逐字蹦出來」；origin 端 curl -N 同日驗證 meta→逐 token delta）
 - [x] 7.9 `bash scripts/audit_release.sh`（檢查 exit code，不接 pipe）
 - [x] 7.10 `/code-self-review` 六點自審全過
-- [ ] 7.11 部署前置：清一次 `aggregate_cache`（`Citation` 欄位變更；預設值已防 `TypeError`，清快取確保引用立即帶 chunk 原文）
+- [x] 7.11 部署前置：清一次 `aggregate_cache`（2026-07-29 完成：1 row→0，重啟後 POST /api/ask 實測 citation 帶 chunk_texts 條文原文）
 - [x] 7.12 CHANGELOG 0.6.0 條目（精簡風格，1-2 句帶過）+ `pyproject.toml` version bump + `pip install -e . --no-deps` 刷新本機 metadata（2026-07-29 完成，`wenji.__version__` 實測回報 0.6.0）
 
 **Phase 7 驗收紀錄（2026-07-29，皆未碰 production）**
