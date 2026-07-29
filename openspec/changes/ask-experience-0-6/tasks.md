@@ -4,10 +4,12 @@
 
 ## Phase 1 — FTS 查詢建構（D1、D9 的共用基礎）
 
-- [ ] 1.1 在 `src/wenji/search/bm25.py` 新增模組級 `INTERROGATIVE_STOPWORDS = {"多少","幾年","多久","幾天","怎麼","如何","什麼","可以","要","拿","話","領","去","一起","後","嗎","呢"}` 與 `DROP_POS = {"x","r","p","c","u","d","w","y","uj","ul","zg"}`
-- [ ] 1.2 新增 `build_fts_query_or(raw, *, column=None)`：`jieba_cut_pos` 分詞 → 濾 `DROP_POS` 與停用詞 → 濾純標點 token → 每詞轉字元片語 → `OR` 組合；`build_fts_query` 一行不動 ｜ Requirement: FTS query builder offers an OR-combined variant for natural-language input
-- [ ] 1.3 `tests/wenji/test_search_bm25.py` 新增：中文問句 OR 查詢非空且不含 `多少`/`可以`/`拿` 片語；`build_fts_query("因信稱義")` 仍回 `"因 信 稱 義"` 且無 `OR`；空字串回空字串
-- [ ] 1.4 Gate：`pytest tests/wenji/test_search_bm25.py -q` 全綠
+- [x] 1.1 在 `src/wenji/search/bm25.py` 新增模組級 `INTERROGATIVE_STOPWORDS = {"多少","幾年","多久","幾天","怎麼","如何","什麼","可以","要","拿","話","領","去","一起","後","嗎","呢"}` 與 `DROP_POS = {"x","r","p","c","u","d","w","y","uj","ul","zg"}`
+- [x] 1.2 新增 `build_fts_query_or(raw, *, column=None)`：`jieba_cut_pos` 分詞 → 濾 `DROP_POS` 與停用詞 → 濾純標點 token → 每詞轉字元片語 → `OR` 組合；`build_fts_query` 一行不動 ｜ Requirement: FTS query builder offers an OR-combined variant for natural-language input
+- [x] 1.3 `tests/wenji/test_search_bm25.py` 新增：中文問句 OR 查詢非空且不含 `多少`/`可以`/`拿` 片語；`build_fts_query("因信稱義")` 仍回 `"因 信 稱 義"` 且無 `OR`；空字串回空字串
+- [x] 1.4 Gate：`pytest tests/wenji/test_search_bm25.py -q` 全綠
+
+**Phase 1 補充（apply 中的 self-review 發現）**：`build_fts_query_or` 加上 `MAX_OR_TERMS = 64` 上界。理由：OR 變體讓超長 `q` 變成數千項 FTS5 表達式（實測 4,000 項仍不報錯，但單請求成本高），而舊 AND 版退化成單一片語很便宜；Phase 7 會把此函式接到公開搜尋路徑，故先擋。spec 已同步。
 
 ## Phase 2 — 餵入層（D2、D3）
 

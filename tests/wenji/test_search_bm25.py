@@ -9,7 +9,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from wenji.core.errors import SearchError
-from wenji.search.bm25 import bm25_search
+from wenji.search.bm25 import (
+    MAX_OR_TERMS,
+    bm25_search,
+    build_fts_query,
+    build_fts_query_or,
+)
 
 
 def test_bm25_returns_results(populated_db):
@@ -85,3 +90,89 @@ def test_bm25_search_logs_warning_on_operational_error(caplog):
     assert len(warnings) >= 1
     assert "articles_fts query failed" in warnings[0].getMessage()
     assert warnings[0].exc_info is not None
+
+
+def test_build_fts_query_or_matches_natural_language_question():
+    """A Chinese question must produce a query that can actually match.
+
+    The AND builder collapses a space-free question into one phrase demanding
+    every character appear consecutively, so it matches nothing.
+    """
+    question = "開公務車出車禍，我自己要付多少錢？"
+    and_query = build_fts_query(question, column="chunk_text")
+    or_query = build_fts_query_or(question, column="chunk_text")
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE VIRTUAL TABLE chunks_fts USING fts5("
+        "article_id UNINDEXED, chunk_index UNINDEXED, chunk_text, "
+        "tokenize = 'unicode61')"
+    )
+    conn.execute(
+        "INSERT INTO chunks_fts (article_id, chunk_index, chunk_text) VALUES (?, ?, ?)",
+        ("a", 6, " ".join("開車者需負責一半費用上限8000元")),
+    )
+
+    and_hits = conn.execute(
+        "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH ?", (and_query,)
+    ).fetchone()[0]
+    or_hits = conn.execute(
+        "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH ?", (or_query,)
+    ).fetchone()[0]
+    conn.close()
+
+    assert and_hits == 0
+    assert or_hits == 1
+
+
+def test_build_fts_query_or_drops_interrogative_and_filler_terms():
+    """Interrogatives, fillers and adverbs are stripped; content terms survive.
+
+    `補助最多可以拿多少？` reduces to a single content term because 最多 (POS d)
+    and 可以 (POS c) fall to DROP_POS while 拿 and 多少 are stopwords, so this
+    case asserts no OR — see the multi-term case below for the OR shape.
+    """
+    out = build_fts_query_or("補助最多可以拿多少？")
+    for dropped in ("多 少", "可 以", "拿", "最 多"):
+        assert f'"{dropped}"' not in out
+    assert out == '"補 助"'
+
+    multi = build_fts_query_or("霸凌申訴送出去之後，多久會查完？")
+    assert '"霸 凌"' in multi
+    assert '"申 訴"' in multi
+    assert '"多 久"' not in multi
+    assert " OR " in multi
+
+
+def test_build_fts_query_or_drops_punctuation_only_tokens():
+    out = build_fts_query_or("補助，？！")
+    assert out == '"補 助"'
+
+
+def test_build_fts_query_or_returns_empty_when_nothing_survives():
+    assert build_fts_query_or("") == ""
+    assert build_fts_query_or("，？") == ""
+    assert build_fts_query_or("這個可以嗎？") == ""
+
+
+def test_build_fts_query_or_column_prefixes_every_phrase():
+    out = build_fts_query_or("公務車 肇事", column="chunk_text")
+    phrases = out.split(" OR ")
+    assert len(phrases) >= 2
+    assert all(p.startswith("chunk_text:") for p in phrases)
+
+
+def test_build_fts_query_and_builder_is_unchanged():
+    """The AND builder keeps its contract — callers depend on the semantics."""
+    assert build_fts_query("因信稱義") == '"因 信 稱 義"'
+    assert build_fts_query("因信稱義", column="chunk_text") == 'chunk_text:"因 信 稱 義"'
+    assert build_fts_query("因信 稱義") == '"因 信" "稱 義"'
+    assert "OR" not in build_fts_query("因信 稱義")
+    assert build_fts_query("") == ""
+
+
+def test_build_fts_query_or_caps_term_count():
+    """A pathologically long query must not become an unbounded FTS expression."""
+    long_query = "".join(f"規章{i}辦法{i} " for i in range(500))
+    out = build_fts_query_or(long_query, column="chunk_text")
+    assert out.count(" OR ") + 1 == MAX_OR_TERMS
