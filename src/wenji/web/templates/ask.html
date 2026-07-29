@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}AI 自由問答 — {{ site_name or "wenji" }}{% endblock %}
+{% block description %}{{ ask_hint }}{% endblock %}
+
+{% block extra_meta %}
+{# Generated answers must stay out of search indexes, and ?q= would otherwise
+   mint unlimited crawlable URLs. robots.txt disallows /ask as well. #}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<main class="ask-page">
+  <header class="ask-page-header">
+    <h1 class="ask-page-title">AI 自由問答</h1>
+    <p class="hint">{{ ask_hint }}</p>
+  </header>
+
+  <form id="ask-page-form" class="ask-page-form" method="get" action="/ask">
+    <textarea id="ask-page-q" name="q" rows="3"
+              placeholder="{{ ask_placeholder }}"
+              required>{{ query|e }}</textarea>
+    <div class="ask-page-controls">
+      <select id="ask-page-axis" class="chat-select" aria-label="限定維度">
+        <option value="">所有維度</option>
+      </select>
+      <button type="submit" class="chat-submit">提問</button>
+    </div>
+  </form>
+
+  {% if ask_examples %}
+  <section class="ask-examples" aria-label="範例問題">
+    <span class="ask-examples-label">試試這些問題</span>
+    <ul class="ask-examples-list">
+      {% for example in ask_examples %}
+      <li><a class="ask-example" href="/ask?q={{ example|urlencode }}">{{ example }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="ask-two-col">
+    <section class="ask-col-answer" aria-label="答案">
+      {# Transcript of turns; ask.js appends here and keeps the turn history. #}
+      <div id="ask-transcript" class="ask-transcript markdown-body"></div>
+      <noscript>
+        <p class="ask-error">自由問答需要 JavaScript。請改用
+          <a href="/?q={{ query|urlencode }}">搜尋</a>。</p>
+      </noscript>
+    </section>
+    <aside class="ask-col-citations" aria-label="引用來源">
+      <h2 class="ask-citations-title">引用來源</h2>
+      <div id="ask-citations" class="ask-citations-panel"></div>
+    </aside>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+{# base.html already loads /static/ask.js (deferred) on every page — do not
+   load it again here. This inline script runs at parse time, so the flag is
+   set before the deferred script executes. #}
+<script>window.WENJI_ASK_AUTOSUBMIT = {{ 'true' if query else 'false' }};</script>
+{% endblock %}

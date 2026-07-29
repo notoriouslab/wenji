@@ -48,6 +48,9 @@ class WebConfig:
     hero_subtitle: str | None
     search_placeholder: str
     topic_shortcuts: tuple[dict, ...]
+    ask_hint: str
+    ask_placeholder: str
+    ask_examples: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,12 @@ def _build_web(raw: dict | None) -> WebConfig:
                 "topics": [str(t) for t in topics],
             }
         )
+    # Same "explicit empty list wins" rule as topic_shortcuts.
+    examples_raw = raw.get("ask_examples", DEFAULT_WEB_CONFIG["ask_examples"])
+    if not isinstance(examples_raw, list):
+        raise ConfigError("'web.ask_examples' must be a list")
+    if not all(isinstance(e, str) and e.strip() for e in examples_raw):
+        raise ConfigError("'web.ask_examples' must contain non-empty strings")
     hero_subtitle = raw.get("hero_subtitle", DEFAULT_WEB_CONFIG["hero_subtitle"])
     return WebConfig(
         hero_title=str(raw.get("hero_title") or DEFAULT_WEB_CONFIG["hero_title"]),
@@ -113,6 +122,9 @@ def _build_web(raw: dict | None) -> WebConfig:
             raw.get("search_placeholder") or DEFAULT_WEB_CONFIG["search_placeholder"]
         ),
         topic_shortcuts=tuple(shortcuts),
+        ask_hint=str(raw.get("ask_hint") or DEFAULT_WEB_CONFIG["ask_hint"]),
+        ask_placeholder=str(raw.get("ask_placeholder") or DEFAULT_WEB_CONFIG["ask_placeholder"]),
+        ask_examples=tuple(str(e) for e in examples_raw),
     )
 
 

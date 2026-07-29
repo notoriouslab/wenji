@@ -530,11 +530,14 @@ def create_app(
         # corpora are not crawled by default. When set, emit a permissive policy
         # plus a sitemap line for that site.
         if not branding.site_url:
-            return PlainTextResponse("User-agent: *\nDisallow: /\n")
+            return PlainTextResponse("User-agent: *\nDisallow: /\n")  # already covers /ask
         body = (
             "User-agent: *\n"
             "Allow: /\n"
             "Disallow: /api/\n"
+            # Generated answers are not indexable content, and ?q= would mint
+            # unlimited crawlable URLs.
+            "Disallow: /ask\n"
             "\n"
             "# AI Bots\n"
             "User-agent: GPTBot\nAllow: /\n"
@@ -1019,6 +1022,24 @@ def create_app(
     def api_tags():
         browser = _get_tag_browser()
         return {"tags": [{"name": t[0], "count": t[1]} for t in browser.list_tags()]}
+
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_page(request: Request, q: str = ""):
+        """Standalone ask page.
+
+        Server-renders the shell (so ``?q=`` links are shareable and degrade to
+        a readable page without JS); answers and citations arrive over SSE.
+        """
+        return templates.TemplateResponse(
+            request,
+            "ask.html",
+            {
+                "query": q,
+                "ask_hint": web_cfg.ask_hint,
+                "ask_placeholder": web_cfg.ask_placeholder,
+                "ask_examples": web_cfg.ask_examples,
+            },
+        )
 
     @app.get("/", response_class=HTMLResponse)
     def index(
