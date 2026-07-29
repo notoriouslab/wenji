@@ -138,8 +138,10 @@ h1, h2, h3, h4 {
 .side-panel {
   position: fixed;
   top: 0;
-  right: -500px;
-  width: 500px;
+  /* 0.6.0: 500 → 640px. Answers now carry clause text, which is unreadable in
+     a 500px column. Shared with the aggregate panel (see design D10). */
+  right: -640px;
+  width: 640px;
   max-width: 95vw;
   height: 100%;
   background: #fff;
@@ -650,4 +652,294 @@ h1, h2, h3, h4 {
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* ==========================================================================
+   Ask experience (0.6.0)
+   The three chat-* classes below had NO rules at all before 0.6.0: the ask
+   textarea rendered at 182x36px and the submit button fell back to browser
+   defaults (black text on the dark navy inline background, measured 1.52:1).
+   Shared by the side panel and the /ask page.
+   ========================================================================== */
+
+.chat-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* input[type=text] is the aggregate panel's field; it shares .chat-input-area
+   so it gets the same box (see design D10 shared-scope note). */
+.chat-input-area input[type="text"],
+.chat-input-area textarea,
+.ask-page-form textarea {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  font: inherit;
+  line-height: 1.6;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.chat-input-area textarea,
+.ask-page-form textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+.chat-input-area input[type="text"]:focus,
+.chat-input-area textarea:focus,
+.ask-page-form textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  border-color: var(--color-primary);
+}
+
+.chat-input-actions,
+.ask-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chat-select {
+  flex: 0 1 auto;
+  max-width: 14rem;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+/* White on --color-secondary measures 13.85:1. Do not switch this to
+   --color-primary: white on #219EBC is only 3.14:1, below AA for body text. */
+.chat-submit {
+  margin-left: auto;
+  padding: 0.6rem 1.75rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-secondary);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+/* A submit that is a direct child of .chat-input-area has no actions row to
+   sit in (the aggregate panel), so it spans the width. The ask panel's submit
+   lives inside .chat-input-actions and keeps its pill size. */
+.chat-input-area > .chat-submit { width: 100%; }
+
+.chat-submit:hover { background: #03456b; }
+.chat-submit:active { transform: translateY(1px); }
+.chat-submit:disabled { opacity: 0.55; cursor: progress; }
+
+.ask-panel-hint { margin-bottom: 1.25rem; }
+
+.ask-panel-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+/* --- /ask page ---------------------------------------------------------- */
+
+.ask-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.ask-page-header { margin-bottom: 1.5rem; }
+
+.ask-page-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2rem;
+  color: var(--color-secondary);
+  margin: 0 0 0.5rem;
+}
+
+.ask-page-form { margin-bottom: 1.25rem; }
+
+.ask-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+}
+
+.ask-examples-label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.ask-examples-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ask-example {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--color-secondary);
+  background: var(--color-light-blue);
+  border-radius: var(--radius-full);
+  text-decoration: none;
+}
+
+.ask-example:hover { background: var(--color-accent); }
+
+.ask-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.ask-col-citations {
+  position: sticky;
+  top: 1.5rem;
+  padding: 1.25rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.ask-citations-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  margin: 0 0 1rem;
+  color: var(--color-secondary);
+}
+
+/* --- transcript --------------------------------------------------------- */
+
+.ask-turn { margin-bottom: 2.5rem; }
+
+.ask-turn-question {
+  display: flex;
+  gap: 0.6rem;
+  font-weight: 600;
+  color: var(--color-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.ask-turn-question::before {
+  content: "問";
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.6rem;
+  text-align: center;
+  color: #fff;
+  background: var(--color-secondary);
+  border-radius: var(--radius-full);
+}
+
+.ask-answer-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: -1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ask-copy,
+.ask-fallback-search {
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ask-copy:hover,
+.ask-fallback-search:hover { border-color: var(--color-primary); }
+
+.ask-streaming::after {
+  content: "▍";
+  animation: ask-blink 1s step-end infinite;
+}
+
+@keyframes ask-blink { 50% { opacity: 0; } }
+
+.ask-loading, .ask-empty, .ask-error {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.ask-error { color: var(--color-orange); }
+
+/* --- citations ---------------------------------------------------------- */
+
+.ask-citations, .ask-citations-panel ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.ask-citation { margin-bottom: 1.25rem; font-size: 0.95rem; }
+
+.ask-citation-title {
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+
+.ask-citation-clause {
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* Long clauses collapse to three lines; scrollHeight then exceeds
+   clientHeight, which is what the expand affordance keys off. */
+.ask-citation-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ask-citation-toggle {
+  margin-top: 0.25rem;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* --- responsive --------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .ask-two-col { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+  .ask-col-citations { position: static; }
+}
+
+@media (max-width: 768px) {
+  /* The panel is a quick entry point; on a phone it needs the whole screen. */
+  .side-panel { width: 100%; max-width: 100%; right: -100%; }
+  .ask-page { padding: 1.5rem 1rem 3rem; }
+  .ask-page-title { font-size: 1.6rem; }
+  .chat-input-actions, .ask-page-controls { flex-wrap: wrap; }
+  .chat-submit { margin-left: 0; width: 100%; }
+  .chat-select { max-width: none; flex: 1 1 100%; }
 }

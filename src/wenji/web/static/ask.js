@@ -1,80 +1,301 @@
-// 自由問答 panel — single-turn POST /api/ask + render answer + citations.
+// 自由問答 — 側欄 panel 與 /ask 頁面共用。
+//
+// 傳輸優先序：SSE (`GET /api/ask/stream`) → 失敗或 503 時退回 `POST /api/ask`。
+// 對話歷史留在前端（伺服器 stateless），每次請求帶上前幾輪讓伺服器改寫追問。
 (function () {
-  var form = document.getElementById('ask-form');
-  if (!form) return;
-  var qEl = document.getElementById('ask-q');
-  var axisEl = document.getElementById('ask-axis');
-  var resultEl = document.getElementById('ask-result');
+  'use strict';
 
-  // Populate axis dropdown from /api/axes (best-effort; failure leaves only "全部").
-  fetch('/api/axes')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (data) {
-      if (!data || !data.axes) return;
-      data.axes.forEach(function (a) {
-        var opt = document.createElement('option');
-        opt.value = a.id;
-        opt.textContent = a.id + (a.count ? ' (' + a.count + ')' : '');
-        axisEl.appendChild(opt);
-      });
-    })
-    .catch(function () { /* swallow */ });
+  var MAX_TURNS = 10; // 與伺服器端 MAX_HISTORY_TURNS 一致，多送會被 400 拒絕
+  var NO_ANSWER = '資料中未提及';
 
-  function escapeHtml(s) {
+  function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function renderCitations(citations) {
-    if (!citations || !citations.length) return '';
-    var items = citations.map(function (c, i) {
-      var href = '/article/' + encodeURIComponent(c.article_id) + '#c' + c.chunk_index;
-      return '<li><a href="' + href + '">[' + (i + 1) + '] ' +
-        escapeHtml(c.title || c.article_id) + '</a>' +
-        (c.snippet ? ' — <span class="ask-citation-snippet">' + c.snippet + '</span>' : '') +
-        '</li>';
-    });
-    return '<h4>引用</h4><ol class="ask-citations">' + items.join('') + '</ol>';
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
   }
 
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var q = (qEl.value || '').trim();
-    if (!q) return;
-    resultEl.innerHTML = '<p class="ask-loading">查詢中…</p>';
-    var body = { q: q, k: 5 };
-    if (axisEl.value) body.axis = axisEl.value;
-    fetch('/api/ask', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-      .then(function (r) {
-        if (r.status === 503) {
-          throw new Error('LLM 尚未設定（請設定 WENJI_LLM_* 環境變數）');
-        }
-        return r.json().then(function (data) {
-          if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
-          return data;
+  // --- citations ----------------------------------------------------------
+
+  function renderCitations(target, citations) {
+    target.innerHTML = '';
+    // 引用欄在還沒問之前是空殼，用到才顯示
+    var host = target.closest('.ask-col-citations');
+    if (host) host.hidden = false;
+    if (!citations || !citations.length) {
+      target.appendChild(el('p', 'ask-empty', '這一題沒有找到可引用的段落。'));
+      return;
+    }
+    var ol = document.createElement('ol');
+    ol.className = 'ask-citations';
+    citations.forEach(function (c, i) {
+      var li = el('li', 'ask-citation');
+      var idx = (c.chunk_indexes && c.chunk_indexes.length) ? c.chunk_indexes[0] : c.chunk_index;
+      var a = document.createElement('a');
+      a.className = 'ask-citation-title';
+      a.href = '/article/' + encodeURIComponent(c.article_id) + '#c' + idx;
+      a.textContent = '[' + (i + 1) + '] ' + (c.title || c.article_id);
+      li.appendChild(a);
+
+      // 條文原文（0.6.0 新增）；沒有就退回文件級摘要
+      var clauses = (c.chunk_texts && c.chunk_texts.length) ? c.chunk_texts : (c.snippet ? [c.snippet] : []);
+      clauses.forEach(function (text) {
+        var body = el('div', 'ask-citation-clause ask-citation-clamp', text);
+        li.appendChild(body);
+        // 只有真的被截斷才給展開鈕，避免出現按了沒反應的按鈕
+        requestAnimationFrame(function () {
+          if (body.scrollHeight - body.clientHeight < 4) return;
+          var btn = el('button', 'ask-citation-toggle', '展開完整條文');
+          btn.type = 'button';
+          btn.addEventListener('click', function () {
+            var open = body.classList.toggle('ask-citation-clamp');
+            btn.textContent = open ? '展開完整條文' : '收合';
+          });
+          li.appendChild(btn);
         });
-      })
-      .then(function (data) {
-        var parts = [];
-        if (data.narrative_html) {
-          parts.push('<div class="ask-answer">' + data.narrative_html + '</div>');
-        } else if (data.answer === null) {
-          parts.push('<p class="ask-fallback">LLM 暫不可用，僅顯示檢索結果。</p>');
-        }
-        parts.push(renderCitations(data.citations));
-        resultEl.innerHTML = parts.join('') ||
-          '<p class="ask-empty">沒有找到相關段落。</p>';
-      })
-      .catch(function (err) {
-        resultEl.innerHTML = '<p class="ask-error">查詢失敗：' +
-          escapeHtml(err.message || err) + '</p>';
       });
+      ol.appendChild(li);
+    });
+    target.appendChild(ol);
+  }
+
+  // --- one conversation (panel or page) -----------------------------------
+
+  function createSession(opts) {
+    var history = [];
+
+    function pushTurn(role, content) {
+      history.push({ role: role, content: content });
+      if (history.length > MAX_TURNS) history = history.slice(-MAX_TURNS);
+    }
+
+    function historyParam() {
+      if (!history.length) return null;
+      // btoa 只吃 latin1，中文要先 UTF-8 編碼
+      var json = JSON.stringify(history);
+      var bytes = new TextEncoder().encode(json);
+      var bin = '';
+      bytes.forEach(function (b) { bin += String.fromCharCode(b); });
+      return btoa(bin);
+    }
+
+    function fallbackLink(question) {
+      var a = document.createElement('a');
+      a.className = 'ask-fallback-search';
+      a.href = '/?q=' + encodeURIComponent(question);
+      a.textContent = '改用搜尋看看相關規章';
+      return a;
+    }
+
+    function showFailure(ctx, question, err) {
+      ctx.answer.classList.remove('ask-streaming');
+      ctx.answer.innerHTML = '<p class="ask-error">查詢失敗：' + esc(err.message || err) + '</p>';
+      var actions = el('div', 'ask-answer-actions');
+      actions.appendChild(fallbackLink(question));
+      ctx.turn.appendChild(actions);
+    }
+
+    function finishTurn(ctx, question, answerText, citations) {
+      pushTurn('user', question);
+      if (answerText) pushTurn('assistant', answerText);
+      ctx.answer.classList.remove('ask-streaming');
+
+      var actions = el('div', 'ask-answer-actions');
+      if (answerText) {
+        var copy = el('button', 'ask-copy', '複製答案');
+        copy.type = 'button';
+        copy.addEventListener('click', function () {
+          navigator.clipboard.writeText(answerText).then(function () {
+            copy.textContent = '已複製';
+            setTimeout(function () { copy.textContent = '複製答案'; }, 1500);
+          });
+        });
+        actions.appendChild(copy);
+      }
+      // 情境化出口：只在答不出來時才提議改用搜尋
+      var failed = !answerText || answerText.indexOf(NO_ANSWER) !== -1 || !citations || !citations.length;
+      if (failed) actions.appendChild(fallbackLink(question));
+      if (actions.childNodes.length) ctx.turn.appendChild(actions);
+    }
+
+    function newTurnNodes(question) {
+      var turn = el('div', 'ask-turn');
+      turn.appendChild(el('div', 'ask-turn-question', question));
+      var answer = el('div', 'ask-answer markdown-body');
+      turn.appendChild(answer);
+      opts.transcript.appendChild(turn);
+      turn.scrollIntoView({ block: 'nearest' });
+      return { turn: turn, answer: answer };
+    }
+
+    function viaStream(question, ctx, axis, done) {
+      var url = '/api/ask/stream?q=' + encodeURIComponent(question);
+      if (axis) url += '&axis=' + encodeURIComponent(axis);
+      var h = historyParam();
+      if (h) url += '&history_b64=' + encodeURIComponent(h);
+
+      var src = new EventSource(url);
+      var text = '';
+      var citations = [];
+      var gotAnything = false;
+
+      src.addEventListener('meta', function (e) {
+        gotAnything = true;
+        try { citations = JSON.parse(e.data).citations || []; } catch (_) { citations = []; }
+        renderCitations(opts.citations, citations);
+      });
+      src.addEventListener('delta', function (e) {
+        gotAnything = true;
+        try { text += JSON.parse(e.data).text || ''; } catch (_) { /* skip frame */ }
+        ctx.answer.textContent = text;
+        ctx.answer.classList.add('ask-streaming');
+      });
+      src.addEventListener('error', function (e) {
+        // 伺服器主動送的 error 事件（有 data）與連線層錯誤（無 data）分開處理
+        if (e.data) {
+          src.close();
+          showFailure(ctx, question, new Error('查詢中斷，請稍後再試。'));
+          done(true); // 已經顯示過失敗，不要再打一次 POST
+          return;
+        }
+        src.close();
+        if (gotAnything) { finishTurn(ctx, question, text, citations); done(true); }
+        else done(false); // 連得上但什麼都沒拿到（例如 503）→ 交給 POST 後援
+      });
+      src.addEventListener('done', function () {
+        src.close();
+        finishTurn(ctx, question, text, citations);
+        done(true);
+      });
+    }
+
+    function viaPost(question, ctx, axis) {
+      var body = { q: question, k: 5 };
+      if (axis) body.axis = axis;
+      if (history.length) body.history = history;
+      return fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function (r) {
+        // 503 = 部署端沒配 LLM。同工看不懂環境變數名，訊息用使用者語言，
+        // 技術細節留在 console（瀏覽器已自動記錄該回應）。
+        if (r.status === 503) throw new Error('問答功能尚未啟用，請聯絡管理者；你仍可以改用搜尋。');
+        return r.json().then(function (d) {
+          if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+          return d;
+        });
+      }).then(function (data) {
+        renderCitations(opts.citations, data.citations);
+        if (data.narrative_html) ctx.answer.innerHTML = data.narrative_html;
+        else ctx.answer.appendChild(el('p', 'ask-fallback', 'LLM 暫不可用，僅顯示引用來源。'));
+        finishTurn(ctx, question, data.answer || '', data.citations);
+      }).catch(function (err) {
+        showFailure(ctx, question, err);
+      });
+    }
+
+    function ask(question, axis) {
+      if (!question) return;
+      var ctx = newTurnNodes(question);
+      ctx.answer.appendChild(el('p', 'ask-loading', '查詢中…'));
+      opts.setBusy(true);
+
+      var settled = false;
+      function done(ok) {
+        if (settled) return;
+        settled = true;
+        opts.setBusy(false);
+        if (!ok) { ctx.answer.innerHTML = ''; viaPost(question, ctx, axis).then(function () { opts.setBusy(false); }); }
+      }
+
+      if (typeof EventSource === 'undefined') { done(false); return; }
+      ctx.answer.innerHTML = '';
+      viaStream(question, ctx, axis, done);
+    }
+
+    return { ask: ask };
+  }
+
+  // --- wiring -------------------------------------------------------------
+
+  function wire(formId, textareaId, axisId, transcriptEl, citationsEl) {
+    var form = document.getElementById(formId);
+    if (!form || !transcriptEl || !citationsEl) return null;
+    var q = document.getElementById(textareaId);
+    var axisSel = document.getElementById(axisId);
+    var submit = form.querySelector('.chat-submit');
+
+    var session = createSession({
+      transcript: transcriptEl,
+      citations: citationsEl,
+      setBusy: function (busy) {
+        if (submit) submit.disabled = busy;
+      },
+    });
+
+    // 維度下拉：規章站等單一語料部署沒有 axes，空的下拉是雜訊，直接隱藏
+    if (axisSel) {
+      fetch('/api/axes').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        var axes = (d && d.axes) || [];
+        if (!axes.length) { axisSel.hidden = true; return; }
+        axes.forEach(function (a) {
+          var opt = document.createElement('option');
+          opt.value = a.id;
+          opt.textContent = a.id + (a.count ? ' (' + a.count + ')' : '');
+          axisSel.appendChild(opt);
+        });
+      }).catch(function () { axisSel.hidden = true; });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var text = (q.value || '').trim();
+      if (!text) return;
+      session.ask(text, axisSel ? axisSel.value : '');
+      q.value = '';
+      q.placeholder = '繼續追問…';
+    });
+    return { session: session, textarea: q, axis: axisSel };
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // 側欄：答案與引用都渲染在同一個容器裡
+    var panelResult = document.getElementById('ask-result');
+    if (panelResult) {
+      var panelCitations = el('div', 'ask-citations-panel');
+      panelResult.parentNode.insertBefore(panelCitations, panelResult.nextSibling);
+      wire('ask-form', 'ask-q', 'ask-axis', panelResult, panelCitations);
+      // 「在完整頁面開啟」帶上目前輸入的問題
+      var openPage = document.getElementById('ask-open-page');
+      var panelQ = document.getElementById('ask-q');
+      if (openPage && panelQ) {
+        openPage.addEventListener('click', function () {
+          var t = (panelQ.value || '').trim();
+          openPage.href = t ? '/ask?q=' + encodeURIComponent(t) : '/ask';
+        });
+      }
+    }
+
+    // /ask 頁面
+    var pageWired = wire(
+      'ask-page-form', 'ask-page-q', 'ask-page-axis',
+      document.getElementById('ask-transcript'),
+      document.getElementById('ask-citations')
+    );
+    if (pageWired && window.WENJI_ASK_AUTOSUBMIT) {
+      var initial = (pageWired.textarea.value || '').trim();
+      if (initial) {
+        pageWired.textarea.value = '';
+        pageWired.textarea.placeholder = '繼續追問…';
+        pageWired.session.ask(initial, '');
+      }
+    }
   });
 })();

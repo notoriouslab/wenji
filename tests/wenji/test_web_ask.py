@@ -436,3 +436,34 @@ def test_ask_page_loads_ask_js_exactly_once(file_db: Path) -> None:
     c = _make_client(file_db, llm=_FakeLLM())
     body = c.get("/ask").text
     assert body.count("/static/ask.js") == 1
+
+
+def test_side_panel_copy_comes_from_config_on_every_page(
+    file_db: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """base.html renders the ask panel on every page, so the copy is a Jinja
+    global rather than per-route context — otherwise a route could forget it."""
+    cfg = tmp_path / "wenji.yaml"
+    cfg.write_text(
+        "web:\n  ask_hint: 用口語問一句\n  ask_placeholder: 例如：婚假幾天？\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WENJI_CONFIG", str(cfg))
+    c = _make_client(file_db, llm=_FakeLLM())
+    for path in ("/", "/ask", "/tags"):
+        body = c.get(path).text
+        assert "用口語問一句" in body, f"{path} lost the panel hint"
+        assert "例如：婚假幾天？" in body, f"{path} lost the panel placeholder"
+        # the 0.5.2 hardcoded strings must be gone
+        assert "靈命成長的關鍵是什麼" not in body
+
+
+def test_side_panel_no_longer_carries_inline_styles(file_db: Path) -> None:
+    """Inline style on the submit button was what made it black-on-navy."""
+    c = _make_client(file_db, llm=_FakeLLM())
+    body = c.get("/").text
+    panel = body[body.index('id="ask-panel"') : body.index('id="chat-panel"')]
+    assert "style=" not in panel, "ask panel markup must be styled from CSS only"
+    assert 'class="chat-input-actions"' in panel

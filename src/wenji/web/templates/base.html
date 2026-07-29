@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ site_name or "wenji" }} Knowledge Engine{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css?v=2.5">
+  <link rel="stylesheet" href="/static/style.css?v=2.6">
   <meta name="description" content="{% block description %}{{ site_name or "wenji" }} — 中文 markdown 知識搜尋引擎。{% endblock %}">
   <meta name="robots" content="index, follow">
   {% block extra_meta %}{% endblock %}
@@ -53,17 +53,20 @@
       <button class="side-panel-close" onclick="closeAllPanels()">&times;</button>
     </div>
     <div class="side-panel-body">
-      <p class="hint" style="margin-bottom: 1.5rem;">直接輸入問題，由 AI 從語料中檢索並總結回答。</p>
+      <p class="hint ask-panel-hint">{{ ask_hint }}</p>
       <form id="ask-form" class="chat-input-area">
-        <textarea id="ask-q" placeholder="例如：靈命成長的關鍵是什麼？" required></textarea>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
-          <select id="ask-axis" class="chat-select">
+        <textarea id="ask-q" placeholder="{{ ask_placeholder }}" required></textarea>
+        <div class="chat-input-actions">
+          <select id="ask-axis" class="chat-select" aria-label="限定維度">
             <option value="">所有維度</option>
           </select>
-          <button type="submit" class="chat-submit" style="background: var(--color-secondary);">提問</button>
+          <button type="submit" class="chat-submit">提問</button>
         </div>
       </form>
       <div id="ask-result" class="chat-result-area markdown-body"></div>
+      <p class="ask-panel-footer">
+        <a id="ask-open-page" href="/ask">在完整頁面開啟（可追問、看條文原文）</a>
+      </p>
     </div>
   </div>
 
@@ -82,7 +85,7 @@
           <label id="chat-input-label">分析主題</label>
           <input type="text" id="chat-query" placeholder="輸入關鍵字..." required>
         </div>
-        <button type="submit" class="chat-submit" style="width: 100%; margin-top: 1.5rem;">生成彙整報告</button>
+        <button type="submit" class="chat-submit">生成彙整報告</button>
       </form>
       <div id="aggregate-result" class="chat-result-area markdown-body"></div>
     </div>
@@ -117,7 +120,7 @@
     })();
   </script>
   <script src="/static/aggregate.js" defer></script>
-  <script src="/static/ask.js" defer></script>
+  <script src="/static/ask.js?v=0.6" defer></script>
   {% include "_bookmark_script.html" %}
   {% block scripts %}{% endblock %}
 </body>
