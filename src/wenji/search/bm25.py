@@ -46,6 +46,74 @@ def build_fts_query(raw: str, *, column: str | None = None) -> str:
     return " ".join(quoted)
 
 
+#: jieba POS tags carrying no retrieval signal — punctuation, pronouns,
+#: prepositions, conjunctions, particles, adverbs.
+DROP_POS = frozenset({"x", "r", "p", "c", "u", "d", "w", "y", "uj", "ul", "zg"})
+
+#: Interrogative and filler words that survive POS filtering but match
+#: everywhere, diluting the bm25 ranking of a natural-language question.
+INTERROGATIVE_STOPWORDS = frozenset(
+    {
+        "多少",
+        "幾年",
+        "多久",
+        "幾天",
+        "怎麼",
+        "如何",
+        "什麼",
+        "可以",
+        "要",
+        "拿",
+        "話",
+        "領",
+        "去",
+        "一起",
+        "後",
+        "嗎",
+        "呢",
+    }
+)
+
+
+#: Upper bound on OR terms. A natural-language question yields well under 30
+#: content terms; the cap stops a pathologically long ``q`` from turning one
+#: request into a multi-thousand-term FTS5 expression.
+MAX_OR_TERMS = 64
+
+
+def build_fts_query_or(raw: str, *, column: str | None = None) -> str:
+    """Build an OR-combined FTS5 MATCH query from natural-language input.
+
+    :func:`build_fts_query` splits on whitespace, so a Chinese question (which
+    has none) collapses into one phrase demanding every character appear
+    consecutively — it never matches. This variant segments with jieba, drops
+    tokens that carry no retrieval signal (:data:`DROP_POS`,
+    :data:`INTERROGATIVE_STOPWORDS`, pure punctuation), char-level expands each
+    survivor, and combines them with ``OR`` so any matching term contributes to
+    ``bm25()`` ranking.
+
+    Terms beyond :data:`MAX_OR_TERMS` are dropped (order preserved).
+
+    Returns ``""`` when nothing survives filtering; callers must treat that as
+    "no match attempted" rather than passing it to ``MATCH``.
+    """
+    from wenji.ingest.jieba_setup import jieba_cut_pos
+
+    phrases: list[str] = []
+    for token, pos in jieba_cut_pos(raw):
+        term = token.strip()
+        if not term or pos in DROP_POS or term in INTERROGATIVE_STOPWORDS:
+            continue
+        chars = " ".join(c for c in term if not c.isspace() and c != '"' and c.isalnum())
+        if not chars:
+            continue
+        phrase = f'"{chars}"'
+        phrases.append(f"{column}:{phrase}" if column else phrase)
+        if len(phrases) >= MAX_OR_TERMS:
+            break
+    return " OR ".join(phrases)
+
+
 def _normalise_bm25_scores(rows: list[tuple[Any, ...]]) -> list[float]:
     """Map raw bm25 (negative) values to ``[0, 1]`` rank-preserving scores."""
     if not rows:

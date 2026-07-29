@@ -4,7 +4,7 @@
 
 ### Requirement: FTS query builder offers an OR-combined variant for natural-language input
 
-`wenji.search.bm25` SHALL export `build_fts_query_or(raw, *, column=None)`. It SHALL segment `raw` with `wenji.ingest.jieba_setup.jieba_cut_pos`, drop tokens whose POS tag is in `{x, r, p, c, u, d, w, y, uj, ul, zg}`, drop tokens present in the module-level interrogative stopword set, drop tokens that are entirely non-word characters, expand each surviving token to a char-level phrase, and combine the phrases with FTS5 `OR`. The existing `build_fts_query` SHALL retain its current AND semantics, signature, and behaviour.
+`wenji.search.bm25` SHALL export `build_fts_query_or(raw, *, column=None)`. It SHALL segment `raw` with `wenji.ingest.jieba_setup.jieba_cut_pos`, drop tokens whose POS tag is in `{x, r, p, c, u, d, w, y, uj, ul, zg}`, drop tokens present in the module-level interrogative stopword set, drop tokens that are entirely non-word characters, expand each surviving token to a char-level phrase, and combine the phrases with FTS5 `OR`, keeping at most `MAX_OR_TERMS` (64) phrases in input order. The existing `build_fts_query` SHALL retain its current AND semantics, signature, and behaviour.
 
 #### Scenario: Chinese question yields a matching OR query
 
@@ -15,6 +15,11 @@
 
 - **WHEN** `build_fts_query_or("補助最多可以拿多少？")` is called
 - **THEN** the returned query contains no phrase for `多少`, `可以`, or `拿`
+
+#### Scenario: pathologically long input is capped
+
+- **WHEN** `build_fts_query_or` is called with 500 distinct two-word terms
+- **THEN** the returned query contains exactly 64 OR-combined phrases, so one request cannot become a multi-thousand-term FTS5 expression
 
 #### Scenario: AND builder is untouched
 
