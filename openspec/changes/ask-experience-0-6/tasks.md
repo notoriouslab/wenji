@@ -67,13 +67,27 @@
 - [x] 5.2 `config/loader.py` 的 `WebConfig` 加三個欄位與型別驗證（`ask_examples` 非 list 時 raise `ConfigError`） ｜ Requirement: Ask copy is configurable
 - [x] 5.3 新增 `templates/ask.html`：兩欄版面、`?q=` 預填、noindex meta、範例題區（`ask_examples` 為空則不渲染） ｜ Requirement: Dedicated ask page
 - [x] 5.4 `web/app.py` 新增 `GET /ask` route；`robots.txt` 加 `Disallow: /ask`
-**段 A 完成（5.1-5.4、5.8）；段 B 待做（5.5-5.7、5.9）**。段 A 後的暫時狀態：`/ask` 讀 config 文案，但側欄 panel 的文案仍寫死在 `base.html:56,58`（5.7 才接），因此三個 config 鍵目前只接了一半。
+**Phase 5 完成（段 A 5.1-5.4/5.8、段 B 5.5-5.7/5.9）**。實測數據（本機 :8803 規章鏡像）：
 
-- [ ] 5.5 `static/ask.js` 改寫：SSE 優先、503 時降級為 `POST /api/ask`；維護 client-side turn 陣列；引用區渲染 `chunk_texts` 並 clamp 3 行 + 展開；複製答案按鈕
-- [ ] 5.6 `static/style.css` 新增 `.chat-input-area`、`.chat-input-area textarea`、`.chat-submit`、`.chat-select`、`.ask-two-col`、`.ask-citation-clamp` 規則；submit 對比 ≥4.5:1；textarea 撐滿容器寬 ｜ Requirement: Ask input controls have explicit styling
-- [ ] 5.7 `base.html` 移除問答區 inline `style` 與 `space-between` 佈局，文案改讀 config；側欄面板寬度 500→640px（<900px 全螢幕）
+| 項目 | 段 A 前 | 完成後 |
+|------|--------|--------|
+| textarea | 182×36px | 1126×121px（頁面）／567×99px（側欄）|
+| 提問鈕對比 | 黑字配深藍 1.52:1 | 白字配深藍 **13.85:1** |
+| 面板寬度 | 500px | 640px（<768px 全螢幕）|
+| 空的維度下拉 | 常駐佔位 | 無 axes 時自動隱藏 |
+| 條文截斷 | 無 | line-clamp 3，clientH 87 < scrollH 261，短條文不出現死按鈕 |
+
+段 B 另外處理：文案改走 `templates.env.globals`（側欄在每頁都要用，per-route context 會漏）、彙整面板的 inline style 收進 CSS、`style.css?v=2.6` 與 `ask.js?v=0.6` bump 破快取。
+
+**範圍外但一併修的 production 缺陷**：`/tags` 在 Starlette 1.0 下回 500（route 用舊版 `TemplateResponse(name, context)` 簽名），而該連結在每一頁的導覽列上。已修 `tags_index` 與 `tag_detail` 兩處並加回歸測試。
+
+**已知未修（需主公決定）**：375px 下 `body.scrollWidth` 515 > 375 橫向溢出，來源是既有 header 的 `.topbar-right`（字級控制 + 書籤計數），非問答頁；修它會動到全站 header。
+
+- [x] 5.5 `static/ask.js` 改寫：SSE 優先、503 時降級為 `POST /api/ask`；維護 client-side turn 陣列；引用區渲染 `chunk_texts` 並 clamp 3 行 + 展開；複製答案按鈕
+- [x] 5.6 `static/style.css` 新增 `.chat-input-area`、`.chat-input-area textarea`、`.chat-submit`、`.chat-select`、`.ask-two-col`、`.ask-citation-clamp` 規則；submit 對比 ≥4.5:1；textarea 撐滿容器寬 ｜ Requirement: Ask input controls have explicit styling
+- [x] 5.7 `base.html` 移除問答區 inline `style` 與 `space-between` 佈局，文案改讀 config；側欄面板寬度 500→640px（<900px 全螢幕）
 - [x] 5.8 測試：`GET /ask` 回 200 且含 noindex；`robots.txt` 含 `Disallow: /ask`；`ask_examples: []` 時 HTML 無範例區；未配置 `web:` 時文案與 0.5.2 逐字相同
-- [ ] 5.9 Dogfood：本機 :8803 規章鏡像用 browse 截圖（空狀態／串流中／有答案／375px 手機），確認 submit 對比與 textarea 寬度符合 spec；**同步截圖文章彙整報告面板（`#chat-panel`／`aggregate-form`）確認按鈕與下拉外觀未回歸**（三個 class 為兩區共用，見 design D10 共用範圍）
+- [x] 5.9 Dogfood：本機 :8803 規章鏡像用 browse 截圖（空狀態／串流中／有答案／375px 手機），確認 submit 對比與 textarea 寬度符合 spec；**同步截圖文章彙整報告面板（`#chat-panel`／`aggregate-form`）確認按鈕與下拉外觀未回歸**（三個 class 為兩區共用，見 design D10 共用範圍）
 
 ## Phase 6 — over-fetch 修復（D8）
 

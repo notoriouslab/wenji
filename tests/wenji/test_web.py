@@ -705,3 +705,44 @@ def test_homepage_empty_shortcuts_hides_section(populated_db, tmp_path, monkeypa
     assert r.status_code == 200
     assert "topic-discovery" not in r.text
     assert "禱告的意義" not in r.text
+
+
+@pytest.fixture
+def file_db_for_tags(populated_db, tmp_path):
+    """File-backed copy of the standard corpus (tag browser opens its own conn)."""
+    import sqlite3
+
+    path = tmp_path / "tags.db"
+    dest = sqlite3.connect(str(path))
+    populated_db.backup(dest)
+    dest.close()
+    return path
+
+
+def test_tags_index_renders(file_db_for_tags):
+    """Regression: /tags returned 500 under Starlette 1.0.
+
+    The route still used the legacy TemplateResponse(name, context) signature,
+    so the context dict was taken as the template name. The link sits in the
+    header nav of every page, so this was a 500 one click from anywhere.
+    """
+    from fastapi.testclient import TestClient
+
+    from wenji.web.app import create_app
+
+    client = TestClient(create_app(db_path=file_db_for_tags, searcher=None))
+    r = client.get("/tags")
+    assert r.status_code == 200
+    assert "標籤總覽" in r.text
+
+
+def test_tag_detail_renders_for_an_existing_tag(file_db_for_tags):
+    from fastapi.testclient import TestClient
+
+    from wenji.web.app import create_app
+
+    client = TestClient(create_app(db_path=file_db_for_tags, searcher=None))
+    name = client.get("/api/tags").json()["tags"][0]["name"]
+    r = client.get(f"/tag/{name}")
+    assert r.status_code == 200
+    assert name in r.text

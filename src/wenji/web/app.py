@@ -282,6 +282,11 @@ def create_app(
     templates.env.globals["site_url"] = branding.site_url
     templates.env.globals["site_name"] = branding.site_name
     templates.env.globals["og_image_url"] = branding.og_image_url
+    # Ask copy is needed by the side panel in base.html, i.e. on every page —
+    # globals rather than per-route context so no route can forget it.
+    templates.env.globals["ask_hint"] = web_cfg.ask_hint
+    templates.env.globals["ask_placeholder"] = web_cfg.ask_placeholder
+    templates.env.globals["ask_examples"] = web_cfg.ask_examples
 
     state: dict[str, Any] = {
         "db_path": resolved_db_path,
@@ -1003,8 +1008,10 @@ def create_app(
     def tags_index(request: Request):
         browser = _get_tag_browser()
         tags = browser.list_tags()
+        # Starlette 1.0 dropped the legacy (name, context) signature; passing
+        # the dict as the template name raised TypeError → HTTP 500.
         return templates.TemplateResponse(
-            "tags_index.html", {"request": request, "tags": tags, "title": "所有標籤"}
+            request, "tags_index.html", {"tags": tags, "title": "所有標籤"}
         )
 
     @app.get("/tag/{name}", response_class=HTMLResponse)
@@ -1015,7 +1022,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Tag not found")
         related = browser.get_related_tags(name)
         return templates.TemplateResponse(
-            "tag_detail.html", {"request": request, "tag": detail, "related_tags": related}
+            request, "tag_detail.html", {"tag": detail, "related_tags": related}
         )
 
     @app.get("/api/tags")
@@ -1030,16 +1037,7 @@ def create_app(
         Server-renders the shell (so ``?q=`` links are shareable and degrade to
         a readable page without JS); answers and citations arrive over SSE.
         """
-        return templates.TemplateResponse(
-            request,
-            "ask.html",
-            {
-                "query": q,
-                "ask_hint": web_cfg.ask_hint,
-                "ask_placeholder": web_cfg.ask_placeholder,
-                "ask_examples": web_cfg.ask_examples,
-            },
-        )
+        return templates.TemplateResponse(request, "ask.html", {"query": q})
 
     @app.get("/", response_class=HTMLResponse)
     def index(
