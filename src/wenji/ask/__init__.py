@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from wenji.aggregate import Filter, SourceRef
@@ -25,10 +25,17 @@ from wenji.aggregate.cache import cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
 from wenji.ask.prompts import ASK_PROMPT
 from wenji.core.safety import sanitize_prompt_input
-from wenji.search import Searcher
-from wenji.search.bm25 import build_fts_query
+from wenji.search import Searcher, strip_markdown_for_snippet
+from wenji.search.bm25 import build_fts_query_or
 
 logger = logging.getLogger(__name__)
+
+#: Chunks fed per cited article. Measured on a policy corpus: the top-ranked
+#: chunk alone held the answer 2/5 times, the top 3 covered 5/5.
+MAX_CHUNKS_PER_CITATION = 3
+
+#: Per-chunk character cap in the prompt, bounding token cost for long chunks.
+MAX_CHUNK_CHARS_IN_PROMPT = 1200
 
 __all__ = [
     "Asker",
@@ -43,13 +50,23 @@ __all__ = [
 
 @dataclass
 class Citation:
-    """Chunk-level citation referenced by an :class:`Answer`."""
+    """Chunk-level citation referenced by an :class:`Answer`.
+
+    ``chunk_texts`` carries the clause text that actually grounded the answer
+    (top-3 matching chunks, markdown-stripped) and ``chunk_indexes`` their
+    positions; ``chunk_index`` stays as the first index for backward
+    compatibility. Both lists default to empty so answers cached before these
+    fields existed still deserialise (:func:`_answer_from_dict` unpacks cache
+    rows straight into this dataclass).
+    """
 
     article_id: str
     chunk_index: int
     title: str
     snippet: str
     bm25_score: float
+    chunk_texts: list[str] = field(default_factory=list)
+    chunk_indexes: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -60,6 +77,13 @@ class Answer:
     answer: str | None
     citations: list[Citation]
     retrieval: list[SourceRef]
+
+
+def _truncate(text: str) -> str:
+    """Cap a chunk at :data:`MAX_CHUNK_CHARS_IN_PROMPT`, marking elision."""
+    if len(text) <= MAX_CHUNK_CHARS_IN_PROMPT:
+        return text
+    return text[:MAX_CHUNK_CHARS_IN_PROMPT] + "…"
 
 
 class Asker:
@@ -165,13 +189,29 @@ class Asker:
         ]
 
     @staticmethod
-    def _compose_prompt(query: str, retrieval: list[SourceRef]) -> str:
-        sources_block = "\n\n".join(
-            f"[{i + 1}] {sr.title} — {sr.snippet}" for i, sr in enumerate(retrieval)
-        )
+    def _compose_prompt(query: str, citations: list[Citation]) -> str:
+        """Compose the ask prompt, grounding the LLM on clause text.
+
+        Feeding title + document-level snippet leaves the model unable to answer
+        anything whose answer is a number inside a clause (measured 0/5 on a
+        policy corpus). Each source block therefore carries the matched chunk
+        text wrapped in ``<條文>``.
+
+        ``sanitize_prompt_input`` XML-escapes its argument, so the title and
+        each chunk are sanitised individually and the literal ``<條文>`` markers
+        are assembled afterwards — sanitising the joined block would escape the
+        markers into ``&lt;條文&gt;`` and destroy the structure.
+        """
+        blocks: list[str] = []
+        for i, c in enumerate(citations):
+            body_parts = [
+                sanitize_prompt_input(_truncate(text)) for text in c.chunk_texts if text.strip()
+            ]
+            body = "\n".join(body_parts) if body_parts else sanitize_prompt_input(c.snippet)
+            blocks.append(f"[{i + 1}] {sanitize_prompt_input(c.title)}\n<條文>{body}</條文>")
         return ASK_PROMPT.format(
             query=sanitize_prompt_input(query),
-            sources=sanitize_prompt_input(sources_block),
+            sources="\n\n".join(blocks),
         )
 
     def _build_citations(
@@ -179,31 +219,49 @@ class Asker:
         query: str,
         retrieval: list[SourceRef],
     ) -> list[Citation]:
+        """Locate the clauses backing each retrieved article.
+
+        Uses :func:`build_fts_query_or`; the AND builder collapses a space-free
+        Chinese question into one never-matching phrase, which silently left
+        every citation anchored at chunk 0.
+        """
         if not retrieval:
             return []
-        fts_query = build_fts_query(query, column="chunk_text") if query.strip() else ""
+        fts_query = build_fts_query_or(query, column="chunk_text") if query.strip() else ""
         citations: list[Citation] = []
         for sr in retrieval:
-            chunk_index = 0
+            chunk_indexes: list[int] = []
+            chunk_texts: list[str] = []
             if fts_query:
                 try:
-                    row = self.db.execute(
-                        "SELECT chunk_index FROM chunks_fts "
+                    rows = self.db.execute(
+                        "SELECT chunk_index, chunk_text_raw FROM chunks_fts "
                         "WHERE chunks_fts MATCH ? AND article_id = ? "
-                        "ORDER BY bm25(chunks_fts) ASC LIMIT 1",
-                        (fts_query, sr.article_id),
-                    ).fetchone()
-                    if row is not None:
-                        chunk_index = int(row[0])
+                        "ORDER BY bm25(chunks_fts) ASC LIMIT ?",
+                        (fts_query, sr.article_id, MAX_CHUNKS_PER_CITATION),
+                    ).fetchall()
                 except sqlite3.OperationalError:
-                    chunk_index = 0
+                    logger.warning(
+                        "chunk lookup failed for %s; citation falls back to chunk 0",
+                        sr.article_id,
+                        exc_info=True,
+                    )
+                    rows = []
+                for chunk_index, chunk_text_raw in rows:
+                    plain = strip_markdown_for_snippet(chunk_text_raw or "").strip()
+                    if not plain:
+                        continue
+                    chunk_indexes.append(int(chunk_index))
+                    chunk_texts.append(plain)
             citations.append(
                 Citation(
                     article_id=sr.article_id,
-                    chunk_index=chunk_index,
+                    chunk_index=chunk_indexes[0] if chunk_indexes else 0,
                     title=sr.title,
                     snippet=sr.snippet,
                     bm25_score=sr.bm25_score,
+                    chunk_texts=chunk_texts,
+                    chunk_indexes=chunk_indexes,
                 )
             )
         return citations
@@ -223,11 +281,14 @@ class Asker:
 
         raw = self._retrieve(query, k=k, axis=axis, filter=filter)
         retrieval = self._to_source_refs(raw)
+        # Citations carry the clause text the prompt is grounded on, so they are
+        # built first and handed to _compose_prompt (SourceRef has no chunk text).
         citations = self._build_citations(query, retrieval)
 
         answer_text: str | None = None
+        llm_failed = False
         if retrieval:
-            prompt = self._compose_prompt(query, retrieval)
+            prompt = self._compose_prompt(query, citations)
             try:
                 answer_text = self.llm_client.chat([{"role": "user", "content": prompt}])
             except LLMClientError as exc:
@@ -236,6 +297,7 @@ class Asker:
                     exc,
                 )
                 answer_text = None
+                llm_failed = True
 
         answer = Answer(
             query=query,
@@ -243,7 +305,12 @@ class Asker:
             citations=citations,
             retrieval=retrieval,
         )
-        cache_put(self.db, key, _answer_to_dict(answer))
+        # A transient LLM failure (rate limit, timeout) must not be cached: the
+        # TTL is 30 days, so one 429 would freeze "no answer" for that question
+        # for a month. Retrieval-only results (no LLM call attempted) are stable
+        # and still cached.
+        if not llm_failed:
+            cache_put(self.db, key, _answer_to_dict(answer))
         return answer
 
 

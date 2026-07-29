@@ -6,7 +6,7 @@ import pytest
 
 from wenji.core.db import connect, initialise_schema
 from wenji.ingest import ingest_one
-from wenji.search import Searcher, _hydrate_chunk_hits, _strip_markdown_for_snippet
+from wenji.search import Searcher, _hydrate_chunk_hits, strip_markdown_for_snippet
 
 
 def test_searcher_returns_results(populated_db, mock_embedder):
@@ -180,7 +180,7 @@ def test_chunk_hits_multi_chunk_content_match_counts_each(chunk_hit_db):
 def test_snippet_strip_preserves_url_with_underscore():
     """L2: URLs containing ``_`` are not mangled by the AST-based strip."""
     text = "See https://en.wikipedia.org/wiki/Foo_bar for context."
-    out = _strip_markdown_for_snippet(text)
+    out = strip_markdown_for_snippet(text)
     assert "Foo_bar" in out
     assert "Foobar" not in out
 
@@ -188,7 +188,7 @@ def test_snippet_strip_preserves_url_with_underscore():
 def test_snippet_strip_renders_code_and_emphasis_as_plain_text():
     """L2: ``**bold**`` and ``code_with_underscore`` extract to plain text."""
     text = "Use **bold** and `code_with_underscore` here."
-    out = _strip_markdown_for_snippet(text)
+    out = strip_markdown_for_snippet(text)
     assert "bold" in out
     assert "code_with_underscore" in out
     assert "**" not in out
@@ -197,8 +197,8 @@ def test_snippet_strip_renders_code_and_emphasis_as_plain_text():
 
 def test_snippet_strip_handles_empty_input():
     """L2: empty / whitespace-only inputs short-circuit cleanly."""
-    assert _strip_markdown_for_snippet("") == ""
-    assert _strip_markdown_for_snippet("plain text") == "plain text"
+    assert strip_markdown_for_snippet("") == ""
+    assert strip_markdown_for_snippet("plain text") == "plain text"
 
 
 def test_searcher_rejects_removed_keyword_arguments(populated_db, mock_embedder):

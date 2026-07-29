@@ -37,6 +37,21 @@
 - **WHEN** the test asserts every marker is a substring of `ASK_PROMPT` (and of `_compose_prompt` output for `<條文>`)
 - **THEN** all assertions pass on the shipped template; deleting the `照抄` rule makes the test fail
 
+### Requirement: Transient LLM failures are not cached
+
+When the LLM call raises `LLMClientError`, `Asker.ask` SHALL return the retrieval-only answer without writing it to the cache. Results where no LLM call was attempted (empty retrieval) SHALL still be cached.
+
+#### Scenario: a rate-limited question stays answerable
+
+- **WHEN** the LLM raises `LLMClientError` for a question and the same question is asked again with a working LLM
+- **THEN** the second call reaches the LLM and returns a real answer (before this change `cache_put` ran unconditionally, so `answer=None` persisted for the 30-day TTL)
+
+##### Example: Groq 429 during the Phase 2 acceptance run
+
+- **GIVEN** question n5 of the policy exam hit a Groq `429 Too Many Requests`
+- **WHEN** the same question was re-asked minutes later
+- **THEN** the cached `answer=None` was replayed with no LLM call at all — the observation that produced this requirement
+
 ### Requirement: Dedicated ask page
 
 `GET /ask` SHALL render a standalone page. It SHALL prefill the question box from the `q` query parameter, emit `<meta name="robots" content="noindex, nofollow">`, and lay out answer and citations in two columns that collapse to one column below 900px viewport width. `robots.txt` SHALL include `Disallow: /ask`. The page SHALL support follow-up questions by keeping the conversation turns client-side and passing them as `history` on each request.
