@@ -239,6 +239,9 @@ def test_api_ask_stream_event_order_and_content_type(file_db: Path) -> None:
     assert [name for name, _ in events] == ["meta", "delta", "delta", "done"]
     assert events[0][1]["citations"], "citations arrive before answer text"
     assert "".join(d["text"] for name, d in events if name == "delta") == "因信稱義"
+    # 0.6.1: done carries the markdown-rendered whole answer so the client can
+    # swap the plain-text stream for proper HTML (same renderer as POST).
+    assert "因信稱義" in events[-1][1]["narrative_html"]
 
 
 def test_api_ask_stream_cached_answer_replays_without_llm(file_db: Path) -> None:
@@ -427,24 +430,24 @@ def test_robots_txt_disallows_ask(file_db: Path, monkeypatch: pytest.MonkeyPatch
     assert c2.get("/robots.txt").text == "User-agent: *\nDisallow: /\n"
 
 
-def test_ask_page_loads_ask_js_exactly_once(file_db: Path) -> None:
-    """base.html already ships ask.js on every page.
+def test_ask_js_ships_on_ask_page_only(file_db: Path) -> None:
+    """0.6.1: with the side panel gone, ask.js belongs to the /ask page alone.
 
-    A second tag on the ask page would fetch and execute the IIFE twice,
-    double-binding every handler.
+    Exactly one tag there (two would double-bind every handler), zero
+    elsewhere (dead weight on pages with nothing for it to wire).
     """
     c = _make_client(file_db, llm=_FakeLLM())
-    body = c.get("/ask").text
-    assert body.count("/static/ask.js") == 1
+    assert c.get("/ask").text.count("/static/ask.js") == 1
+    assert "/static/ask.js" not in c.get("/").text
 
 
-def test_side_panel_copy_comes_from_config_on_every_page(
+def test_ask_copy_comes_from_config(
     file_db: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """base.html renders the ask panel on every page, so the copy is a Jinja
-    global rather than per-route context — otherwise a route could forget it."""
+    """0.6.1: the ask copy lives on the /ask page only — the site-wide side
+    panel that used to repeat it on every page is retired."""
     cfg = tmp_path / "wenji.yaml"
     cfg.write_text(
         "web:\n  ask_hint: 用口語問一句\n  ask_placeholder: 例如：婚假幾天？\n",
@@ -452,18 +455,10 @@ def test_side_panel_copy_comes_from_config_on_every_page(
     )
     monkeypatch.setenv("WENJI_CONFIG", str(cfg))
     c = _make_client(file_db, llm=_FakeLLM())
-    for path in ("/", "/ask", "/tags"):
-        body = c.get(path).text
-        assert "用口語問一句" in body, f"{path} lost the panel hint"
-        assert "例如：婚假幾天？" in body, f"{path} lost the panel placeholder"
-        # the 0.5.2 hardcoded strings must be gone
-        assert "靈命成長的關鍵是什麼" not in body
-
-
-def test_side_panel_no_longer_carries_inline_styles(file_db: Path) -> None:
-    """Inline style on the submit button was what made it black-on-navy."""
-    c = _make_client(file_db, llm=_FakeLLM())
-    body = c.get("/").text
-    panel = body[body.index('id="ask-panel"') : body.index('id="chat-panel"')]
-    assert "style=" not in panel, "ask panel markup must be styled from CSS only"
-    assert 'class="chat-input-actions"' in panel
+    body = c.get("/ask").text
+    assert "用口語問一句" in body
+    assert "例如：婚假幾天？" in body
+    # the 0.5.2 hardcoded strings must be gone
+    assert "靈命成長的關鍵是什麼" not in body
+    for path in ("/", "/tags"):
+        assert "用口語問一句" not in c.get(path).text, f"{path} still renders panel copy"

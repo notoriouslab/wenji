@@ -937,6 +937,7 @@ def create_app(
         def _events():
             # close() lives here, not in the route body: the generator outlives
             # the request handler and a caller can disconnect mid-stream.
+            text_parts: list[str] = []
             try:
                 for ev in asker.ask_stream(
                     q,
@@ -955,9 +956,17 @@ def create_app(
                             },
                         )
                     elif ev.kind == "delta":
+                        text_parts.append(ev.text or "")
                         yield _sse("delta", {"text": ev.text})
                     else:
-                        yield _sse("done", {})
+                        # Deltas render progressively as plain text; the final
+                        # event carries the markdown-rendered whole so the
+                        # client can swap it in (same renderer as POST /api/ask).
+                        done_payload: dict[str, Any] = {}
+                        full_text = "".join(text_parts)
+                        if full_text:
+                            done_payload["narrative_html"] = _render_narrative(full_text)
+                        yield _sse("done", done_payload)
             except WenjiError as exc:
                 logger.warning("ask stream aborted: %s", exc)
                 yield _sse("error", {"detail": str(exc)})

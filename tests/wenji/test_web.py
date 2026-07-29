@@ -258,12 +258,18 @@ def test_index_renders_facet_sidebar(client):
     assert "熱門分類" in r.text
 
 
-def test_index_renders_ask_panel(client):
-    """v0.3 自由問答 modal link appears in the header."""
+def test_index_links_to_ask_page(client):
+    """0.6.1: 自由問答 is a single entry point — a header link to /ask.
+
+    The old site-wide side panel must be gone entirely (it duplicated the
+    /ask page and confused users about which entry did what).
+    """
     r = client.get("/")
     assert r.status_code == 200
     assert "自由問答" in r.text
-    assert "ask-panel" in r.text
+    assert 'href="/ask"' in r.text
+    assert "ask-panel" not in r.text
+    assert 'id="ask-form"' not in r.text
 
 
 def test_index_filter_by_tag_narrows_results(client, populated_db):

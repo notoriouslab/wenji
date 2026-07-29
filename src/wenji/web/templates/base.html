@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ site_name or "wenji" }} Knowledge Engine{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css?v=2.6">
+  <link rel="stylesheet" href="/static/style.css?v=2.7">
   <meta name="description" content="{% block description %}{{ site_name or "wenji" }} — 中文 markdown 知識搜尋引擎。{% endblock %}">
   <meta name="robots" content="index, follow">
   {% block extra_meta %}{% endblock %}
@@ -16,7 +16,7 @@
       <a href="/" class="brand">{{ site_name or "wenji" }}</a>
       <nav class="nav-links">
         <a class="nav-item" href="/tags">標籤總覽</a>
-        <a class="nav-item" onclick="openPanel('ask-panel')">自由問答</a>
+        <a class="nav-item" id="nav-ask" href="/ask">自由問答</a>
         <a class="nav-item" onclick="openPanel('chat-panel')">文章彙整</a>
       </nav>
     </div>
@@ -47,29 +47,6 @@
   </div>
 
   <!-- Side Panels -->
-  <div class="side-panel" id="ask-panel">
-    <div class="side-panel-header">
-      <span class="side-panel-title">AI 自由問答</span>
-      <button class="side-panel-close" onclick="closeAllPanels()">&times;</button>
-    </div>
-    <div class="side-panel-body">
-      <p class="hint ask-panel-hint">{{ ask_hint }}</p>
-      <form id="ask-form" class="chat-input-area">
-        <textarea id="ask-q" placeholder="{{ ask_placeholder }}" required></textarea>
-        <div class="chat-input-actions">
-          <select id="ask-axis" class="chat-select" aria-label="限定維度">
-            <option value="">所有維度</option>
-          </select>
-          <button type="submit" class="chat-submit">提問</button>
-        </div>
-      </form>
-      <div id="ask-result" class="chat-result-area markdown-body"></div>
-      <p class="ask-panel-footer">
-        <a id="ask-open-page" href="/ask">在完整頁面開啟（可追問、看條文原文）</a>
-      </p>
-    </div>
-  </div>
-
   <div class="side-panel" id="chat-panel">
     <div class="side-panel-header">
       <span class="side-panel-title">文章彙整報告</span>
@@ -103,6 +80,17 @@
       document.querySelector('.backdrop').classList.remove('open');
       document.body.style.overflow = '';
     }
+    // 自由問答帶著當前搜尋詞過去：點擊當下讀任一搜尋框的值改寫 href。
+    (function () {
+      var ask = document.getElementById('nav-ask');
+      if (!ask) return;
+      ask.addEventListener('click', function () {
+        // 限定搜尋表單：/ask 頁的問答 textarea 也叫 name="q"，不能誤抓
+        var box = document.querySelector('.search-form input[name="q"]');
+        var t = box && box.value ? box.value.trim() : '';
+        ask.href = t ? '/ask?q=' + encodeURIComponent(t) : '/ask';
+      });
+    })();
     (function () {
       var s = localStorage.getItem('wenji_font_size') || '1.0';
       document.documentElement.style.setProperty('--font-scale', s);
@@ -120,7 +108,6 @@
     })();
   </script>
   <script src="/static/aggregate.js" defer></script>
-  <script src="/static/ask.js?v=0.6" defer></script>
   {% include "_bookmark_script.html" %}
   {% block scripts %}{% endblock %}
 </body>

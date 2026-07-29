@@ -1,4 +1,4 @@
-// 自由問答 — 側欄 panel 與 /ask 頁面共用。
+// 自由問答 /ask 頁面（唯一入口；0.6.1 起側欄 panel 退役）。
 //
 // 傳輸優先序：SSE (`GET /api/ask/stream`) → 失敗或 503 時退回 `POST /api/ask`。
 // 對話歷史留在前端（伺服器 stateless），每次請求帶上前幾輪讓伺服器改寫追問。
@@ -24,6 +24,10 @@
   // --- citations ----------------------------------------------------------
 
   function renderCitations(target, citations) {
+    // 引用欄只呈現最新一輪；舊輪答案裡的 [n] 錨點會指到新卡片，先退回純文字
+    document.querySelectorAll('a.ask-cite-ref').forEach(function (a) {
+      a.replaceWith(document.createTextNode(a.textContent));
+    });
     target.innerHTML = '';
     // 引用欄在還沒問之前是空殼，用到才顯示
     var host = target.closest('.ask-col-citations');
@@ -36,6 +40,7 @@
     ol.className = 'ask-citations';
     citations.forEach(function (c, i) {
       var li = el('li', 'ask-citation');
+      li.id = 'ask-cit-' + (i + 1);
       var idx = (c.chunk_indexes && c.chunk_indexes.length) ? c.chunk_indexes[0] : c.chunk_index;
       var a = document.createElement('a');
       a.className = 'ask-citation-title';
@@ -65,7 +70,44 @@
     target.appendChild(ol);
   }
 
-  // --- one conversation (panel or page) -----------------------------------
+  // 把答案裡的 [n] 標記換成指向引用卡片的錨點。走 text node 而非 innerHTML
+  // regex：POST 後援路徑的答案是 narrative_html，字串替換會破壞既有標籤。
+  function linkifyRefs(root, maxN) {
+    var used = {};
+    if (!maxN) return used;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) {
+      if (node.parentNode.closest('a')) return; // 已在連結內，不巢狀
+      var text = node.nodeValue;
+      if (text.indexOf('[') === -1) return;
+      var re = /\[(\d{1,2})\]/g;
+      var m;
+      var last = 0;
+      var frag = null;
+      while ((m = re.exec(text))) {
+        var n = Number(m[1]);
+        if (n < 1 || n > maxN) continue;
+        used[n] = true;
+        if (!frag) frag = document.createDocumentFragment();
+        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var a = document.createElement('a');
+        a.className = 'ask-cite-ref';
+        a.href = '#ask-cit-' + n;
+        a.textContent = m[0];
+        frag.appendChild(a);
+        last = m.index + m[0].length;
+      }
+      if (frag) {
+        frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      }
+    });
+    return used;
+  }
+
+  // --- one conversation ----------------------------------------------------
 
   function createSession(opts) {
     var history = [];
@@ -122,6 +164,15 @@
       var failed = !answerText || answerText.indexOf(NO_ANSWER) !== -1 || !citations || !citations.length;
       if (failed) actions.appendChild(fallbackLink(question));
       if (actions.childNodes.length) ctx.turn.appendChild(actions);
+
+      // [n] 變錨點；沒被答案引用到的卡片弱化。模型完全沒標 [n] 時不弱化，
+      // 否則整欄變灰反而誤導成「都沒用到」。
+      var used = linkifyRefs(ctx.answer, (citations || []).length);
+      var marked = Object.keys(used).length > 0;
+      var cards = opts.citations.querySelectorAll('.ask-citation');
+      Array.prototype.forEach.call(cards, function (li, i) {
+        li.classList.toggle('ask-citation-unused', marked && !used[i + 1]);
+      });
     }
 
     function newTurnNodes(question) {
@@ -168,8 +219,13 @@
         if (gotAnything) { finishTurn(ctx, question, text, citations); done(true); }
         else done(false); // 連得上但什麼都沒拿到（例如 503）→ 交給 POST 後援
       });
-      src.addEventListener('done', function () {
+      src.addEventListener('done', function (e) {
         src.close();
+        // 串流過程是純文字，done 帶回伺服器渲染好的 markdown 整段換上
+        try {
+          var payload = JSON.parse(e.data || '{}');
+          if (payload.narrative_html) ctx.answer.innerHTML = payload.narrative_html;
+        } catch (_) { /* 保留純文字版本 */ }
         finishTurn(ctx, question, text, citations);
         done(true);
       });
@@ -266,24 +322,16 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    // 側欄：答案與引用都渲染在同一個容器裡
-    var panelResult = document.getElementById('ask-result');
-    if (panelResult) {
-      var panelCitations = el('div', 'ask-citations-panel');
-      panelResult.parentNode.insertBefore(panelCitations, panelResult.nextSibling);
-      wire('ask-form', 'ask-q', 'ask-axis', panelResult, panelCitations);
-      // 「在完整頁面開啟」帶上目前輸入的問題
-      var openPage = document.getElementById('ask-open-page');
-      var panelQ = document.getElementById('ask-q');
-      if (openPage && panelQ) {
-        openPage.addEventListener('click', function () {
-          var t = (panelQ.value || '').trim();
-          openPage.href = t ? '/ask?q=' + encodeURIComponent(t) : '/ask';
-        });
-      }
-    }
+    // 點 [n] 錨點時閃一下目標卡片，視線好跟
+    document.addEventListener('click', function (e) {
+      var ref = e.target.closest && e.target.closest('a.ask-cite-ref');
+      if (!ref) return;
+      var card = document.getElementById(ref.getAttribute('href').slice(1));
+      if (!card) return;
+      card.classList.remove('ask-citation-flash');
+      requestAnimationFrame(function () { card.classList.add('ask-citation-flash'); });
+    });
 
-    // /ask 頁面
     var pageWired = wire(
       'ask-page-form', 'ask-page-q', 'ask-page-axis',
       document.getElementById('ask-transcript'),

@@ -740,15 +740,6 @@ h1, h2, h3, h4 {
 .chat-submit:active { transform: translateY(1px); }
 .chat-submit:disabled { opacity: 0.55; cursor: progress; }
 
-.ask-panel-hint { margin-bottom: 1.25rem; }
-
-.ask-panel-footer {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-  font-size: 0.9rem;
-}
-
 /* --- /ask page ---------------------------------------------------------- */
 
 .ask-page {
@@ -918,6 +909,7 @@ h1, h2, h3, h4 {
 }
 
 .ask-citation-toggle {
+  display: block;
   margin-top: 0.25rem;
   padding: 0;
   font-size: 0.85rem;
@@ -925,6 +917,25 @@ h1, h2, h3, h4 {
   background: none;
   border: none;
   cursor: pointer;
+}
+
+/* 答案內文的 [n] 引用錨點 */
+.ask-cite-ref {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ask-cite-ref:hover { text-decoration: underline; }
+
+/* 答案沒引用到的來源卡片弱化，一眼看出 AI 真正用了哪幾篇 */
+.ask-citation-unused { opacity: 0.45; }
+
+.ask-citation-flash { animation: ask-cit-flash 1.2s ease-out; }
+
+@keyframes ask-cit-flash {
+  0% { background: var(--color-primary-soft, rgba(64, 128, 255, 0.18)); }
+  100% { background: transparent; }
 }
 
 /* --- responsive --------------------------------------------------------- */
