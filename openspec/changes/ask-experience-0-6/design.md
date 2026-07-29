@@ -119,7 +119,27 @@
 - **方案 A（採用）**：`build_fts_query` 保持原簽名與行為不動（既有呼叫端與測試不受影響），新增 `build_fts_query_or(raw, *, column=None)` 走 D1 演算法；兩個檢索呼叫端改用新函式。
 - 方案 B：直接改 `build_fts_query` 的語義。否決：該函式的 AND 語義被既有測試與 docstring 明確約定，就地改語義會讓「哪些呼叫端預期 AND」變得不可辨識。
 
-**Keep/Discard 判定（G4）**：
+**G4 判決：DISCARD（2026-07-29 實測）**
+
+| 指標 | before | after |
+|------|--------|-------|
+| 80q gold r14 pass@3 partial+ | **76/80** | **74/80** |
+| eval 總耗時 | 40.2s | **130.4s（3.2×）** |
+| 逐題 diff | — | 變差 2 題、變好 0 題 |
+
+環境：oracle prod db（12,100 篇）、同一組 env（entity/intent/model dir）、同一條指令，只換 `PYTHONPATH`（`src_before` = HEAD、`src_after` = 含 7.1/7.1a/7.2）。
+
+**逐題型態**：兩題都是「原本在 rank 3 命中 gold 的文章從 top-3 消失」，而非換序。
+- 「信耶穌是否等於背棄祖先、不孝？」rank 3 的《外公外婆不愛耶穌怎麼辦？》不見了
+- 「啟示錄說世界終將毀滅，還需要在乎環保嗎？」rank 3 的《福音派…環保訴求》被擠掉
+
+**根因判讀**：OR 組合對 BM25 兩個通道太寬鬆（任一內容詞命中即算），在 12,100 篇的一般語料裡撈進大量鬆散相關文件並取得高分，透過 RRF 擠掉向量通道原本正確的 rank-3。規章語料 45 篇沒有這種噪音來源，所以同一改動在那裡是淨利。**這與 chunk-vectors 的 G4 教訓一致**：top-3 佔位者是同主題強文時，通道類訊號打不到，還可能反傷。
+
+**處置**：7.1／7.1a／7.2 全部回退（D1-D8 不依賴 D9，已在設計時保證）。`build_fts_query_or` 保留在 ask 的 `_build_citations`——那裡查詢被 `AND article_id = ?` 限定在單篇內，寬鬆匹配的代價有界且已實測有益（規章考卷 0/5 → 4 pass）。
+
+**7.1a 另立候選**：`_hydrate_chunk_hits` 在 Step 8、`top_n` 已定之後才執行，結構上不影響排序，但本次三處一起量無法乾淨歸因，故一併回退。它的量測成本極低（預期 eval 逐位不動），可另案處理。
+
+**原定 Keep/Discard 判定（G4）**：
 - Keep 條件：80q v2 gold r14 的 pass@3 partial+ **不低於** before，且 v3 holdout **不低於** before
 - after < before → Discard 該項（D9 可獨立回退，D1-D8 不依賴 D9）
 - 總分持平但 miss 題換人 → 逐題 diff 記錄後再判
