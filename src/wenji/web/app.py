@@ -15,6 +15,7 @@ the search routes return a friendly 504 page (UX borrowed from open-design).
 
 from __future__ import annotations
 
+import base64
 import hmac
 import html
 import json
@@ -30,7 +31,13 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -876,6 +883,82 @@ def create_app(
         payload = asdict(result)
         payload["narrative_html"] = _render_narrative(result.answer)
         return JSONResponse(payload)
+
+    @app.get("/api/ask/stream")
+    def api_ask_stream(
+        q: str,
+        k: int = 5,
+        axis: str | None = None,
+        history_b64: str | None = None,
+    ) -> Response:
+        """Server-sent events variant of ``/api/ask``.
+
+        Emits ``meta`` (citations, as soon as retrieval finishes), then one
+        ``delta`` per answer fragment, then ``done``. ``EventSource`` only
+        issues GET requests, hence the querystring history parameter.
+        """
+        if not q.strip():
+            raise HTTPException(status_code=400, detail="missing or empty 'q'")
+        if k <= 0:
+            raise HTTPException(status_code=400, detail="'k' must be a positive integer")
+        k = min(k, 50)
+        history = None
+        if history_b64:
+            try:
+                decoded = base64.b64decode(history_b64, validate=True).decode("utf-8")
+                history_raw = json.loads(decoded)
+            except (ValueError, UnicodeDecodeError) as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'history_b64' must be base64-encoded JSON: {exc}",
+                ) from None
+            history = _validate_history(history_raw)
+        asker = _get_asker()
+        filter_obj = _build_filter(None, demo_src=state["demo_source"])
+
+        def _sse(event: str, data: dict[str, Any]) -> str:
+            return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+        def _events():
+            # close() lives here, not in the route body: the generator outlives
+            # the request handler and a caller can disconnect mid-stream.
+            try:
+                for ev in asker.ask_stream(
+                    q,
+                    k=k,
+                    axis=axis,
+                    filter=filter_obj,
+                    history=history,
+                    db_lock=_query_lock,
+                ):
+                    if ev.kind == "meta":
+                        yield _sse(
+                            "meta",
+                            {
+                                "citations": [asdict(c) for c in ev.citations],
+                                "retrieval": [asdict(r) for r in ev.retrieval],
+                            },
+                        )
+                    elif ev.kind == "delta":
+                        yield _sse("delta", {"text": ev.text})
+                    else:
+                        yield _sse("done", {})
+            except WenjiError as exc:
+                logger.warning("ask stream aborted: %s", exc)
+                yield _sse("error", {"detail": str(exc)})
+            finally:
+                asker.db.close()
+
+        return StreamingResponse(
+            _events(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                # Cloudflare / nginx must not buffer, or the whole point of
+                # streaming is lost (verified against the tunnel at rollout).
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post("/api/aggregate/concept")
     async def api_aggregate_concept(request: Request) -> JSONResponse:
