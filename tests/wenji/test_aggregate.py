@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -309,12 +310,30 @@ class TestLLMClient:
         assert captured["url"] == "https://example.test/v1/chat/completions"
 
     def test_module_import_does_not_hit_network(self) -> None:
-        import importlib
+        """Executing the module body must not perform any network call.
+
+        Executed in a throwaway namespace rather than via ``importlib.reload``:
+        reloading rebinds ``LLMClientError`` in the live module, so any later
+        test in this file would ``pytest.raises`` on a stale class object and
+        fail for reasons unrelated to its subject.
+        """
+        import importlib.util
+        import sys
 
         import wenji.aggregate.llm as llm_module
 
-        importlib.reload(llm_module)
-        assert hasattr(llm_module, "LLMClient")
+        spec = importlib.util.spec_from_file_location("_llm_import_probe", llm_module.__file__)
+        assert spec is not None and spec.loader is not None
+        probe = importlib.util.module_from_spec(spec)
+        # dataclass creation looks the module up in sys.modules; register the
+        # probe under its own throwaway name and drop it again afterwards.
+        sys.modules[spec.name] = probe
+        try:
+            spec.loader.exec_module(probe)
+        finally:
+            sys.modules.pop(spec.name, None)
+        assert hasattr(probe, "LLMClient")
+        assert llm_module.LLMClientError is LLMClientError, "live module must stay untouched"
 
 
 # ---------------------------------------------------------------------------
@@ -575,3 +594,64 @@ class TestConceptPerspectives:
         # Both classical articles should appear; sermon/law shouldn't
         titles = {v.source_ref.title for v in result.per_source_views}
         assert all("論因信稱義" in t for t in titles) or len(titles) == 0
+
+
+class TestLLMClientStream:
+    """chat_stream parses OpenAI-compatible SSE frames."""
+
+    @staticmethod
+    def _sse_body(pieces: list[str], *, done: bool = True) -> bytes:
+        lines = []
+        for p in pieces:
+            frame = {"choices": [{"delta": {"content": p}}]}
+            lines.append(f"data: {json.dumps(frame, ensure_ascii=False)}")
+        if done:
+            lines.append("data: [DONE]")
+        return ("\n\n".join(lines) + "\n\n").encode()
+
+    def test_chat_stream_yields_content_pieces(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.read())
+            return httpx.Response(200, content=self._sse_body(["因信", "稱義"]))
+
+        client = _make_client(handler)
+        assert list(client.chat_stream([{"role": "user", "content": "q"}])) == ["因信", "稱義"]
+        assert captured["body"]["stream"] is True
+        assert captured["body"]["temperature"] == 0.1
+
+    def test_chat_stream_skips_malformed_frames(self) -> None:
+        """One bad frame must not abort a stream that is otherwise fine."""
+        body = (
+            b'data: {"choices": [{"delta": {"content": "\xe5\xa5\xbd"}}]}\n\n'
+            b"data: not-json\n\n"
+            b'data: {"choices": []}\n\n'
+            b": comment line\n\n"
+            b'data: {"choices": [{"delta": {"content": "\xe7\x9a\x84"}}]}\n\n'
+            b"data: [DONE]\n\n"
+        )
+        client = _make_client(lambda request: httpx.Response(200, content=body))
+        assert list(client.chat_stream([{"role": "user", "content": "q"}])) == ["好", "的"]
+
+    def test_chat_stream_raises_on_http_error(self) -> None:
+        client = _make_client(lambda request: httpx.Response(429, content=b"rate limited"))
+        with pytest.raises(LLMClientError) as exc:
+            list(client.chat_stream([{"role": "user", "content": "q"}]))
+        assert "stream failed" in str(exc.value)
+
+    def test_chat_stream_raises_when_no_content_produced(self) -> None:
+        client = _make_client(lambda request: httpx.Response(200, content=b"data: [DONE]\n\n"))
+        with pytest.raises(LLMClientError) as exc:
+            list(client.chat_stream([{"role": "user", "content": "q"}]))
+        assert "no content" in str(exc.value)
+
+    def test_chat_stream_redacts_bearer_token_in_errors(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError(f"failed with {request.headers['authorization']}")
+
+        client = _make_client(handler)
+        with pytest.raises(LLMClientError) as exc:
+            list(client.chat_stream([{"role": "user", "content": "q"}]))
+        assert "sk-test" not in str(exc.value)
+        assert "Bearer ***" in str(exc.value)

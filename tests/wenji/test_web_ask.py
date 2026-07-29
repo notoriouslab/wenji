@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import sqlite3
 from pathlib import Path
 
@@ -189,3 +191,95 @@ def test_api_ask_history_null_behaves_as_single_turn(file_db: Path) -> None:
     r = c.post("/api/ask", json={"q": "因信稱義", "history": None})
     assert r.status_code == 200
     assert llm.calls == 1, "no rewrite call for a single-turn request"
+
+
+class _StreamLLM:
+    """Duck-typed LLMClient for the SSE endpoint."""
+
+    def __init__(self, pieces=("答", "案"), *, raise_exc: Exception | None = None):
+        self.pieces = pieces
+        self.raise_exc = raise_exc
+        self.stream_calls = 0
+
+    def chat(self, messages):
+        return "改寫後問題"
+
+    def chat_stream(self, messages):
+        self.stream_calls += 1
+        if self.raise_exc is not None:
+            raise self.raise_exc
+        yield from self.pieces
+
+
+def _parse_sse(text: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    for block in text.strip().split("\n\n"):
+        name = data = None
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line[len("event: ") :]
+            elif line.startswith("data: "):
+                data = json.loads(line[len("data: ") :])
+        if name is not None:
+            events.append((name, data or {}))
+    return events
+
+
+def test_api_ask_stream_event_order_and_content_type(file_db: Path) -> None:
+    llm = _StreamLLM(pieces=("因信", "稱義"))
+    c = _make_client(file_db, llm=llm)
+    r = c.get("/api/ask/stream", params={"q": "因信稱義"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    assert r.headers["cache-control"] == "no-cache"
+    assert r.headers["x-accel-buffering"] == "no"
+
+    events = _parse_sse(r.text)
+    assert [name for name, _ in events] == ["meta", "delta", "delta", "done"]
+    assert events[0][1]["citations"], "citations arrive before answer text"
+    assert "".join(d["text"] for name, d in events if name == "delta") == "因信稱義"
+
+
+def test_api_ask_stream_cached_answer_replays_without_llm(file_db: Path) -> None:
+    llm = _StreamLLM(pieces=("答案",))
+    c = _make_client(file_db, llm=llm)
+    c.get("/api/ask/stream", params={"q": "因信稱義"})
+    assert llm.stream_calls == 1
+
+    r = c.get("/api/ask/stream", params={"q": "因信稱義"})
+    events = _parse_sse(r.text)
+    assert llm.stream_calls == 1, "second request must be served from cache"
+    assert [name for name, _ in events] == ["meta", "delta", "done"]
+    assert events[1][1]["text"] == "答案"
+
+
+def test_api_ask_stream_503_without_llm(file_db: Path) -> None:
+    c = _make_client(file_db, llm=None)
+    r = c.get("/api/ask/stream", params={"q": "因信稱義"})
+    assert r.status_code == 503
+
+
+def test_api_ask_stream_400_on_empty_q(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_StreamLLM())
+    r = c.get("/api/ask/stream", params={"q": "   "})
+    assert r.status_code == 400
+
+
+def test_api_ask_stream_accepts_base64_history(file_db: Path) -> None:
+    llm = _StreamLLM(pieces=("答案",))
+    c = _make_client(file_db, llm=llm)
+    history = base64.b64encode(
+        json.dumps([{"role": "user", "content": "因信稱義是什麼"}]).encode()
+    ).decode()
+    r = c.get("/api/ask/stream", params={"q": "那民法呢？", "history_b64": history})
+    assert r.status_code == 200
+    assert [name for name, _ in _parse_sse(r.text)][0] == "meta"
+
+
+@pytest.mark.parametrize("bad", ["not-base64!!", "aGVsbG8="])
+def test_api_ask_stream_400_on_bad_history_b64(file_db: Path, bad: str) -> None:
+    """Non-base64 and base64-of-non-JSON both fail the same way."""
+    c = _make_client(file_db, llm=_StreamLLM())
+    r = c.get("/api/ask/stream", params={"q": "因信稱義", "history_b64": bad})
+    assert r.status_code == 400
+    assert "history_b64" in r.json()["detail"]

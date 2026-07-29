@@ -9,7 +9,9 @@ vLLM, self-hosted llama.cpp, etc.). Failures are normalised to
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import httpx
@@ -52,6 +54,53 @@ class LLMClient:
         if not isinstance(content, str) or not content.strip():
             raise LLMClientError("LLM returned empty response")
         return content
+
+    def chat_stream(self, messages: list[dict]) -> Iterator[str]:
+        """Yield answer fragments as the model produces them.
+
+        Same request shape as :meth:`chat` plus ``stream: true``, parsing the
+        OpenAI-compatible SSE frames (``data: {...}`` lines terminated by
+        ``data: [DONE]``). ``timeout`` applies per read, not to the whole
+        stream, so a long answer is not cut off.
+
+        Raises :class:`LLMClientError` on transport failure or if the stream
+        ends without producing any text; malformed individual frames are
+        skipped rather than aborting a stream that is otherwise fine.
+        """
+        url = self.base_url.rstrip("/") + "/chat/completions"
+        body = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.1,
+            "stream": True,
+        }
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        produced = False
+        try:
+            with httpx.Client(transport=self._transport, timeout=self.timeout) as client:
+                with client.stream("POST", url, headers=headers, json=body) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        line = line.strip()
+                        if not line.startswith("data:"):
+                            continue
+                        payload = line[len("data:") :].strip()
+                        if payload == "[DONE]":
+                            break
+                        try:
+                            delta = json.loads(payload)["choices"][0]["delta"]
+                        except (KeyError, IndexError, ValueError, TypeError):
+                            continue
+                        piece = delta.get("content")
+                        if piece:
+                            produced = True
+                            yield piece
+        except httpx.HTTPError as exc:
+            msg = re.sub(r"Bearer [A-Za-z0-9._-]+", "Bearer ***", str(exc))
+            raise LLMClientError(f"LLM stream failed: {msg}") from exc
+
+        if not produced:
+            raise LLMClientError("LLM stream produced no content")
 
 
 if __name__ == "__main__":

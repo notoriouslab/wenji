@@ -47,15 +47,19 @@
 
 ## Phase 4 — streaming（D5）
 
-- [ ] 4.1 `aggregate/llm.py` 新增 `LLMClient.chat_stream(messages) -> Iterator[str]`：`httpx.Client.stream("POST", ...)` + `stream=True` body，逐行解析 `data:`、遇 `[DONE]` 結束，沿用 `chat()` 的 `temperature=0.1` 與 `Bearer` 遮蔽邏輯
-- [ ] 4.2 `Asker` 新增 `ask_stream(...)`：檢索與 citation 先算完 yield 一次 meta，再逐段 yield 答案；結束後 `cache_put`
-- [ ] 4.2a 連線生命週期：`asker.db.close()` 放在 generator 內部的 `try/finally`，涵蓋客戶端中途斷線；不可留在 route function（會在串流中途關掉連線）
-- [ ] 4.2b 持鎖範圍：`_query_lock` 只包住檢索與 citation 查詢，取得 citations 後釋放；LLM 串流階段不持鎖；`cache_put` 於串流結束後重新取鎖執行（避免整段生成期間擋住所有搜尋，見 design D5 並行安全段）
-- [ ] 4.3 `web/app.py` 新增 `GET /api/ask/stream`（`StreamingResponse`、`media_type="text/event-stream"`、`X-Accel-Buffering: no`、`Cache-Control: no-cache`），參數 `q`/`k`/`axis`/`history_b64` ｜ Requirement: Streaming ask endpoint
-- [ ] 4.4 cache 命中路徑：emit `meta` → 單一 `delta`（全文）→ `done`，不呼叫 LLM
-- [ ] 4.5 未配置 LLM 回 503
-- [ ] 4.6 測試：事件順序為 meta→delta+→done；cache 命中只有一個 delta 且無 LLM 呼叫；無 LLM 配置回 503；`history_b64` 非法 base64 回 400
-- [ ] 4.7 Gate：`pytest tests/wenji/test_web_ask.py -q` 全綠
+- [x] 4.1 `aggregate/llm.py` 新增 `LLMClient.chat_stream(messages) -> Iterator[str]`：`httpx.Client.stream("POST", ...)` + `stream=True` body，逐行解析 `data:`、遇 `[DONE]` 結束，沿用 `chat()` 的 `temperature=0.1` 與 `Bearer` 遮蔽邏輯
+- [x] 4.2 `Asker` 新增 `ask_stream(...)`：檢索與 citation 先算完 yield 一次 meta，再逐段 yield 答案；結束後 `cache_put`
+- [x] 4.2a 連線生命週期：`asker.db.close()` 放在 generator 內部的 `try/finally`，涵蓋客戶端中途斷線；不可留在 route function（會在串流中途關掉連線）
+- [x] 4.2b 持鎖範圍：`_query_lock` 只包住檢索與 citation 查詢，取得 citations 後釋放；LLM 串流階段不持鎖；`cache_put` 於串流結束後重新取鎖執行（避免整段生成期間擋住所有搜尋，見 design D5 並行安全段）
+- [x] 4.3 `web/app.py` 新增 `GET /api/ask/stream`（`StreamingResponse`、`media_type="text/event-stream"`、`X-Accel-Buffering: no`、`Cache-Control: no-cache`），參數 `q`/`k`/`axis`/`history_b64` ｜ Requirement: Streaming ask endpoint
+- [x] 4.4 cache 命中路徑：emit `meta` → 單一 `delta`（全文）→ `done`，不呼叫 LLM
+- [x] 4.5 未配置 LLM 回 503
+- [x] 4.6 測試：事件順序為 meta→delta+→done；cache 命中只有一個 delta 且無 LLM 呼叫；無 LLM 配置回 503；`history_b64` 非法 base64 回 400
+- [x] 4.7 Gate：`pytest tests/wenji/test_web_ask.py -q` 全綠
+
+**Phase 4 補充（修掉既有測試污染）**：`tests/wenji/test_aggregate.py` 的 `test_module_import_does_not_hit_network` 用 `importlib.reload` 重載 llm 模組，會把 `LLMClientError` 換成新類別物件，導致該檔之後定義的任何測試用檔頭 import 的舊類別做 `pytest.raises` 時接不到（新增 chat_stream 測試時實際踩到：例外正確丟出卻判 fail）。改為在 throwaway namespace 執行模組本體（需先註冊 `sys.modules`，dataclass 建立時會回查），同樣證明 import 不觸網但不污染，並加斷言確認 live module 未被動過。
+
+**鎖與連線邊界的實作方式**：`ask_stream` 接受 `db_lock` 參數（預設 `nullcontext()`），只在 cache 讀、檢索+citation、cache 寫三段進鎖，LLM 串流段不持鎖；連線關閉放在 route 的 generator `finally`。持鎖範圍有專測 `test_ask_stream_holds_db_lock_only_around_db_work`（用探針鎖斷言串流期間 `held is False`），不靠人工紀律。
 
 ## Phase 5 — 前端（D6、D7、D10）
 

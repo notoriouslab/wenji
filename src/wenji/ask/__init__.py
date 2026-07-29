@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -45,6 +47,7 @@ __all__ = [
     "Asker",
     "Answer",
     "Citation",
+    "StreamEvent",
     "Filter",
     "LLMClient",
     "LLMClientError",
@@ -81,6 +84,20 @@ class Answer:
     answer: str | None
     citations: list[Citation]
     retrieval: list[SourceRef]
+
+
+@dataclass
+class StreamEvent:
+    """One event of a streamed answer.
+
+    ``kind`` is ``"meta"`` (citations, emitted as soon as retrieval finishes),
+    ``"delta"`` (an answer fragment) or ``"done"``.
+    """
+
+    kind: str
+    text: str = ""
+    citations: list[Citation] = field(default_factory=list)
+    retrieval: list[SourceRef] = field(default_factory=list)
 
 
 def _truncate(text: str) -> str:
@@ -373,6 +390,80 @@ class Asker:
         if not llm_failed:
             cache_put(self.db, key, _answer_to_dict(answer))
         return answer
+
+    def ask_stream(
+        self,
+        query: str,
+        *,
+        k: int = 5,
+        axis: str | None = None,
+        filter: Filter | None = None,
+        history: list[dict[str, Any]] | None = None,
+        db_lock: AbstractContextManager[Any] | None = None,
+    ) -> Iterator[StreamEvent]:
+        """Stream an answer: one ``meta`` event, then ``delta``s, then ``done``.
+
+        ``db_lock`` is entered only around the sections that touch the shared
+        SQLite connection (cache read, retrieval + citations, cache write). The
+        LLM stream itself runs **outside** the lock — holding it for the whole
+        generation would serialise every search request behind one answer.
+
+        A cached answer replays as a single ``delta`` and costs no LLM call.
+        Transient stream failures end the stream after whatever text arrived and
+        are not cached (same rule as :meth:`ask`).
+        """
+        lock = db_lock if db_lock is not None else nullcontext()
+
+        with lock:
+            key = self._cache_key(query, k, axis, filter, history)
+            cached = cache_get(self.db, key)
+        if cached is not None:
+            answer = _answer_from_dict(cached)
+            yield StreamEvent(kind="meta", citations=answer.citations, retrieval=answer.retrieval)
+            if answer.answer:
+                yield StreamEvent(kind="delta", text=answer.answer)
+            yield StreamEvent(kind="done")
+            return
+
+        retrieval_query = self._rewrite_for_retrieval(query, history) if history else query
+
+        with lock:
+            raw = self._retrieve(retrieval_query, k=k, axis=axis, filter=filter)
+            retrieval = self._to_source_refs(raw)
+            citations = self._build_citations(retrieval_query, retrieval)
+
+        yield StreamEvent(kind="meta", citations=citations, retrieval=retrieval)
+
+        if not retrieval:
+            yield StreamEvent(kind="done")
+            return
+
+        prompt = self._compose_prompt(query, citations)
+        pieces: list[str] = []
+        stream_failed = False
+        try:
+            for piece in self.llm_client.chat_stream([{"role": "user", "content": prompt}]):
+                pieces.append(piece)
+                yield StreamEvent(kind="delta", text=piece)
+        except LLMClientError as exc:
+            logger.warning("Asker stream failed (%s); ending stream early", exc)
+            stream_failed = True
+
+        if pieces and not stream_failed:
+            with lock:
+                cache_put(
+                    self.db,
+                    key,
+                    _answer_to_dict(
+                        Answer(
+                            query=query,
+                            answer="".join(pieces),
+                            citations=citations,
+                            retrieval=retrieval,
+                        )
+                    ),
+                )
+        yield StreamEvent(kind="done")
 
 
 def _answer_to_dict(answer: Answer) -> dict[str, Any]:
