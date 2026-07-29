@@ -35,13 +35,15 @@
 
 ## Phase 3 — 追問（D4）
 
-- [ ] 3.1 `ask/prompts.py` 新增 `FOLLOWUP_REWRITE_PROMPT`：輸入歷史與新問題，輸出單句自含檢索查詢（要求只輸出查詢字串、不加解釋）
-- [ ] 3.2 `Asker.ask` 新增 `history: list[dict] | None = None` 參數；非空時先呼叫改寫，取得 `retrieval_query`
-- [ ] 3.3 改寫失敗（`LLMClientError`）時退回「歷史末輪 user 內容 + 空白 + 新問題」，並 `logger.warning`；不得中斷回答
-- [ ] 3.4 `_cache_key` 納入 `retrieval_query`
-- [ ] 3.5 `web/app.py` 的 `POST /api/ask` 接收並驗證 `history`（list of `{role,content}`，role 限 `user`/`assistant`，長度上限 10 turn，超出取最後 10） ｜ Requirement: `/api/ask` accepts caller-held conversation history
-- [ ] 3.6 測試：省略主語追問會用改寫後查詢檢索；改寫失敗仍回 200；無 history 時不呼叫改寫（mock 斷言呼叫次數）；history 格式錯誤回 400（對齊 `api_ask` 既有以 `HTTPException(400)` 驗證 body 的風格）
-- [ ] 3.7 Gate：`pytest tests/wenji/test_ask.py tests/wenji/test_web_ask.py -q` 全綠
+- [x] 3.1 `ask/prompts.py` 新增 `FOLLOWUP_REWRITE_PROMPT`：輸入歷史與新問題，輸出單句自含檢索查詢（要求只輸出查詢字串、不加解釋）
+- [x] 3.2 `Asker.ask` 新增 `history: list[dict] | None = None` 參數；非空時先呼叫改寫，取得 `retrieval_query`
+- [x] 3.3 改寫失敗（`LLMClientError`）時退回「歷史末輪 user 內容 + 空白 + 新問題」，並 `logger.warning`；不得中斷回答
+- [x] 3.4 `_cache_key` 納入對話 turns（**非**改寫後查詢，見 design D4 cache key 修正段：keying on rewrite 會讓每次查快取都先付一次 LLM）
+- [x] 3.5 `web/app.py` 的 `POST /api/ask` 接收並驗證 `history`（list of `{role,content}`，role 限 `user`/`assistant`，長度上限 10 turn，超出取最後 10） ｜ Requirement: `/api/ask` accepts caller-held conversation history
+- [x] 3.6 測試：省略主語追問會用改寫後查詢檢索；改寫失敗仍回 200；無 history 時不呼叫改寫（mock 斷言呼叫次數）；history 格式錯誤回 400（對齊 `api_ask` 既有以 `HTTPException(400)` 驗證 body 的風格）
+- [x] 3.7 Gate：`pytest tests/wenji/test_ask.py tests/wenji/test_web_ask.py -q` 全綠
+
+**Phase 3 補充**：改寫輸出採自然問句而非傷疤一的 keyword 形狀，理由見 design D4 輸出形狀段（舊 rewriter 的對照條件已不存在），形狀鎖在 `test_followup_rewrite_prompt_shape_is_locked`。另外 `MAX_HISTORY_TURNS = 10` 同時做 web 層拒絕（400）與 library 層防禦性切片，讓直接用套件的呼叫者也受保護。
 
 ## Phase 4 — streaming（D5）
 

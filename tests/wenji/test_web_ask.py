@@ -125,3 +125,67 @@ def test_api_ask_503_when_llm_not_configured(file_db: Path) -> None:
     c = _make_client(file_db, llm=None)
     r = c.post("/api/ask", json={"q": "因信稱義"})
     assert r.status_code == 503
+
+
+def test_api_ask_accepts_history_and_rewrites_for_retrieval(file_db: Path) -> None:
+    """A follow-up turn is condensed once, then answered from that retrieval."""
+    prompts: list[str] = []
+
+    class _RecordingLLM:
+        calls = 0
+
+        def chat(self, messages):
+            _RecordingLLM.calls += 1
+            prompts.append(messages[0]["content"])
+            if "<followup>" in messages[0]["content"]:
+                return "民法總則規範什麼？"
+            return "答案 [1]"
+
+    c = _make_client(file_db, llm=_RecordingLLM())
+    r = c.post(
+        "/api/ask",
+        json={
+            "q": "那民法呢？",
+            "history": [
+                {"role": "user", "content": "因信稱義是什麼"},
+                {"role": "assistant", "content": "宗教改革核心教義"},
+            ],
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["answer"] == "答案 [1]"
+    assert len(prompts) == 2, "one rewrite, one answer"
+    assert "<followup>" in prompts[0]
+    # the rewritten text is never surfaced to the caller
+    assert "民法總則規範什麼？" not in r.text
+
+
+@pytest.mark.parametrize(
+    ("history", "expected_fragment"),
+    [
+        ("not-a-list", "must be a list"),
+        (["not-an-object"], "must be objects"),
+        ([{"role": "system", "content": "x"}], "role must be"),
+        ([{"role": "user"}], "content must be"),
+        ([{"role": "user", "content": "   "}], "content must be"),
+        ([{"role": "user", "content": "q"}] * 11, "at most"),
+    ],
+)
+def test_api_ask_400_on_malformed_history(
+    file_db: Path,
+    history: object,
+    expected_fragment: str,
+) -> None:
+    """History validation mirrors the 400-on-bad-body style of this endpoint."""
+    c = _make_client(file_db, llm=_FakeLLM())
+    r = c.post("/api/ask", json={"q": "因信稱義", "history": history})
+    assert r.status_code == 400
+    assert expected_fragment in r.json()["detail"]
+
+
+def test_api_ask_history_null_behaves_as_single_turn(file_db: Path) -> None:
+    llm = _FakeLLM(response="答案")
+    c = _make_client(file_db, llm=llm)
+    r = c.post("/api/ask", json={"q": "因信稱義", "history": None})
+    assert r.status_code == 200
+    assert llm.calls == 1, "no rewrite call for a single-turn request"

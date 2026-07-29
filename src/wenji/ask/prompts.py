@@ -19,3 +19,30 @@ ASK_PROMPT = """你是一位嚴謹的繁體中文知識助理。必須只依照�
 
 請依規則作答：
 """
+
+#: Condenses a follow-up turn into a self-contained retrieval query.
+#:
+#: Output shape is a *natural question*, not the ``|``-separated keyword groups
+#: used by the query rewriter removed in 0.5.0. That rewriter expanded a query
+#: for a pipeline with a different candidate mix; this one only resolves
+#: pronouns and ellipsis, and its output feeds the same hybrid search where the
+#: vector channel is what actually retrieves (measured: every document in the
+#: policy corpus except the one oversized file ranks 1 on a spoken-form
+#: question). The shape is locked by a regression test.
+FOLLOWUP_REWRITE_PROMPT = """你的任務是把使用者的追問改寫成一句可獨立檢索的問題。
+
+規則：
+1. 補上追問中省略的主體（例如「那病假呢？」在談婚假的脈絡下應改寫為「病假可以請幾天？」）。
+2. 只輸出改寫後的那一句問題，不要加解釋、前言、引號或編號。
+3. 保留原問題的專有名詞與數量詞；不要自行添加對話中沒有出現的條件。
+4. 若追問本身已經可獨立檢索，原句輸出即可。
+5. 用繁體中文輸出。
+
+對話紀錄：
+<history>{history}</history>
+
+追問：
+<followup>{followup}</followup>
+
+改寫後的問題：
+"""
