@@ -760,9 +760,7 @@ class _CountingSearcher:
         return self.rows[:limit]
 
 
-def test_api_search_demo_mode_over_fetches_before_post_filter(
-    populated_db_file, monkeypatch
-):
+def test_api_search_demo_mode_over_fetches_before_post_filter(populated_db_file, monkeypatch):
     """Regression: demo mode + small limit returned an empty list.
 
     The source filter runs after retrieval, so asking for exactly `limit` rows
@@ -801,7 +799,10 @@ def test_api_search_without_demo_mode_asks_for_exact_limit(populated_db_file, mo
 
     monkeypatch.delenv("WENJI_DEMO_SOURCE", raising=False)
     searcher = _CountingSearcher(
-        [{"article_id": f"a{i}", "title": "t", "content_snippet": "x", "bm25_score": 1.0} for i in range(9)]
+        [
+            {"article_id": f"a{i}", "title": "t", "content_snippet": "x", "bm25_score": 1.0}
+            for i in range(9)
+        ]
     )
     client = TestClient(create_app(db_path=populated_db_file, searcher=searcher))
     body = client.get("/api/search", params={"q": "因信稱義", "limit": 3}).json()

@@ -81,7 +81,7 @@
 
 **範圍外但一併修的 production 缺陷**：`/tags` 在 Starlette 1.0 下回 500（route 用舊版 `TemplateResponse(name, context)` 簽名），而該連結在每一頁的導覽列上。已修 `tags_index` 與 `tag_detail` 兩處並加回歸測試。
 
-**已知未修（需主公決定）**：375px 下 `body.scrollWidth` 515 > 375 橫向溢出，來源是既有 header 的 `.topbar-right`（字級控制 + 書籤計數），非問答頁；修它會動到全站 header。
+**已知未修（待維護者決定）**：375px 下 `body.scrollWidth` 515 > 375 橫向溢出，來源是既有 header 的 `.topbar-right`（字級控制 + 書籤計數），非問答頁；修它會動到全站 header。
 
 - [x] 5.5 `static/ask.js` 改寫：SSE 優先、503 時降級為 `POST /api/ask`；維護 client-side turn 陣列；引用區渲染 `chunk_texts` 並 clamp 3 行 + 展開；複製答案按鈕
 - [x] 5.6 `static/style.css` 新增 `.chat-input-area`、`.chat-input-area textarea`、`.chat-submit`、`.chat-select`、`.ask-two-col`、`.ask-citation-clamp` 規則；submit 對比 ≥4.5:1；textarea 撐滿容器寬 ｜ Requirement: Ask input controls have explicit styling
@@ -103,13 +103,25 @@
 - [x] 7.3 **eval before**（改動前 HEAD）：oracle 上 `PYTHONPATH=~/wenji_eval/src`（指向未含 7.1/7.2 的樹）起 scratch port serve → `wenji eval run-benchmark`（80q v2 gold r14）+ v3 holdout；記下 pass@3 partial+ 與 miss 題清單
 - [x] 7.4 **eval after**：同一顆 db、同一命令，樹含 7.1/7.2
 - [x] 7.5 G4 判定：80q 與 v3 皆不低於 before → Keep；任一低於 → 回退 7.1/7.2（D1-D8 不依賴 D9）；總分持平但 miss 題換人則逐題 diff 後再判。判定與逐題 diff 寫進本檔
-- [ ] 7.6 5 題考卷 after 最終對照，結果寫進 `policy_qa_set.json` 的 `after_final` 區塊
-- [ ] 7.7 規章站煙霧 4 題 rank-1 標題逐字比對（handoff runbook B）
+- [x] 7.6 5 題考卷 after 最終對照，結果寫進 `policy_qa_set.json` 的 `after_final` 區塊
+- [x] 7.7 規章站煙霧 4 題 rank-1 標題逐字比對（handoff runbook B）
 - [ ] 7.8 SSE 實機驗證（R1／common-ground K14）：規章站經 Cloudflare tunnel 確認逐字輸出未被緩衝；若被緩衝則前端降級並記錄
-- [ ] 7.9 `bash scripts/audit_release.sh`（檢查 exit code，不接 pipe）
-- [ ] 7.10 `/code-self-review` 六點自審全過
+- [x] 7.9 `bash scripts/audit_release.sh`（檢查 exit code，不接 pipe）
+- [x] 7.10 `/code-self-review` 六點自審全過
 - [ ] 7.11 部署前置：清一次 `aggregate_cache`（`Citation` 欄位變更；預設值已防 `TypeError`，清快取確保引用立即帶 chunk 原文）
 - [ ] 7.12 CHANGELOG 0.6.0 條目（精簡風格，1-2 句帶過）+ `pyproject.toml` version bump + `pip install -e . --no-deps` 刷新本機 metadata
+
+**Phase 7 驗收紀錄（2026-07-29，皆未碰 production）**
+
+| 項目 | 結果 |
+|------|------|
+| 7.6 考卷 after_final（未拆語料，隔離 code 效果）| 5/5 有答案，與 after_phase2 一致 → D9 回退未影響 ask 品質 |
+| 7.6 考卷（已拆語料探測 db）| 檢索不變 + **b1 婚假題首次答出**（引用 rank-1 =「人資規章｜第四章第三節 請假」，並正確補出建卷時漏抓的「一年內請畢、逾期視同放棄」，已查證原文第 235-236 行非捏造）|
+| 7.7 煙霧 4 題 | 兩顆 db 皆 4/4 rank-1 標題逐字不變 |
+| 7.9 `audit_release.sh` | exit 0（首跑抓到我在 tasks.md 誤用角色稱謂，已修）|
+| 7.10 全案六點自審 | 全 PASS；26 檔 +3,056/-134 |
+
+執行期間遭遇 Groq 429（同日累積呼叫過多），非 code 缺陷；帶退避重試後補齊。
 
 ## G2 Coverage Mapping
 
