@@ -746,3 +746,64 @@ def test_tag_detail_renders_for_an_existing_tag(file_db_for_tags):
     r = client.get(f"/tag/{name}")
     assert r.status_code == 200
     assert name in r.text
+
+
+class _CountingSearcher:
+    """Records the limit each search() call asked for."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.limits = []
+
+    def search(self, query, *, axis=None, limit=10):
+        self.limits.append(limit)
+        return self.rows[:limit]
+
+
+def test_api_search_demo_mode_over_fetches_before_post_filter(
+    populated_db_file, monkeypatch
+):
+    """Regression: demo mode + small limit returned an empty list.
+
+    The source filter runs after retrieval, so asking for exactly `limit` rows
+    left nothing once non-demo rows were dropped. Measured on the live demo
+    deployment: limit=3 → 0 results, limit=30 → 3 results.
+    """
+    import sqlite3
+
+    from fastapi.testclient import TestClient
+
+    from wenji.web.app import create_app
+
+    conn = sqlite3.connect(str(populated_db_file))
+    rows = [
+        {"article_id": r[0], "title": r[1], "content_snippet": "x", "bm25_score": 1.0}
+        for r in conn.execute("SELECT article_id, title FROM articles_meta").fetchall()
+    ]
+    conn.close()
+    assert rows, "fixture corpus must have articles"
+
+    monkeypatch.setenv("WENJI_DEMO_SOURCE", "sermon")
+    searcher = _CountingSearcher(rows)
+    client = TestClient(create_app(db_path=populated_db_file, searcher=searcher))
+
+    body = client.get("/api/search", params={"q": "因信稱義", "limit": 3}).json()
+    assert searcher.limits == [50], "demo mode must over-fetch, not ask for 3"
+    assert len(body["results"]) == 3, "3 demo-source rows must survive the filter"
+    assert len(body["results"]) <= 3, "limit is still respected"
+
+
+def test_api_search_without_demo_mode_asks_for_exact_limit(populated_db_file, monkeypatch):
+    """No post-filter means no reason to over-fetch."""
+    from fastapi.testclient import TestClient
+
+    from wenji.web.app import create_app
+
+    monkeypatch.delenv("WENJI_DEMO_SOURCE", raising=False)
+    searcher = _CountingSearcher(
+        [{"article_id": f"a{i}", "title": "t", "content_snippet": "x", "bm25_score": 1.0} for i in range(9)]
+    )
+    client = TestClient(create_app(db_path=populated_db_file, searcher=searcher))
+    body = client.get("/api/search", params={"q": "因信稱義", "limit": 3}).json()
+    assert searcher.limits == [3]
+    assert len(body["results"]) == 3

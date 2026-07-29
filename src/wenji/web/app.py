@@ -789,9 +789,15 @@ def create_app(
                 },
             )
         demo_src = state["demo_source"]
+        # In demo mode the source filter is applied *after* retrieval, so asking
+        # the searcher for exactly `limit` rows meant a small limit could be
+        # filtered down to nothing (measured: limit=3 returned 0 results on a
+        # corpus with plenty of matches). Over-fetch first, truncate last —
+        # matching the index route's fetch_limit.
+        fetch_limit = max(limit * 5, 50) if demo_src else limit
         try:
             with _query_lock:
-                results = s.search(q, axis=axis, limit=limit)
+                results = s.search(q, axis=axis, limit=fetch_limit)
             if demo_src:
                 filter_conn = _get_conn()
                 try:
@@ -800,6 +806,7 @@ def create_app(
                     )
                 finally:
                     filter_conn.close()
+                results = results[:limit]
             return JSONResponse({"results": results, "query": q})
         except WenjiError as exc:
             return JSONResponse(status_code=504, content={"error": str(exc)})
