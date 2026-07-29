@@ -376,6 +376,16 @@ def test_article_viewer_with_query_renders_back_link(client, populated_db):
     assert "禱告" in r.text
 
 
+def test_article_viewer_ships_back_button(client, populated_db):
+    """0.6.1: 回上一頁 button near the title, hidden until client-side JS
+    confirms there is same-origin history to go back to."""
+    aid = populated_db.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    r = client.get(f"/article/{aid}")
+    assert r.status_code == 200
+    assert 'id="article-back"' in r.text
+    assert "回上一頁" in r.text
+
+
 def test_article_viewer_sidebar_renders_when_chunked(client, tmp_path):
     """When article has chunks, the chunks render correctly with ids."""
     import sqlite3

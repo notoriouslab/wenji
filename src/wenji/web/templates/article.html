@@ -56,8 +56,11 @@
 
 {% block content %}
 <div class="article-viewer-container" style="max-width: 900px; margin: 0 auto; padding: 2rem;">
-  <nav class="breadcrumb" aria-label="Breadcrumb" style="margin-bottom: 2rem; font-size: 0.85rem; color: var(--color-text-muted);">
-    <ol style="list-style: none; padding: 0; display: flex; gap: 0.5rem;">
+  <nav class="breadcrumb" aria-label="Breadcrumb" style="margin-bottom: 2rem; font-size: 0.85rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 1rem;">
+    {# 站內來的訪客（搜尋結果或問答頁）才顯示；直開連結沒有可回的上一頁，
+       由 JS 判斷後解除 hidden。 #}
+    <button id="article-back" hidden onclick="history.back()" style="background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 0.35rem 0.8rem; font-weight: 600; font-size: 0.85rem; cursor: pointer; white-space: nowrap; color: var(--color-text);">← 回上一頁</button>
+    <ol style="list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem;">
       <li><a href="/" style="color: var(--color-primary); text-decoration: none;">首頁</a></li>
       <li style="color: #ccc;">/</li>
       <li><a href="/?source_type={{ article.source_type|urlencode }}" style="color: var(--color-primary); text-decoration: none;">{{ article.source_type }}</a></li>
@@ -139,4 +142,14 @@
     </footer>
   </article>
 </div>
+<script>
+  (function () {
+    var back = document.getElementById('article-back');
+    if (!back) return;
+    // 有歷史可回、且上一頁是本站（referrer 同源）才顯示
+    if (history.length > 1 && document.referrer.indexOf(location.origin + '/') === 0) {
+      back.hidden = false;
+    }
+  })();
+</script>
 {% endblock %}

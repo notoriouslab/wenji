@@ -45,6 +45,9 @@
       var a = document.createElement('a');
       a.className = 'ask-citation-title';
       a.href = '/article/' + encodeURIComponent(c.article_id) + '#c' + idx;
+      // 開新分頁：對話狀態在前端記憶體，同分頁跳走再回來不保證還在
+      a.target = '_blank';
+      a.rel = 'noopener';
       a.textContent = '[' + (i + 1) + '] ' + (c.title || c.article_id);
       li.appendChild(a);
 
