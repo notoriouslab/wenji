@@ -13,19 +13,25 @@
 
 ## Phase 2 — 餵入層（D2、D3）
 
-- [ ] 2.1 `ask/__init__.py`：`Citation` dataclass 新增 `chunk_texts: list[str] = field(default_factory=list)`、`chunk_indexes: list[int] = field(default_factory=list)`（**必須有預設值**：`_answer_from_dict` 用 `Citation(**c)` 解舊快取列，無預設會 `TypeError` → 500）
-- [ ] 2.2 `_build_citations` 改用 `build_fts_query_or`，一次查 top-3（`ORDER BY bm25 ASC LIMIT 3`），取 `chunk_index` 與 `chunk_text_raw`；`chunk_index` 保留為 `chunk_indexes[0]`（無命中則 0、兩個 list 為空） ｜ Requirement: `/api/ask` citations carry the source text that grounded the answer
-- [ ] 2.3 把 `search/__init__.py:46` 的 `_strip_markdown_for_snippet` 公開為 `strip_markdown_for_snippet`（跨 subpackage 共用），更新其 2 處 src 呼叫端（`search/__init__.py:124`、`:340`）與 `tests/wenji/test_search_searcher.py` 的 import 與 5 處使用；不留舊別名
-- [ ] 2.3a chunk 原文經 `strip_markdown_for_snippet` 處理後存入 `chunk_texts`（R6）
-- [ ] 2.4 `_compose_prompt` 簽名改為吃 `citations: list[Citation]`（`SourceRef` 無 chunk 內文管道，見 design D2 簽名定案），每篇輸出 `[i] {title}\n<條文>{chunk_texts 串接}</條文>`；無 chunk 命中時退回文件級 snippet
-- [ ] 2.4a sanitize 順序：對 `title` 與每段 chunk 內文**個別**呼叫 `sanitize_prompt_input`，字面 `<條文>`／`</條文>` 標記在 sanitize 之後才組進最終字串（`core/safety.py:11` 會把 `<` `>` 轉 entity，整段 sanitize 會讓標記失效）
-- [ ] 2.4b 改寫既有測試 `tests/wenji/test_ask.py:246` `test_ask_compose_prompt_lists_sources`：改用新簽名與新格式斷言（舊斷言 `[1] 標題 — 摘要` 會失敗），並保留「query 出現在 prompt 中」的既有斷言
-- [ ] 2.4c `ask()` 內呼叫端改為先 `_build_citations`、再把 citations 傳給 `_compose_prompt`（現行兩者各自獨立由 retrieval 組出） ｜ Requirement: The LLM is grounded on clause text, not document summaries
-- [ ] 2.5 每 chunk 餵入字數上限 1,200 字（超出截斷並附 `…`），每篇最多 3 chunk（R4）
-- [ ] 2.6 `ask/prompts.py`：`ASK_PROMPT` 新增第 5 條「數字、金額、天數、百分比必須照抄條文原文，不得換算或概括」；四條既有規則不動 ｜ Requirement: Ask prompt requires verbatim numbers
-- [ ] 2.7 `tests/wenji/test_ask.py` 新增：citation 帶 `chunk_texts`/`chunk_indexes`；prompt 含 `<條文>` 與五條規則標記（形狀鎖：擴充既有 `tests/wenji/test_ask.py:238` `test_ask_prompt_template_has_required_clauses`）；無 chunk 命中時退回 snippet
-- [ ] 2.8 Gate：`pytest tests/wenji/test_ask.py tests/wenji/test_web_ask.py -q` 全綠
-- [ ] 2.9 **第一次品質驗收**：oracle 上以 PYTHONPATH 覆蓋跑 5 題考卷，逐題記錄 answer 與 verdict 進 `policy_qa_set.json` 的 `after_phase2` 區塊；baseline 是 0/5
+- [x] 2.1 `ask/__init__.py`：`Citation` dataclass 新增 `chunk_texts: list[str] = field(default_factory=list)`、`chunk_indexes: list[int] = field(default_factory=list)`（**必須有預設值**：`_answer_from_dict` 用 `Citation(**c)` 解舊快取列，無預設會 `TypeError` → 500）
+- [x] 2.2 `_build_citations` 改用 `build_fts_query_or`，一次查 top-3（`ORDER BY bm25 ASC LIMIT 3`），取 `chunk_index` 與 `chunk_text_raw`；`chunk_index` 保留為 `chunk_indexes[0]`（無命中則 0、兩個 list 為空） ｜ Requirement: `/api/ask` citations carry the source text that grounded the answer
+- [x] 2.3 把 `search/__init__.py:46` 的 `_strip_markdown_for_snippet` 公開為 `strip_markdown_for_snippet`（跨 subpackage 共用），更新其 2 處 src 呼叫端（`search/__init__.py:124`、`:340`）與 `tests/wenji/test_search_searcher.py` 的 import 與 5 處使用；不留舊別名
+- [x] 2.3a chunk 原文經 `strip_markdown_for_snippet` 處理後存入 `chunk_texts`（R6）
+- [x] 2.4 `_compose_prompt` 簽名改為吃 `citations: list[Citation]`（`SourceRef` 無 chunk 內文管道，見 design D2 簽名定案），每篇輸出 `[i] {title}\n<條文>{chunk_texts 串接}</條文>`；無 chunk 命中時退回文件級 snippet
+- [x] 2.4a sanitize 順序：對 `title` 與每段 chunk 內文**個別**呼叫 `sanitize_prompt_input`，字面 `<條文>`／`</條文>` 標記在 sanitize 之後才組進最終字串（`core/safety.py:11` 會把 `<` `>` 轉 entity，整段 sanitize 會讓標記失效）
+- [x] 2.4b 改寫既有測試 `tests/wenji/test_ask.py:246` `test_ask_compose_prompt_lists_sources`：改用新簽名與新格式斷言（舊斷言 `[1] 標題 — 摘要` 會失敗），並保留「query 出現在 prompt 中」的既有斷言
+- [x] 2.4c `ask()` 內呼叫端改為先 `_build_citations`、再把 citations 傳給 `_compose_prompt`（現行兩者各自獨立由 retrieval 組出） ｜ Requirement: The LLM is grounded on clause text, not document summaries
+- [x] 2.5 每 chunk 餵入字數上限 1,200 字（超出截斷並附 `…`），每篇最多 3 chunk（R4）
+- [x] 2.6 `ask/prompts.py`：`ASK_PROMPT` 新增第 5 條「數字、金額、天數、百分比必須照抄條文原文，不得換算或概括」；四條既有規則不動 ｜ Requirement: Ask prompt requires verbatim numbers
+- [x] 2.7 `tests/wenji/test_ask.py` 新增：citation 帶 `chunk_texts`/`chunk_indexes`；prompt 含 `<條文>` 與五條規則標記（形狀鎖：擴充既有 `tests/wenji/test_ask.py:238` `test_ask_prompt_template_has_required_clauses`）；無 chunk 命中時退回 snippet
+- [x] 2.8 Gate：`pytest tests/wenji/test_ask.py tests/wenji/test_web_ask.py -q` 全綠
+- [x] 2.9 **第一次品質驗收**：oracle 上以 PYTHONPATH 覆蓋跑 5 題考卷，逐題記錄 answer 與 verdict 進 `policy_qa_set.json` 的 `after_phase2` 區塊；baseline 是 0/5
+
+- [x] 2.10 `ask()` 對 LLM 失敗不寫入快取（`llm_failed` 時跳過 `cache_put`）+ 單元測試 ｜ Requirement: Transient LLM failures are not cached
+
+**Phase 2 補充（驗收中發現的既有缺陷，已同案修）**：`ask()` 原本對 LLM 失敗仍執行 `cache_put`，把 `answer=None` 寫進 30 天 TTL 快取，一次 Groq 429 就讓該題整月答不出來（驗收跑 n5 時實際踩到）。修法：`llm_failed` 時跳過 `cache_put`；空 retrieval（未嘗試呼叫 LLM）仍照舊快取。spec 已加 requirement 與測試。
+
+**Phase 2 驗收結果**：查數值題 **0/5 → 4 pass + 1 partial**（n3 數字正確但未說明年齡欄位與總上限）。citation 的 `chunk_indexes` 由全 0 變為真實位置（如 `[6,5,0]`）。詳見 breadoflife-knowledge `tests/policy_qa_set.json` 的 `after_phase2` 區塊。
 
 ## Phase 3 — 追問（D4）
 
@@ -111,6 +117,7 @@
 | Demo-mode search over-fetches before post-filtering | 6.1, 6.2, 6.3 |
 | The LLM is grounded on clause text, not document summaries | 2.4, 2.4a, 2.4b, 2.4c, 2.5, 2.7, 2.9 |
 | Ask prompt requires verbatim numbers | 2.6, 2.7 |
+| Transient LLM failures are not cached | 2.10 |
 | Dedicated ask page | 5.3, 5.4, 5.5, 5.8, 5.9 |
 | Ask copy is configurable | 5.1, 5.2, 5.7, 5.8 |
 | Ask input controls have explicit styling | 5.6, 5.7, 5.9 |

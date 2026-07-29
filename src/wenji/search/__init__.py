@@ -43,7 +43,7 @@ _BLOCK_BOUNDARY_TOKENS = frozenset(
 )
 
 
-def _strip_markdown_for_snippet(text: str) -> str:
+def strip_markdown_for_snippet(text: str) -> str:
     """Strip markdown markers for clean search snippets via AST parse.
 
     Walks markdown-it-py tokens and emits plain text only. Replaces an
@@ -121,7 +121,7 @@ def _hydrate_chunk_hits(
         info = grouped.setdefault(aid, {"chunk_hits": 0, "matched_chunks": []})
         info["chunk_hits"] += 1
         if len(info["matched_chunks"]) < top_per_article:
-            plain = _strip_markdown_for_snippet(chunk_text_raw or "")
+            plain = strip_markdown_for_snippet(chunk_text_raw or "")
             info["matched_chunks"].append(
                 {
                     "chunk_index": int(chunk_index),
@@ -337,7 +337,7 @@ class Searcher:
                 # content_raw otherwise leaks into the search-result snippet
                 # (the chunk-level snippet path has done this since v0.4).
                 r["content_snippet"] = make_snippet(
-                    _strip_markdown_for_snippet(cr), [effective_query]
+                    strip_markdown_for_snippet(cr), [effective_query]
                 )
                 if "tags" not in r:
                     try:
