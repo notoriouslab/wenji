@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import wenji.web.app as app_module
 from wenji.aggregate.llm import LLMClientError
 from wenji.web.app import create_app
 
@@ -283,3 +284,70 @@ def test_api_ask_stream_400_on_bad_history_b64(file_db: Path, bad: str) -> None:
     r = c.get("/api/ask/stream", params={"q": "因信稱義", "history_b64": bad})
     assert r.status_code == 400
     assert "history_b64" in r.json()["detail"]
+
+
+def test_api_ask_stream_enforces_demo_source_scope(
+    file_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The SSE path must inherit the demo-source constraint.
+
+    /api/ask/stream builds its filter server-side (EventSource is GET-only, so
+    there is no request body to carry one). If the demo constraint were dropped
+    there, a tenant-scoped deployment would leak documents outside its corpus.
+    The corpus is all source_type=sermon, so pinning the demo source to a type
+    that does not exist must yield no citations at all.
+    """
+    monkeypatch.setenv("WENJI_DEMO_SOURCE", "law")
+    c = _make_client(file_db, llm=_StreamLLM(pieces=("答案",)))
+    events = _parse_sse(c.get("/api/ask/stream", params={"q": "因信稱義"}).text)
+    meta = next(data for name, data in events if name == "meta")
+    assert meta["citations"] == [], "demo scope must exclude every non-demo document"
+
+    monkeypatch.delenv("WENJI_DEMO_SOURCE")
+    c2 = _make_client(file_db, llm=_StreamLLM(pieces=("答案",)))
+    events2 = _parse_sse(c2.get("/api/ask/stream", params={"q": "因信稱義"}).text)
+    meta2 = next(data for name, data in events2 if name == "meta")
+    assert meta2["citations"], "control: without a demo source the same query cites documents"
+
+
+def test_api_ask_stream_closes_db_when_client_disconnects_early(
+    file_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Abandoning the stream must still close the per-request DB connection.
+
+    The close lives in the generator's finally rather than the handler body,
+    because the generator outlives the handler. Without it, every reader who
+    closes the tab mid-answer would leak a SQLite connection.
+    """
+    closed: list[bool] = []
+    real_connect = app_module.connect
+
+    class _TrackingConnection:
+        """Delegating proxy — sqlite3.Connection.close cannot be reassigned."""
+
+        def __init__(self, conn: sqlite3.Connection) -> None:
+            self._conn = conn
+
+        def close(self) -> None:
+            closed.append(True)
+            self._conn.close()
+
+        def __getattr__(self, name: str):
+            return getattr(self._conn, name)
+
+    def tracking_connect(*args, **kwargs):
+        return _TrackingConnection(real_connect(*args, **kwargs))
+
+    monkeypatch.setattr(app_module, "connect", tracking_connect)
+
+    # A long stream so the client can walk away in the middle of it.
+    llm = _StreamLLM(pieces=tuple(f"片段{i}" for i in range(50)))
+    c = _make_client(file_db, llm=llm)
+    with c.stream("GET", "/api/ask/stream", params={"q": "因信稱義"}) as r:
+        for i, _line in enumerate(r.iter_lines()):
+            if i >= 2:
+                break  # walk away mid-answer
+
+    assert closed, "the generator's finally must close the connection on disconnect"
