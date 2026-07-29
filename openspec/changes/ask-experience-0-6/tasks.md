@@ -91,18 +91,18 @@
 
 ## Phase 6 — over-fetch 修復（D8）
 
-- [ ] 6.1 `web/app.py` 的 `api_search`：demo 模式先取 `max(limit * 5, 50)` 再 post-filter，最後 `[:limit]` ｜ Requirement: Demo-mode search over-fetches before post-filtering
-- [ ] 6.2 測試：demo 模式 `limit=3` 回 3 筆（不再是 0）；`len(results) <= limit`；非 demo 模式行為不變
-- [ ] 6.3 Gate：`pytest tests/wenji/test_web.py -q` 全綠
+- [x] 6.1 `web/app.py` 的 `api_search`：demo 模式先取 `max(limit * 5, 50)` 再 post-filter，最後 `[:limit]` ｜ Requirement: Demo-mode search over-fetches before post-filtering
+- [x] 6.2 測試：demo 模式 `limit=3` 回 3 筆（不再是 0）；`len(results) <= limit`；非 demo 模式行為不變
+- [x] 6.3 Gate：`pytest tests/wenji/test_web.py -q` 全綠
 
 ## Phase 7 — 檢索側修復與驗收（D9 + 全案 G3/G4）
 
-- [ ] 7.1 **排名相關**：`search/rrf.py:128` 的 `chunk_bm25_search` 改用 `build_fts_query_or`（此處產出的 `chunk_signals` 由 `search/__init__.py:283` 餵進 `rrf_merge`；空字典時 RRF 退化成 main-only，即 proposal 描述的單通道現象） ｜ Requirement: Ranking-relevant chunk signals use the OR builder
-- [ ] 7.1a **UI 展示（不影響排名，順手修）**：`search/__init__.py:100`（`_hydrate_chunk_hits`）改用 `build_fts_query_or`，讓 `chunk_hits`／`matched_chunks` 對口語問句不再為空
-- [ ] 7.2 `search/bm25.py:77` 的 `bm25_search` 改用 `build_fts_query_or`
-- [ ] 7.3 **eval before**（改動前 HEAD）：oracle 上 `PYTHONPATH=~/wenji_eval/src`（指向未含 7.1/7.2 的樹）起 scratch port serve → `wenji eval run-benchmark`（80q v2 gold r14）+ v3 holdout；記下 pass@3 partial+ 與 miss 題清單
-- [ ] 7.4 **eval after**：同一顆 db、同一命令，樹含 7.1/7.2
-- [ ] 7.5 G4 判定：80q 與 v3 皆不低於 before → Keep；任一低於 → 回退 7.1/7.2（D1-D8 不依賴 D9）；總分持平但 miss 題換人則逐題 diff 後再判。判定與逐題 diff 寫進本檔
+- [~] 7.1 **已實作後回退（G4 DISCARD）** ：`search/rrf.py:128` 的 `chunk_bm25_search` 改用 `build_fts_query_or`（此處產出的 `chunk_signals` 由 `search/__init__.py:283` 餵進 `rrf_merge`；空字典時 RRF 退化成 main-only，即 proposal 描述的單通道現象） ｜ Requirement: Ranking-relevant chunk signals use the OR builder
+- [~] 7.1a **一併回退，另立候選** ：`search/__init__.py:100`（`_hydrate_chunk_hits`）改用 `build_fts_query_or`，讓 `chunk_hits`／`matched_chunks` 對口語問句不再為空
+- [~] 7.2 **已實作後回退（G4 DISCARD）** `search/bm25.py:145` 的 `bm25_search` 改用 `build_fts_query_or`
+- [x] 7.3 **eval before**（改動前 HEAD）：oracle 上 `PYTHONPATH=~/wenji_eval/src`（指向未含 7.1/7.2 的樹）起 scratch port serve → `wenji eval run-benchmark`（80q v2 gold r14）+ v3 holdout；記下 pass@3 partial+ 與 miss 題清單
+- [x] 7.4 **eval after**：同一顆 db、同一命令，樹含 7.1/7.2
+- [x] 7.5 G4 判定：80q 與 v3 皆不低於 before → Keep；任一低於 → 回退 7.1/7.2（D1-D8 不依賴 D9）；總分持平但 miss 題換人則逐題 diff 後再判。判定與逐題 diff 寫進本檔
 - [ ] 7.6 5 題考卷 after 最終對照，結果寫進 `policy_qa_set.json` 的 `after_final` 區塊
 - [ ] 7.7 規章站煙霧 4 題 rank-1 標題逐字比對（handoff runbook B）
 - [ ] 7.8 SSE 實機驗證（R1／common-ground K14）：規章站經 Cloudflare tunnel 確認逐字輸出未被緩衝；若被緩衝則前端降級並記錄
