@@ -75,6 +75,7 @@ class TestAggregateTopicEndpoint:
         assert data["tag"] == "禱告"
         assert data["narrative"] is None
         assert data["narrative_html"] is None
+        assert data["llm_configured"] is False
         assert isinstance(data["top_sources"], list)
         assert len(data["top_sources"]) >= 1
 
@@ -86,6 +87,7 @@ class TestAggregateTopicEndpoint:
         data = resp.json()
         assert data["narrative"] == "**重點** 內容"
         assert "<strong>" in data["narrative_html"]
+        assert data["llm_configured"] is True
 
     def test_filter_excludes_subtype(self, web_db_path: Path) -> None:
         with _client(web_db_path) as client:

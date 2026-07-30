@@ -864,6 +864,8 @@ def create_app(
             agg.db.close()
         payload = asdict(result)
         payload["narrative_html"] = _render_narrative(result.narrative)
+        # 讓前端能區分「部署未啟用 LLM」（恆常）與「LLM 這次失敗」（暫時）。
+        payload["llm_configured"] = state["llm_client"] is not None
         return JSONResponse(payload)
 
     @app.post("/api/ask")
@@ -1019,6 +1021,7 @@ def create_app(
         payload["narrative_html"] = _render_narrative(result.narrative)
         payload["consensus_html"] = [_render_narrative(c) for c in (result.consensus or [])]
         payload["disagreements_html"] = [_render_narrative(d) for d in (result.disagreements or [])]
+        payload["llm_configured"] = state["llm_client"] is not None
         return JSONResponse(payload)
 
     @app.get("/tags", response_class=HTMLResponse)

@@ -88,6 +88,15 @@
     })[c]);
   }
 
+  // 「部署沒開 LLM」是恆常狀態，「LLM 這次失敗」是暫時的——措辭分開，
+  // 失敗已不入快取，重試有意義。
+  function narrativeFallback(data) {
+    if (data.llm_configured) {
+      return '<p class="chat-narrative-empty">AI 摘要暫時無法產生，請稍後重試；以下為相關來源。</p>';
+    }
+    return '<p class="chat-narrative-empty">此站未啟用 AI 摘要，以下為相關來源與統計。</p>';
+  }
+
   function renderTopicResult(data) {
     const stats = data.statistics || {};
     const sources = (data.top_sources || []).map((s) => `
@@ -99,10 +108,10 @@
     `).join("");
     const narrative = data.narrative_html
       ? `<section class="chat-narrative">${data.narrative_html}</section>`
-      : `<p class="chat-narrative-empty">（未配置 LLM 或失敗，僅顯示結構化結果）</p>`;
+      : narrativeFallback(data);
     resultEl.innerHTML = `
       ${narrative}
-      <h4>Top sources</h4>
+      <h4>相關來源</h4>
       <ol class="chat-sources">${sources}</ol>
       <p class="chat-stats">命中 ${stats.total_hits || 0} 篇</p>
     `;
@@ -123,7 +132,7 @@
     const disagreementItems = (data.disagreements_html || []).map((c) => `<li>${c}</li>`).join("");
     const narrative = data.narrative_html
       ? `<section class="chat-narrative">${data.narrative_html}</section>`
-      : `<p class="chat-narrative-empty">（未配置 LLM 或失敗，僅顯示結構化結果）</p>`;
+      : narrativeFallback(data);
     resultEl.innerHTML = `
       ${narrative}
       ${consensusItems ? `<h4>共識</h4><ul class="chat-consensus">${consensusItems}</ul>` : ""}
