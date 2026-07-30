@@ -183,7 +183,9 @@
       turn.appendChild(el('div', 'ask-turn-question', question));
       var answer = el('div', 'ask-answer markdown-body');
       turn.appendChild(answer);
-      opts.transcript.appendChild(turn);
+      // 最新一輪放最上面：輸入框在頁面上方，追問後答案直接出現在眼前，
+      // 不用捲到頁尾（追問歷史照樣往下翻）。
+      opts.transcript.insertBefore(turn, opts.transcript.firstChild);
       turn.scrollIntoView({ block: 'nearest' });
       return { turn: turn, answer: answer };
     }
