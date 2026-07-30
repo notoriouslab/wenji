@@ -5,6 +5,47 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-07-30
+
+### Security
+
+- Model-generated markdown is now rendered with raw HTML escaped. Answers
+  and summaries reach the page through `innerHTML`, so a `<script>` or
+  `onerror=` payload in an LLM response — which corpus text can steer via
+  indirect prompt injection — previously executed in the visitor's
+  browser. Corpus content keeps its existing renderer. Sanitising happens
+  at render time, so answers already in the cache are neutralised on
+  replay.
+- Responses carry `X-Content-Type-Options`, `X-Frame-Options`, and
+  `Referrer-Policy`.
+
+### Added
+
+- `/aggregate` page: topic summaries and concept comparisons move out of
+  the side panel onto a page of their own, with the subtype-exclusion
+  filter now reachable. `/ask` likewise becomes the single entry point
+  for Q&A; both side panels are retired.
+- Article pages get a back button when there is same-origin history to
+  return to.
+
+### Changed
+
+- Citation markers `[n]` in answers link to the matching citation card;
+  cards the answer never cites are dimmed. Newest turn renders on top,
+  and citations open in a new tab so the transcript is never lost.
+- Streamed answers now render as markdown once complete, instead of
+  showing raw `###` markup.
+- Topic summaries are grounded on matching chunk text rather than
+  16-token snippets, with a character budget shared across sources.
+  Aggregation prompts are domain-neutral, failed LLM calls are no longer
+  cached, and the cache key tracks the prompt revision so feeding changes
+  take effect without waiting out the 30-day TTL.
+
+### Fixed
+
+- Aggregate results distinguish "this site has no LLM configured" from
+  "the LLM call failed", instead of one message covering both.
+
 ## [0.6.0] — 2026-07-29
 
 ### Added

@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from wenji.aggregate import (
+    MAX_CHUNKS_PER_TOPIC_SOURCE,
     Aggregator,
     ConceptPerspectives,
     Filter,
@@ -101,6 +102,39 @@ def aggregate_db(aggregate_corpus: Path, mock_embedder) -> sqlite3.Connection:
             "laws": "law",
             "classical": "classical",
         },
+    )
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def chunked_db(tmp_path_factory, mock_embedder) -> sqlite3.Connection:
+    """A corpus whose articles are actually chunked.
+
+    ``aggregate_db`` holds only ~50-character articles with no chunk
+    strategy, so every chunk table stays empty there and any test written
+    against it silently exercises the whole-content fallback instead of the
+    chunk path.
+    """
+    root = tmp_path_factory.mktemp("chunked_corpus")
+    laws = root / "laws"
+    laws.mkdir()
+    (laws / "long-labor.md").write_text(
+        "---\ntitle: 勞動條件彙編\ntags: [勞動]\npubDate: 2023-06-01\n---\n"
+        + "前言段落與本題無關的鋪陳文字。\n\n" * 8
+        + "工資給付段落：雇主應於每月五日前給付工資，延遲者依法加計利息。\n\n"
+        + "休假段落：勞工每七日中應有二日之休息，其中一日為例假。\n\n"
+        + "尾段補充說明，與查詢詞無關的收尾文字。\n",
+        encoding="utf-8",
+    )
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    ingest_dir(
+        root,
+        conn,
+        mock_embedder,
+        directory_map={"laws": "law"},
+        chunk_strategies={"law": {"strategy": "paragraph", "min_chars": 1, "max_chars": 120}},
     )
     yield conn
     conn.close()
@@ -497,16 +531,71 @@ class TestTopicSummary:
             agg.topic_summary("禱告", k=5)
         assert len(client.calls) == 2, "failed result must not be served from cache"
 
-    def test_narrative_grounds_on_chunk_text(
+    def test_narrative_grounds_on_whole_content_when_unchunked(
         self, aggregate_db: sqlite3.Connection, mock_llm_client
     ) -> None:
-        """餵入層吃 chunk 原文，不是 16-token 的 <mark> snippet。"""
+        """未分塊的短文走全文後援，餵的仍是真原文而非 <mark> snippet。"""
         client = mock_llm_client(response="ok")
         agg = Aggregator(aggregate_db, llm_client=client)
         agg.topic_summary("勞動", k=5)
         prompt = client.calls[0][0]["content"]
         assert "雇主未依規定者依本法處罰" in prompt
         assert "<mark>" not in prompt
+
+    def test_narrative_grounds_on_matching_chunks(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """分塊語料要走 chunk 分支：餵命中段落，而非文章開頭。
+
+        用真的有 chunk 的語料，否則 chunk 查詢整條改成空字串測試也不會紅
+        （aggregate_db 的文章全部沒有 chunk）。
+        """
+        assert chunked_db.execute("SELECT COUNT(*) FROM chunks_fts").fetchone()[0] > 0
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        agg.topic_summary("工資", k=5)
+        prompt = client.calls[0][0]["content"]
+        assert "雇主應於每月五日前給付工資" in prompt, "命中段落必須進 prompt"
+        assert "前言段落與本題無關的鋪陳文字" not in prompt, "不該退回文章開頭"
+
+    def test_chunk_feed_respects_per_source_cap(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        agg.topic_summary("段落", k=5)
+        body = client.calls[0][0]["content"]
+        sources_block = body.split("<sources>")[1].split("</sources>")[0]
+        assert sources_block.count("\n- ") <= MAX_CHUNKS_PER_TOPIC_SOURCE
+
+    def test_prompt_stays_within_sanitize_limit(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """來源多時字數要均分，不能讓 sanitize 靜默把尾端來源整批切掉。"""
+        # FTS 的 content 欄存的是斷詞後以空白分隔的文字（中文逐字，見 ingest）。
+        tokenised = "工 資 " + "填 充 " * 3000
+        raw = "工資" + "填充" * 3000
+        for i in range(12):
+            aid = f"synthetic-{i}"
+            chunked_db.execute(
+                "INSERT INTO articles_fts (article_id,title,title_raw,content,content_raw,tags,"
+                "tags_raw) VALUES (?,?,?,?,?,?,?)",
+                (aid, f"長文{i}", f"長文{i}", tokenised, raw, "勞動", "勞動"),
+            )
+            chunked_db.execute(
+                "INSERT INTO articles_meta (article_id,path,title,source_type,chunk_count) "
+                "VALUES (?,?,?,?,0)",
+                (aid, f"/tmp/{aid}.md", f"長文{i}", "law"),
+            )
+        chunked_db.commit()
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        result = agg.topic_summary("工資", k=13)
+        assert len(result.top_sources) >= 12, "fixture 必須真的產生多來源，否則測不到均分"
+        sources = client.calls[0][0]["content"].split("<sources>")[1].split("</sources>")[0]
+        # 未均分時 sanitize 會攔腰截斷，尾端來源整批消失。
+        assert f"來源 {len(result.top_sources)}:" in sources, "最後一個來源不得被靜默丟棄"
+        assert len(sources) <= 10_000
 
     def test_filter_excludes_weekly(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)

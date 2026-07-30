@@ -1,4 +1,4 @@
-// Chat panel: single-turn aggregator (topic / concept).
+// /aggregate page: single-shot aggregator (topic / concept).
 // Each form submission is independent (no conversation history).
 
 (function () {
@@ -41,8 +41,8 @@
     });
   });
 
-  // Populate the subtype checkbox list from the server. Hidden gracefully
-  // when the corpus has no subtype values.
+  // Populate the subtype checkbox list from the server. Left empty when the
+  // corpus declares no subtypes, so the row collapses to nothing.
   async function loadSubtypes() {
     if (!subtypeFilterEl) return;
     try {

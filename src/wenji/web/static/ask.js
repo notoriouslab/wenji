@@ -231,6 +231,11 @@
           var payload = JSON.parse(e.data || '{}');
           if (payload.narrative_html) ctx.answer.innerHTML = payload.narrative_html;
         } catch (_) { /* 保留純文字版本 */ }
+        // 與 POST 後援對齊：完全沒有答案文字時也要說一句，不要留空白區塊
+        if (!text) {
+          ctx.answer.innerHTML = '';
+          ctx.answer.appendChild(el('p', 'ask-fallback', 'LLM 暫不可用，僅顯示引用來源。'));
+        }
         finishTurn(ctx, question, text, citations);
         done(true);
       });
@@ -334,7 +339,8 @@
       var card = document.getElementById(ref.getAttribute('href').slice(1));
       if (!card) return;
       card.classList.remove('ask-citation-flash');
-      requestAnimationFrame(function () { card.classList.add('ask-citation-flash'); });
+      void card.offsetWidth; // 強制 reflow，否則連點同一個 [n] 不會重播動畫
+      card.classList.add('ask-citation-flash');
     });
 
     var pageWired = wire(

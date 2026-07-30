@@ -50,7 +50,9 @@
     (function () {
       var ask = document.getElementById('nav-ask');
       if (!ask) return;
-      ask.addEventListener('click', function () {
+      // pointerdown 而非 click：中鍵／Cmd 點擊開新分頁不觸發 click，
+      // href 就會停在沒帶查詢詞的舊值。
+      ask.addEventListener('pointerdown', function () {
         // 限定搜尋表單：/ask 頁的問答 textarea 也叫 name="q"，不能誤抓
         var box = document.querySelector('.search-form input[name="q"]');
         var t = box && box.value ? box.value.trim() : '';

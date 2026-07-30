@@ -62,6 +62,7 @@ STATIC_DIR = WEB_DIR / "static"
 
 
 _MD_RENDERER = None
+_LLM_MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
 
 
@@ -83,6 +84,13 @@ def _safe_link(url: str) -> bool:
 
 
 def _markdown_renderer():
+    """Renderer for corpus content — passes raw HTML through.
+
+    Ingested markdown legitimately carries inline HTML (``<br>`` inside
+    table cells, for one), so this renderer keeps ``html: True``. It must
+    only ever see text the deployment itself ingested; anything derived
+    from an LLM goes through :func:`_llm_markdown_renderer` instead.
+    """
     global _MD_RENDERER
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
@@ -104,6 +112,28 @@ def _markdown_renderer():
             _MD_RENDERER.use(footnote_plugin)
 
     return _MD_RENDERER
+
+
+def _llm_markdown_renderer():
+    """Renderer for model-generated text — escapes raw HTML.
+
+    Answers and summaries are rendered into the page with ``innerHTML``,
+    and a model's output is not trusted input: corpus text can steer it
+    (indirect prompt injection) and the endpoint itself is remote. With
+    ``html: False`` a ``<script>`` or ``onerror=`` payload comes out as
+    visible text; ordinary markdown (bold, code, lists, links) is
+    unaffected.
+    """
+    global _LLM_MD_RENDERER
+    if _LLM_MD_RENDERER is None:
+        from markdown_it import MarkdownIt
+
+        _LLM_MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": True, "linkify": True, "validateLink": _safe_link},
+        )
+
+    return _LLM_MD_RENDERER
 
 
 _ALLOWED_LLM_BASE_URL_PREFIXES = (
@@ -269,6 +299,24 @@ def create_app(
             return await call_next(request)
 
     app.add_middleware(APIKeyMiddleware)
+
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        """Baseline hardening headers.
+
+        No CSP yet: the templates carry inline ``<script>`` blocks, so a
+        useful policy needs per-request nonces. These three cost nothing
+        and close off MIME sniffing, framing, and referrer leakage to
+        third parties.
+        """
+
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+            response.headers.setdefault("Referrer-Policy", "same-origin")
+            return response
+
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Rate-limit is NOT YET IMPLEMENTED.  Deploy behind a reverse-proxy
     # (Cloudflare, nginx) for per-IP throttling.
@@ -518,9 +566,16 @@ def create_app(
         return [r for r in results if r["article_id"] in allowed]
 
     def _render_narrative(narrative: str | None) -> str | None:
+        """Render model-generated markdown. Escapes raw HTML — see
+        :func:`_llm_markdown_renderer`.
+
+        Sanitising here rather than before the cache write is deliberate:
+        the cache stores the raw text, so already-cached answers are
+        neutralised on replay too.
+        """
         if not narrative:
             return None
-        return _markdown_renderer().render(narrative)
+        return _llm_markdown_renderer().render(narrative)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:

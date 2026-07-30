@@ -139,6 +139,14 @@ class TestAggregateConceptEndpoint:
         assert data["disagreements"] == []
         assert len(data["per_source_views"]) >= 1
 
+    def test_reports_llm_configured_state(self, web_db_path: Path) -> None:
+        with _client(web_db_path) as client:
+            body = client.post("/api/aggregate/concept", json={"concept": "禱告"}).json()
+        assert body["llm_configured"] is False
+        with _client(web_db_path, llm_client=_MockLLMClient(response="x")) as client:
+            body = client.post("/api/aggregate/concept", json={"concept": "禱告"}).json()
+        assert body["llm_configured"] is True
+
     def test_missing_concept_returns_400(self, web_db_path: Path) -> None:
         with _client(web_db_path) as client:
             resp = client.post("/api/aggregate/concept", json={"top_sources": 2})

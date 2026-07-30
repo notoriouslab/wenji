@@ -33,12 +33,21 @@ logger = logging.getLogger(__name__)
 # 主題彙總餵入層的邊界，與 ask 的引用餵入同標準（每段 1200 字元）。
 MAX_CHUNKS_PER_TOPIC_SOURCE = 2
 MAX_CHUNK_CHARS_IN_PROMPT = 1200
+# 來源區塊的總字數預算：留在 sanitize_prompt_input 的 10,000 上限之下，
+# 其餘額度給標題與模板本身。超出時每篇均分而非讓 sanitize 攔腰砍掉尾巴。
+TOPIC_SOURCES_CHAR_BUDGET = 9_000
+# 均分後的下限：來源太多時寧可每篇只給一小段，也不要有來源完全消失。
+MIN_CHUNK_CHARS_IN_PROMPT = 200
+
+# Prompt 形狀的版本號。餵入策略或模板改動時 MUST 加一，否則既有部署會在
+# 30 天 TTL 內繼續回舊快取，改動等於沒上線。
+PROMPT_REVISION = 2
 
 
-def _truncate_chunk(text: str) -> str:
-    if len(text) <= MAX_CHUNK_CHARS_IN_PROMPT:
+def _truncate_chunk(text: str, limit: int = MAX_CHUNK_CHARS_IN_PROMPT) -> str:
+    if len(text) <= limit:
         return text
-    return text[:MAX_CHUNK_CHARS_IN_PROMPT] + "…"
+    return text[:limit] + "…"
 
 
 __all__ = [
@@ -218,6 +227,7 @@ class Aggregator:
             "tag": tag,
             "filter": filter.canonical_dict() if filter is not None else None,
             "k": k,
+            "prompt_revision": PROMPT_REVISION,
         }
         key = cache_key("topic_summary", args)
         cached = cache_get(self.db, key)
@@ -309,10 +319,18 @@ class Aggregator:
         chunks_by_id = self._topic_chunk_texts(
             summary.tag, [s.article_id for s in summary.top_sources]
         )
+        # 每篇的字數預算按來源數均分，讓總長留在 sanitize_prompt_input 的
+        # 上限內。不分配的話 k 稍大就會在 sanitize 被靜默攔腰截斷，尾端
+        # 來源整批消失而呼叫端毫無所覺（k 最大可到 50）。
+        budget = max(
+            MIN_CHUNK_CHARS_IN_PROMPT,
+            TOPIC_SOURCES_CHAR_BUDGET // max(len(summary.top_sources), 1),
+        )
 
         def _source_block(i: int, s: SourceRef) -> str:
             texts = chunks_by_id.get(s.article_id) or ([s.snippet] if s.snippet else [])
-            body = "\n".join(f"- {_truncate_chunk(t)}" for t in texts if t.strip())
+            per_text = max(MIN_CHUNK_CHARS_IN_PROMPT, budget // max(len(texts), 1))
+            body = "\n".join(f"- {_truncate_chunk(t, per_text)}" for t in texts if t.strip())
             return f"來源 {i + 1}: {s.title}\n{body}"
 
         sources_block = "\n\n".join(_source_block(i, s) for i, s in enumerate(summary.top_sources))
@@ -375,6 +393,7 @@ class Aggregator:
             "filter": filter.canonical_dict() if filter is not None else None,
             "top_sources": top_sources,
             "per_source": per_source,
+            "prompt_revision": PROMPT_REVISION,
         }
         key = cache_key("concept_perspectives", args)
         cached = cache_get(self.db, key)
