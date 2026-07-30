@@ -26,9 +26,20 @@ from wenji.aggregate.cache import cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
 from wenji.aggregate.prompts import CONCEPT_PROMPT, TOPIC_PROMPT
 from wenji.core.safety import sanitize_prompt_input
-from wenji.search.bm25 import build_fts_query
+from wenji.search.bm25 import build_fts_query, build_fts_query_or
 
 logger = logging.getLogger(__name__)
+
+# 主題彙總餵入層的邊界，與 ask 的引用餵入同標準（每段 1200 字元）。
+MAX_CHUNKS_PER_TOPIC_SOURCE = 2
+MAX_CHUNK_CHARS_IN_PROMPT = 1200
+
+
+def _truncate_chunk(text: str) -> str:
+    if len(text) <= MAX_CHUNK_CHARS_IN_PROMPT:
+        return text
+    return text[:MAX_CHUNK_CHARS_IN_PROMPT] + "…"
+
 
 __all__ = [
     "Aggregator",
@@ -214,8 +225,16 @@ class Aggregator:
             return _topic_summary_from_dict(cached)
 
         result = self._topic_summary_structured(tag, filter, k)
-        if self.llm_client is not None:
-            result.narrative = self._topic_summary_narrative(result)
+        try:
+            if self.llm_client is not None:
+                result.narrative = self._topic_summary_narrative(result)
+        except LLMClientError as exc:
+            # LLM 失敗不入快取：429/超時是暫時的，寫進 30 天快取會把殘缺
+            # 結果釘死（與 ask 同判準）。降級回傳結構化結果。
+            logger.warning(
+                "topic_summary LLM call failed (%s); falling back to narrative=None", exc
+            )
+            return result
         cache_put(self.db, key, _topic_summary_to_dict(result))
         return result
 
@@ -281,22 +300,67 @@ class Aggregator:
         return TopicSummary(tag=tag, top_sources=top_sources, statistics=statistics)
 
     def _topic_summary_narrative(self, summary: TopicSummary) -> str | None:
+        """May raise LLMClientError — the caller decides whether to cache."""
         if self.llm_client is None or not summary.top_sources:
             return None
-        sources_block = "\n\n".join(
-            f"來源 {i + 1}: {s.title}\n摘要: {s.snippet}" for i, s in enumerate(summary.top_sources)
+        # 餵 chunk 原文而非 16-token snippet：標題＋摘要級的餵入答不出
+        # 內文細節（ask 對照實驗實測）。chunk 無命中時退全文（截斷），
+        # snippet 只是 content 也拿不到時的最後手段。
+        chunks_by_id = self._topic_chunk_texts(
+            summary.tag, [s.article_id for s in summary.top_sources]
         )
+
+        def _source_block(i: int, s: SourceRef) -> str:
+            texts = chunks_by_id.get(s.article_id) or ([s.snippet] if s.snippet else [])
+            body = "\n".join(f"- {_truncate_chunk(t)}" for t in texts if t.strip())
+            return f"來源 {i + 1}: {s.title}\n{body}"
+
+        sources_block = "\n\n".join(_source_block(i, s) for i, s in enumerate(summary.top_sources))
         prompt = TOPIC_PROMPT.format(
             tag=sanitize_prompt_input(summary.tag),
             sources=sanitize_prompt_input(sources_block),
         )
-        try:
-            return self.llm_client.chat([{"role": "user", "content": prompt}])
-        except LLMClientError as exc:
-            logger.warning(
-                "topic_summary LLM call failed (%s); falling back to narrative=None", exc
-            )
-            return None
+        return self.llm_client.chat([{"role": "user", "content": prompt}])
+
+    def _topic_chunk_texts(
+        self, tag: str, article_ids: list[str], per_source: int = MAX_CHUNKS_PER_TOPIC_SOURCE
+    ) -> dict[str, list[str]]:
+        """Best-matching chunk texts per top source.
+
+        OR-combined query bounded to the already-selected top-k articles —
+        the bounded scope is what makes OR safe here (unbounded OR against
+        the whole corpus measurably hurt ranking on the 80q baseline).
+        """
+        out: dict[str, list[str]] = {aid: [] for aid in article_ids}
+        if not article_ids:
+            return out
+        chunk_query = build_fts_query_or(tag, column="chunk_text")
+        if chunk_query:
+            placeholders = ",".join("?" for _ in article_ids)
+            rows = self.db.execute(
+                f"SELECT article_id, chunk_text_raw, bm25(chunks_fts) AS rs "
+                f"FROM chunks_fts "
+                f"WHERE chunks_fts MATCH ? AND article_id IN ({placeholders}) "
+                f"ORDER BY rs ASC",
+                (chunk_query, *article_ids),
+            ).fetchall()
+            for aid, text, _rs in rows:
+                if len(out[aid]) < per_source:
+                    out[aid].append(text or "")
+        # 沒有 chunk 命中的來源（未分塊的短文，或 OR 查詢在該篇無命中）
+        # 退回全文（截斷）：仍然是真原文，勝過 16-token snippet。
+        missing = [aid for aid, texts in out.items() if not texts]
+        if missing:
+            placeholders = ",".join("?" for _ in missing)
+            content_rows = self.db.execute(
+                f"SELECT article_id, content_raw FROM articles_fts "
+                f"WHERE article_id IN ({placeholders})",
+                missing,
+            ).fetchall()
+            for aid, content in content_rows:
+                if content:
+                    out[aid].append(content)
+        return out
 
     def concept_perspectives(
         self,
@@ -318,8 +382,13 @@ class Aggregator:
             return _concept_perspectives_from_dict(cached)
 
         result = self._concept_perspectives_structured(concept, filter, top_sources, per_source)
-        if self.llm_client is not None:
-            self._concept_perspectives_apply_llm(result)
+        try:
+            if self.llm_client is not None:
+                self._concept_perspectives_apply_llm(result)
+        except LLMClientError as exc:
+            # 同 topic_summary：LLM 失敗不入快取。
+            logger.warning("concept_perspectives LLM call failed (%s); narrative=None", exc)
+            return result
         cache_put(self.db, key, _concept_perspectives_to_dict(result))
         return result
 
@@ -389,21 +458,19 @@ class Aggregator:
         return ConceptPerspectives(concept=concept, per_source_views=per_source_views)
 
     def _concept_perspectives_apply_llm(self, result: ConceptPerspectives) -> None:
+        """May raise LLMClientError — the caller decides whether to cache."""
         if self.llm_client is None or not result.per_source_views:
             return
         per_source_block = "\n\n".join(
-            f"來源 {i + 1}: {v.source_ref.title}\n" + "\n".join(f"- {ex}" for ex in v.excerpts)
+            f"來源 {i + 1}: {v.source_ref.title}\n"
+            + "\n".join(f"- {_truncate_chunk(ex)}" for ex in v.excerpts)
             for i, v in enumerate(result.per_source_views)
         )
         prompt = CONCEPT_PROMPT.format(
             concept=sanitize_prompt_input(result.concept),
             per_source_views=sanitize_prompt_input(per_source_block),
         )
-        try:
-            text = self.llm_client.chat([{"role": "user", "content": prompt}])
-        except LLMClientError as exc:
-            logger.warning("concept_perspectives LLM call failed (%s); narrative=None", exc)
-            return
+        text = self.llm_client.chat([{"role": "user", "content": prompt}])
         result.narrative = text
         result.consensus, result.disagreements = _parse_consensus_disagreements(text)
 

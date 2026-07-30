@@ -111,6 +111,16 @@ def mock_llm_client():
     return _MockLLMClient
 
 
+def test_prompts_are_domain_neutral() -> None:
+    """wenji is a generic framework: aggregation prompts must not assume a
+    theological (or any other) corpus domain."""
+    from wenji.aggregate.prompts import CONCEPT_PROMPT, TOPIC_PROMPT
+
+    for template in (TOPIC_PROMPT, CONCEPT_PROMPT):
+        assert "神學" not in template
+        assert "基督教" not in template
+
+
 def test_aggregate_db_fixture_populates(aggregate_db: sqlite3.Connection) -> None:
     rows = aggregate_db.execute(
         "SELECT source_type, COUNT(*) FROM articles_meta GROUP BY source_type"
@@ -476,6 +486,28 @@ class TestTopicSummary:
         assert first.narrative == second.narrative == "一次性 narrative"
         assert len(client.calls) == 1  # second call hit cache
 
+    def test_llm_failure_is_not_cached(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
+    ) -> None:
+        """429/超時是暫時的；快取殘缺結果會釘死 30 天（與 ask 同判準）。"""
+        client = mock_llm_client(response=LLMClientError("boom"))
+        agg = Aggregator(aggregate_db, llm_client=client)
+        with caplog.at_level("WARNING", logger="wenji.aggregate"):
+            agg.topic_summary("禱告", k=5)
+            agg.topic_summary("禱告", k=5)
+        assert len(client.calls) == 2, "failed result must not be served from cache"
+
+    def test_narrative_grounds_on_chunk_text(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """餵入層吃 chunk 原文，不是 16-token 的 <mark> snippet。"""
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.topic_summary("勞動", k=5)
+        prompt = client.calls[0][0]["content"]
+        assert "雇主未依規定者依本法處罰" in prompt
+        assert "<mark>" not in prompt
+
     def test_filter_excludes_weekly(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
         result = agg.topic_summary(
@@ -571,6 +603,16 @@ class TestConceptPerspectives:
         assert first.narrative == second.narrative
         assert first.consensus == second.consensus
         assert len(client.calls) == 1
+
+    def test_llm_failure_is_not_cached(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
+    ) -> None:
+        client = mock_llm_client(response=LLMClientError("boom"))
+        agg = Aggregator(aggregate_db, llm_client=client)
+        with caplog.at_level("WARNING", logger="wenji.aggregate"):
+            agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+            agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        assert len(client.calls) == 2, "failed result must not be served from cache"
 
     def test_per_source_excerpt_cap(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
