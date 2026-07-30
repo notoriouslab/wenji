@@ -12,10 +12,12 @@ import pytest
 
 from wenji.aggregate import (
     MAX_CHUNKS_PER_TOPIC_SOURCE,
+    TOPIC_SOURCES_CHAR_BUDGET,
     Aggregator,
     ConceptPerspectives,
     Filter,
     TopicSummary,
+    _assemble_source_blocks,
 )
 from wenji.aggregate.cache import cache_clear, cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
@@ -481,6 +483,55 @@ class TestCache:
 # ---------------------------------------------------------------------------
 
 
+class TestAssembleSourceBlocks:
+    """Direct tests for the shared source-block assembler.
+
+    sanitize_prompt_input caps its input at 10,000 chars, silently dropping
+    the tail. The assembler must keep the whole block (titles + framing +
+    bodies) under that ceiling so no source is lost — the failure the
+    per-body-only budget kept re-introducing.
+    """
+
+    SANITIZE_LIMIT = 10_000
+
+    @pytest.mark.parametrize(
+        "n,title_len,chunk_len,chunks",
+        [
+            (1, 4, 5000, 1),
+            (5, 40, 5000, 1),
+            (50, 4, 5000, 1),
+            (50, 40, 5000, 1),  # 長標題 × 大 k：先前修法在這裡破表
+            (20, 40, 1200, 10),  # concept 上限：top_sources=20, per_source=10
+        ],
+    )
+    def test_total_stays_under_sanitize_limit(self, n, title_len, chunk_len, chunks):
+        items = [("標" * title_len + str(i), ["文" * chunk_len] * chunks) for i in range(n)]
+        block = _assemble_source_blocks(items)
+        assert len(block) < self.SANITIZE_LIMIT, f"n={n} 破表：{len(block)}"
+        # 餘裕：軟上限之上再加一點 rounding，但務必遠低於硬上限。
+        assert len(block) <= TOPIC_SOURCES_CHAR_BUDGET + 200
+        for i in range(1, n + 1):
+            assert f"來源 {i}:" in block, f"來源 {i} 不見了（會被 sanitize 靜默丟）"
+
+    def test_bodies_front_loaded_when_budget_is_tight(self):
+        # 50 篇長標題：預算不足以人人一段，內文集中給排名最前者，尾端只列標頭。
+        items = [("勞動基準法函釋彙編第" + f"{i:02d}條", ["內" * 5000]) for i in range(50)]
+        block = _assemble_source_blocks(items)
+        first = block.split("來源 2:")[0]
+        last = block.split("來源 50:")[1]
+        assert "\n- " in first, "排名第一的來源必須帶內文"
+        assert "\n- " not in last, "預算吃緊時尾端來源應只列標頭"
+        assert "來源 50:" in block, "但尾端來源的標頭仍須保留"
+
+    def test_edge_cases(self):
+        assert _assemble_source_blocks([]) == ""
+        # 空 / 空白 texts → 只列標頭，不炸。
+        out = _assemble_source_blocks([("甲", []), ("乙", ["   ", ""])])
+        assert "來源 1: 甲" in out
+        assert "來源 2: 乙" in out
+        assert "\n- " not in out
+
+
 class TestTopicSummary:
     def test_no_llm_returns_structured_only(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
@@ -519,6 +570,23 @@ class TestTopicSummary:
         second = agg.topic_summary("禱告", k=5)
         assert first.narrative == second.narrative == "一次性 narrative"
         assert len(client.calls) == 1  # second call hit cache
+
+    def test_prompt_revision_bump_busts_cache(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, monkeypatch
+    ) -> None:
+        """「餵入策略或模板改動時 PROMPT_REVISION MUST 加一」的規則靠這條
+        守住：revision 若沒進 cache key，既有部署會在 30 天 TTL 內繼續回
+        舊快取，prompt 改動等於沒上線。"""
+        import wenji.aggregate as aggregate_module
+
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.topic_summary("禱告", k=5)
+        monkeypatch.setattr(
+            aggregate_module, "PROMPT_REVISION", aggregate_module.PROMPT_REVISION + 1
+        )
+        agg.topic_summary("禱告", k=5)
+        assert len(client.calls) == 2, "revision 加一必須繞過既有快取、重新呼叫 LLM"
 
     def test_llm_failure_is_not_cached(
         self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
@@ -571,29 +639,30 @@ class TestTopicSummary:
     def test_prompt_stays_within_sanitize_limit(
         self, chunked_db: sqlite3.Connection, mock_llm_client
     ) -> None:
-        """來源多時字數要均分，不能讓 sanitize 靜默把尾端來源整批切掉。
+        """來源多＋標題長時，組裝的 sources 區塊不得被 sanitize 靜默截斷。
 
-        k 必須開到上限 50 才踩得到失效區：均分後每篇預算只剩 180，任何
-        「每篇至少 200」的下限一旦凌駕預算，總量就會突破 sanitize 的
-        10,000 上限。小 k（例如 13）落在安全區，抓不到這個 bug。
-        斷言逐一點名每個來源標頭，不做長度比對——sanitize 對任何超長
-        輸入都截到剛好 10,000，長度斷言是恆真的。
+        k 開到上限 50，且標題用真實長度（30 字）——這正是先前修法漏掉的
+        失效區：預算只算 chunk 本體、不算標題與「來源 N:」框架，標題一長
+        總量就破 sanitize 的 10,000 上限，尾端來源連標頭一起被砍。用短標題
+        （如「長文0」）會剛好卡在界內、測不到，所以這裡刻意放長。
         """
         # FTS 的 content 欄存的是斷詞後以空白分隔的文字（中文逐字，見 ingest）。
         tokenised = "工 資 " + "填 充 " * 3000
         raw = "工資" + "填充" * 3000
         k = 50
+        long_title = "勞動基準法施行細則暨相關函釋彙編第"  # 30 字級真實標題
         for i in range(k):
             aid = f"synthetic-{i}"
+            title = f"{long_title}{i:02d}條"
             chunked_db.execute(
                 "INSERT INTO articles_fts (article_id,title,title_raw,content,content_raw,tags,"
                 "tags_raw) VALUES (?,?,?,?,?,?,?)",
-                (aid, f"長文{i}", f"長文{i}", tokenised, raw, "勞動", "勞動"),
+                (aid, title, title, tokenised, raw, "勞動", "勞動"),
             )
             chunked_db.execute(
                 "INSERT INTO articles_meta (article_id,path,title,source_type,chunk_count) "
                 "VALUES (?,?,?,?,0)",
-                (aid, f"/tmp/{aid}.md", f"長文{i}", "law"),
+                (aid, f"/tmp/{aid}.md", title, "law"),
             )
         chunked_db.commit()
         client = mock_llm_client(response="ok")
@@ -601,12 +670,11 @@ class TestTopicSummary:
         result = agg.topic_summary("工資", k=k)
         assert len(result.top_sources) == k, "fixture 必須真的產生 k 個來源，否則測不到失效區"
         sources = client.calls[0][0]["content"].split("<sources>")[1].split("</sources>")[0]
-        # 未均分時 sanitize 會攔腰截斷，尾端來源整批消失（連標頭都不見）。
+        # 每個來源的標頭都在 = 尾端沒有被 sanitize 靜默截掉。
         for i in range(1, k + 1):
             assert f"來源 {i}:" in sources, f"來源 {i} 被靜默丟棄"
-        # 標頭在還不夠：最後一個來源要真的帶到內文。
-        tail = sources.split(f"來源 {k}:")[1]
-        assert "- " in tail, "最後一個來源只剩標頭，內文被截掉"
+        # 排名最前的來源要真的帶到內文（header-only 只該落在尾端）。
+        assert "\n- " in sources.split("來源 2:")[0], "排名第一的來源沒帶到內文"
 
     def test_filter_excludes_weekly(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
@@ -683,6 +751,22 @@ class TestConceptPerspectives:
         assert any("路德" in d for d in result.disagreements)
         assert len(client.calls) == 1
 
+    def test_source_block_routes_through_bounded_assembler(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """concept 的 sources 區塊必須走共用組裝器（受總量預算約束）。
+
+        先前 concept 完全沒編總預算，靠 sanitize 硬砍尾端。上限拉到最大
+        （top_sources=20, per_source=10）也要留在 sanitize 的 10,000 內；
+        並鎖住它產出的是組裝器格式，避免有人日後繞過。"""
+        client = mock_llm_client(response=_CONCEPT_LLM_REPLY)
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.concept_perspectives("因信稱義", top_sources=20, per_source=10)
+        prompt = client.calls[0][0]["content"]
+        sources = prompt.split("<per_source_views>")[1].split("</per_source_views>")[0]
+        assert len(sources) < 10_000
+        assert "來源 1:" in sources
+
     def test_llm_failure_falls_back(
         self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
     ) -> None:
@@ -703,6 +787,21 @@ class TestConceptPerspectives:
         assert first.narrative == second.narrative
         assert first.consensus == second.consensus
         assert len(client.calls) == 1
+
+    def test_prompt_revision_bump_busts_cache(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, monkeypatch
+    ) -> None:
+        """concept 路徑的 cache key 也帶 PROMPT_REVISION，同 topic 一起守。"""
+        import wenji.aggregate as aggregate_module
+
+        client = mock_llm_client(response=_CONCEPT_LLM_REPLY)
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        monkeypatch.setattr(
+            aggregate_module, "PROMPT_REVISION", aggregate_module.PROMPT_REVISION + 1
+        )
+        agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        assert len(client.calls) == 2, "revision 加一必須繞過既有快取、重新呼叫 LLM"
 
     def test_llm_failure_is_not_cached(
         self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog

@@ -348,6 +348,30 @@ def test_highlight_cannot_mint_tags_via_replacement_expansion(client, tmp_path):
     )
 
 
+def test_markdown_link_whitelist_is_wired():
+    """The http/https/mailto whitelist must actually reach the renderer.
+
+    markdown-it-py reads ``md.validateLink`` (an instance attribute), not a
+    constructor-options key of the same name — passed only as an option, the
+    whitelist is dead code and the package's laxer default (``tel:``, ``ftp:``,
+    protocol-relative, relative paths) silently applies.
+    """
+    from wenji.web.app import _llm_markdown_renderer, _markdown_renderer
+
+    for md in (_markdown_renderer(), _llm_markdown_renderer()):
+        out = md.render(
+            "[a](tel:+15551234) [b](//evil.test/x) [c](ftp://evil.test/x) "
+            "[d](HTTP://EXAMPLE.COM/UP) [e](https://example.com) [f](mailto:x@example.com)"
+        )
+        assert 'href="tel:' not in out
+        assert 'href="//evil.test' not in out
+        assert 'href="ftp:' not in out
+        # Whitelisted schemes stay live, case-insensitively.
+        assert 'href="HTTP://EXAMPLE.COM/UP"' in out
+        assert 'href="https://example.com"' in out
+        assert 'href="mailto:x@example.com"' in out
+
+
 def test_highlight_query_with_unknown_regex_escape_returns_200(client, tmp_path):
     """A query like ``a\\x`` must not 500.
 

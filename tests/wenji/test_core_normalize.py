@@ -34,6 +34,24 @@ def test_entity_encoded_tags_are_stripped_too():
         assert normalize(once) == once, f"not idempotent for {probe!r}"
 
 
+def test_double_encoded_input_decodes_one_layer_per_call():
+    """normalize() is NOT idempotent for multi-encoded input — by design.
+
+    One call decodes exactly one entity layer. Decoding to a fixpoint would
+    mangle text that legitimately talks about entities (``寫 &amp;amp; 代表
+    &amp;``). The one-layer contract is safe because both call sites apply
+    exactly one pass to raw source text, and the surviving ``&lt;script&gt;``
+    text is inert downstream — every renderer escapes on output. If this
+    test starts failing, the layer contract changed: update the module
+    docstring and re-audit content hashes and both call sites.
+    """
+    double = "&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;"
+    once = normalize(double)
+    assert once == "&lt;script&gt;alert(1)&lt;/script&gt;"
+    # A second pass decodes the next layer and strips the now-live tags.
+    assert normalize(once) == "alert(1)"
+
+
 def test_horizontal_whitespace_collapse():
     assert normalize("a    b\tc　d") == "a b c d"
 

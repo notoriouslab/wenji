@@ -1,10 +1,16 @@
-"""Idempotent text normalisation for ingest / hash / FTS.
+"""Text normalisation for ingest / hash / FTS.
 
-Pipeline: NFC → HTML entity decode → strip HTML tags → CRLF→LF →
-trailing-whitespace remove → collapse horizontal whitespace runs →
-collapse 3+ newlines to 2 → trim.
+Pipeline: NFC → HTML entity decode (one layer) → strip HTML tags →
+CRLF→LF → trailing-whitespace remove → collapse horizontal whitespace
+runs → collapse 3+ newlines to 2 → trim.
 
-Idempotent: ``normalize(normalize(x)) == normalize(x)`` for all inputs.
+Idempotent for text carrying at most one layer of entity encoding — which
+is what both call sites feed it (one pass over raw source text). It is NOT
+idempotent for all inputs: each call decodes exactly one entity layer, so
+double-encoded input (``&amp;lt;``) changes again on a second pass.
+Deliberate — decoding to a fixpoint would mangle text that legitimately
+discusses entities, and the surviving ``&lt;script&gt;`` text is inert
+downstream because every renderer escapes on output.
 """
 
 from __future__ import annotations

@@ -30,6 +30,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   elements), and queries containing stray backslashes no longer error.
 - Aggregate-page source snippets are HTML-escaped before insertion,
   allowing only the `<mark>` highlight tags through.
+- The markdown link whitelist (http/https/mailto only) is now actually
+  applied. It was passed as a constructor option markdown-it-py ignores,
+  so the package's laxer default silently governed rendered links.
 
 ### Added
 
@@ -60,9 +63,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Search queries are capped at 64 terms, matching the natural-language
   query builder; an unbounded pasted wall of terms could slow the whole
   server down.
-- Topic-summary prompt assembly keeps the total within the sanitiser's
-  limit at high `k`; previously the tail sources were silently truncated
-  away. Cached summaries are rebuilt (prompt revision bump).
+- Topic and concept aggregation now bound the whole assembled source
+  block — titles and framing included, not just chunk bodies — so at high
+  fan-out (large `k`, or long titles) the tail sources are no longer
+  silently truncated away by the prompt sanitiser. Cached reports are
+  rebuilt (prompt revision bump).
 
 ## [0.6.0] — 2026-07-29
 

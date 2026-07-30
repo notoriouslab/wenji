@@ -79,8 +79,14 @@ def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
 
 
 def _safe_link(url: str) -> bool:
-    """Allow only http/https/mailto links."""
-    return url.startswith(("http://", "https://", "mailto:"))
+    """Allow only http/https/mailto links (a whitelist, unlike the package
+    default, which merely blacklists a few dangerous protocols).
+
+    Wire it by assigning ``md.validateLink`` — markdown-it-py reads that
+    instance attribute, not a constructor-options key of the same name.
+    Rejected links stay as literal text.
+    """
+    return url.strip().lower().startswith(("http://", "https://", "mailto:"))
 
 
 def _markdown_renderer():
@@ -110,8 +116,9 @@ def _markdown_renderer():
 
         _MD_RENDERER = MarkdownIt(
             "default",
-            {"html": False, "breaks": True, "linkify": True, "validateLink": _safe_link},
+            {"html": False, "breaks": True, "linkify": True},
         )
+        _MD_RENDERER.validateLink = _safe_link
         if front_matter_plugin:
             _MD_RENDERER.use(front_matter_plugin)
         if footnote_plugin:
@@ -136,8 +143,9 @@ def _llm_markdown_renderer():
 
         _LLM_MD_RENDERER = MarkdownIt(
             "default",
-            {"html": False, "breaks": True, "linkify": True, "validateLink": _safe_link},
+            {"html": False, "breaks": True, "linkify": True},
         )
+        _LLM_MD_RENDERER.validateLink = _safe_link
 
     return _LLM_MD_RENDERER
 
