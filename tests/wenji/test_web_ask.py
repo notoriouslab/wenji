@@ -423,6 +423,7 @@ def test_robots_txt_disallows_ask(file_db: Path, monkeypatch: pytest.MonkeyPatch
     c = _make_client(file_db, llm=_FakeLLM())
     body = c.get("/robots.txt").text
     assert "Disallow: /ask" in body
+    assert "Disallow: /aggregate" in body
 
     # Without a site URL the whole site is already denied, which covers /ask.
     monkeypatch.delenv("WENJI_SITE_URL")

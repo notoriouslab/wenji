@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}文章彙整 — {{ site_name or "wenji" }}{% endblock %}
+{% block description %}主題彙總與跨來源概念對比。{% endblock %}
+
+{% block extra_meta %}
+{# LLM-generated reports must stay out of search indexes, same policy as /ask. #}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<main class="ask-page aggregate-page">
+  <header class="ask-page-header">
+    <h1 class="ask-page-title">文章彙整</h1>
+    <p class="hint">挑一個主題或概念，把語料中最相關的來源彙總成一份報告。</p>
+  </header>
+
+  <nav class="chat-tabs" aria-label="彙整模式">
+    <button class="chat-tab active" data-mode="topic" type="button">主題彙總</button>
+    <button class="chat-tab" data-mode="concept" type="button">概念對比</button>
+  </nav>
+
+  <form id="aggregate-form" class="chat-input-area">
+    <div class="chat-input-group">
+      <label id="chat-input-label" for="chat-query">主題</label>
+      <input type="text" id="chat-query" placeholder="例：勞動、禱告" required>
+      <p class="hint" id="chat-input-hint">挑一個 tag 或關鍵字，從語料中找最相關的文章彙總。</p>
+    </div>
+    {# aggregate.js fills this with subtype checkboxes; stays empty when the
+       corpus has no subtype values. #}
+    <div id="chat-subtype-filter" class="chat-subtype-filter"></div>
+    <button type="submit" class="chat-submit">生成彙整報告</button>
+  </form>
+
+  <div id="aggregate-result" class="chat-result-area markdown-body"></div>
+  <noscript>
+    <p class="ask-error">文章彙整需要 JavaScript。請改用<a href="/">搜尋</a>。</p>
+  </noscript>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/aggregate.js?v=0.6.1" defer></script>
+{% endblock %}

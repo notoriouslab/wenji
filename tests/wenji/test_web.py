@@ -272,6 +272,27 @@ def test_index_links_to_ask_page(client):
     assert 'id="ask-form"' not in r.text
 
 
+def test_aggregate_page_renders(client):
+    """0.6.1: 文章彙整 is a standalone page, mirroring /ask."""
+    r = client.get("/aggregate")
+    assert r.status_code == 200
+    assert "主題彙總" in r.text
+    assert "概念對比" in r.text
+    assert 'id="aggregate-form"' in r.text
+    assert "noindex" in r.text
+    assert r.text.count("/static/aggregate.js") == 1
+
+
+def test_index_links_to_aggregate_page(client):
+    """The chat side panel is retired; the nav entry is a plain link and
+    aggregate.js no longer ships site-wide."""
+    r = client.get("/")
+    assert 'href="/aggregate"' in r.text
+    assert "chat-panel" not in r.text
+    assert 'id="aggregate-form"' not in r.text
+    assert "/static/aggregate.js" not in r.text
+
+
 def test_index_filter_by_tag_narrows_results(client, populated_db):
     """Visiting ``/?q=...&tag=X`` post-filters search results by tag."""
     r = client.get("/", params={"q": "禱告", "tag": "禱告"})

@@ -540,9 +540,10 @@ def create_app(
             "User-agent: *\n"
             "Allow: /\n"
             "Disallow: /api/\n"
-            # Generated answers are not indexable content, and ?q= would mint
-            # unlimited crawlable URLs.
+            # Generated answers/reports are not indexable content, and ?q=
+            # would mint unlimited crawlable URLs.
             "Disallow: /ask\n"
+            "Disallow: /aggregate\n"
             "\n"
             "# AI Bots\n"
             "User-agent: GPTBot\nAllow: /\n"
@@ -1054,6 +1055,15 @@ def create_app(
         a readable page without JS); answers and citations arrive over SSE.
         """
         return templates.TemplateResponse(request, "ask.html", {"query": q})
+
+    @app.get("/aggregate", response_class=HTMLResponse)
+    def aggregate_page(request: Request) -> HTMLResponse:
+        """Standalone aggregation page (topic summary / concept comparison).
+
+        Server-renders the shell only; reports arrive via the JSON aggregate
+        endpoints from aggregate.js.
+        """
+        return templates.TemplateResponse(request, "aggregate.html", {"query": ""})
 
     @app.get("/", response_class=HTMLResponse)
     def index(
