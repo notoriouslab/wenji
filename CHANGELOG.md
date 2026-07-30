@@ -25,6 +25,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   them with `|safe`.
 - Responses carry `X-Content-Type-Options`, `X-Frame-Options`, and
   `Referrer-Policy`.
+- Search-term highlighting no longer expands backslash escapes from
+  corpus text (which could re-materialise escaped markup as live
+  elements), and queries containing stray backslashes no longer error.
+- Aggregate-page source snippets are HTML-escaped before insertion,
+  allowing only the `<mark>` highlight tags through.
 
 ### Added
 
@@ -52,6 +57,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Aggregate results distinguish "this site has no LLM configured" from
   "the LLM call failed", instead of one message covering both.
+- Search queries are capped at 64 terms, matching the natural-language
+  query builder; an unbounded pasted wall of terms could slow the whole
+  server down.
+- Topic-summary prompt assembly keeps the total within the sanitiser's
+  limit at high `k`; previously the tail sources were silently truncated
+  away. Cached summaries are rebuilt (prompt revision bump).
 
 ## [0.6.0] — 2026-07-29
 

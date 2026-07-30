@@ -167,7 +167,12 @@ def _highlight_in_html(html_text: str, query: str) -> str:
         for term in terms:
             safe_term = html.escape(term)
             pattern = re.compile(re.escape(safe_term))
-            p = pattern.sub(f"<mark>{safe_term}</mark>", p)
+            # Replacement must be a callable: a string here is a template
+            # whose backslash escapes re.sub expands, letting corpus text
+            # like ``\074`` re-materialise as ``<`` after escaping (and
+            # unknown escapes such as ``\x`` raise).
+            replacement = f"<mark>{safe_term}</mark>"
+            p = pattern.sub(lambda _m, _r=replacement: _r, p)
         out.append(p)
     return "".join(out)
 

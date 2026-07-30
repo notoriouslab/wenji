@@ -36,12 +36,15 @@ MAX_CHUNK_CHARS_IN_PROMPT = 1200
 # 來源區塊的總字數預算：留在 sanitize_prompt_input 的 10,000 上限之下，
 # 其餘額度給標題與模板本身。超出時每篇均分而非讓 sanitize 攔腰砍掉尾巴。
 TOPIC_SOURCES_CHAR_BUDGET = 9_000
-# 均分後的下限：來源太多時寧可每篇只給一小段，也不要有來源完全消失。
+# 每段的目標下限：均分後每段分不到這個數時，改少餵幾段（而非把每段
+# 墊高到下限）。下限 NEVER 凌駕總預算，否則 k 大時總量突破 sanitize
+# 上限，尾端來源被靜默截掉，正是均分要防的事。
 MIN_CHUNK_CHARS_IN_PROMPT = 200
 
 # Prompt 形狀的版本號。餵入策略或模板改動時 MUST 加一，否則既有部署會在
 # 30 天 TTL 內繼續回舊快取，改動等於沒上線。
-PROMPT_REVISION = 2
+# rev 3: 字數預算改為總量優先（下限不再凌駕預算，k≥23 的餵入內容改變）。
+PROMPT_REVISION = 3
 
 
 def _truncate_chunk(text: str, limit: int = MAX_CHUNK_CHARS_IN_PROMPT) -> str:
@@ -322,15 +325,16 @@ class Aggregator:
         # 每篇的字數預算按來源數均分，讓總長留在 sanitize_prompt_input 的
         # 上限內。不分配的話 k 稍大就會在 sanitize 被靜默攔腰截斷，尾端
         # 來源整批消失而呼叫端毫無所覺（k 最大可到 50）。
-        budget = max(
-            MIN_CHUNK_CHARS_IN_PROMPT,
-            TOPIC_SOURCES_CHAR_BUDGET // max(len(summary.top_sources), 1),
-        )
+        budget = TOPIC_SOURCES_CHAR_BUDGET // max(len(summary.top_sources), 1)
 
         def _source_block(i: int, s: SourceRef) -> str:
             texts = chunks_by_id.get(s.article_id) or ([s.snippet] if s.snippet else [])
-            per_text = max(MIN_CHUNK_CHARS_IN_PROMPT, budget // max(len(texts), 1))
-            body = "\n".join(f"- {_truncate_chunk(t, per_text)}" for t in texts if t.strip())
+            texts = [t for t in texts if t.strip()]
+            # 預算吃緊時少餵幾段（每段維持有意義的長度），而不是把每段
+            # 墊高到下限：下限凌駕預算會讓總量突破 sanitize 上限。
+            keep = max(1, min(len(texts), budget // MIN_CHUNK_CHARS_IN_PROMPT))
+            per_text = budget // keep
+            body = "\n".join(f"- {_truncate_chunk(t, per_text)}" for t in texts[:keep])
             return f"來源 {i + 1}: {s.title}\n{body}"
 
         sources_block = "\n\n".join(_source_block(i, s) for i, s in enumerate(summary.top_sources))

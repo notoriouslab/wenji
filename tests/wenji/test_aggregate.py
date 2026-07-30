@@ -571,11 +571,19 @@ class TestTopicSummary:
     def test_prompt_stays_within_sanitize_limit(
         self, chunked_db: sqlite3.Connection, mock_llm_client
     ) -> None:
-        """來源多時字數要均分，不能讓 sanitize 靜默把尾端來源整批切掉。"""
+        """來源多時字數要均分，不能讓 sanitize 靜默把尾端來源整批切掉。
+
+        k 必須開到上限 50 才踩得到失效區：均分後每篇預算只剩 180，任何
+        「每篇至少 200」的下限一旦凌駕預算，總量就會突破 sanitize 的
+        10,000 上限。小 k（例如 13）落在安全區，抓不到這個 bug。
+        斷言逐一點名每個來源標頭，不做長度比對——sanitize 對任何超長
+        輸入都截到剛好 10,000，長度斷言是恆真的。
+        """
         # FTS 的 content 欄存的是斷詞後以空白分隔的文字（中文逐字，見 ingest）。
         tokenised = "工 資 " + "填 充 " * 3000
         raw = "工資" + "填充" * 3000
-        for i in range(12):
+        k = 50
+        for i in range(k):
             aid = f"synthetic-{i}"
             chunked_db.execute(
                 "INSERT INTO articles_fts (article_id,title,title_raw,content,content_raw,tags,"
@@ -590,12 +598,15 @@ class TestTopicSummary:
         chunked_db.commit()
         client = mock_llm_client(response="ok")
         agg = Aggregator(chunked_db, llm_client=client)
-        result = agg.topic_summary("工資", k=13)
-        assert len(result.top_sources) >= 12, "fixture 必須真的產生多來源，否則測不到均分"
+        result = agg.topic_summary("工資", k=k)
+        assert len(result.top_sources) == k, "fixture 必須真的產生 k 個來源，否則測不到失效區"
         sources = client.calls[0][0]["content"].split("<sources>")[1].split("</sources>")[0]
-        # 未均分時 sanitize 會攔腰截斷，尾端來源整批消失。
-        assert f"來源 {len(result.top_sources)}:" in sources, "最後一個來源不得被靜默丟棄"
-        assert len(sources) <= 10_000
+        # 未均分時 sanitize 會攔腰截斷，尾端來源整批消失（連標頭都不見）。
+        for i in range(1, k + 1):
+            assert f"來源 {i}:" in sources, f"來源 {i} 被靜默丟棄"
+        # 標頭在還不夠：最後一個來源要真的帶到內文。
+        tail = sources.split(f"來源 {k}:")[1]
+        assert "- " in tail, "最後一個來源只剩標頭，內文被截掉"
 
     def test_filter_excludes_weekly(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)

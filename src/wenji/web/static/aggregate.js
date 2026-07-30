@@ -88,6 +88,13 @@
     })[c]);
   }
 
+  // FTS snippet() 以 <mark>…</mark> 標記命中詞。與文章頁同一條防線：
+  // 不是走正常 ingest 進來的列可能帶任意 HTML，所以先全量轉義，
+  // 再只放行無屬性的 <mark>，其餘一律當純文字。
+  function escapeSnippet(s) {
+    return escapeHtml(s).replace(/&lt;(\/?)mark&gt;/g, "<$1mark>");
+  }
+
   // 「部署沒開 LLM」是恆常狀態，「LLM 這次失敗」是暫時的——措辭分開，
   // 失敗已不入快取，重試有意義。
   function narrativeFallback(data) {
@@ -103,7 +110,7 @@
       <li>
         <a href="/article/${encodeURIComponent(s.article_id)}">${escapeHtml(s.title || "")}</a>
         <span class="chat-score">${s.bm25_score.toFixed(2)}</span>
-        <div class="chat-snippet">${s.snippet || ""}</div>
+        <div class="chat-snippet">${escapeSnippet(s.snippet || "")}</div>
       </li>
     `).join("");
     const narrative = data.narrative_html

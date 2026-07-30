@@ -308,6 +308,62 @@ def test_article_page_escapes_html_reaching_the_db(client, tmp_path):
     assert "&lt;script&gt;" in body
 
 
+_TAG_NAME_RE = r"</?\s*([a-zA-Z][a-zA-Z0-9-]*)"
+
+
+def test_highlight_cannot_mint_tags_via_replacement_expansion(client, tmp_path):
+    """Highlighting must never turn inert text into live elements.
+
+    ``re.sub`` treats a string replacement as a template and expands
+    backslash escapes in it, so corpus text like ``\\074`` (octal ``<``)
+    becomes a real tag during highlighting — after the renderer's
+    ``html: False`` has already run. Asserted as a tag whitelist, not
+    substring checks: the highlighted page may add ``<mark>`` and nothing
+    else on top of the unhighlighted page.
+    """
+    import re as _re
+    import sqlite3 as _sqlite3
+
+    payload = r"\074img\040src=x\040onerror=alert(1)\076"
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.execute(
+        "UPDATE articles_fts SET content_raw = ? WHERE article_id = ?",
+        (f"可辨識的正常內文 {payload} 收尾", aid),
+    )
+    conn.execute("UPDATE articles_meta SET chunk_count = 0 WHERE article_id = ?", (aid,))
+    conn.commit()
+    conn.close()
+
+    plain = client.get(f"/article/{aid}")
+    highlighted = client.get(f"/article/{aid}", params={"q": payload})
+    assert highlighted.status_code == 200
+    assert "可辨識的正常內文" in highlighted.text, "payload row must actually render"
+
+    plain_tags = set(_re.findall(_TAG_NAME_RE, plain.text))
+    highlighted_tags = set(_re.findall(_TAG_NAME_RE, highlighted.text))
+    assert "img" not in highlighted_tags
+    assert highlighted_tags <= plain_tags | {"mark"}, (
+        f"highlighting minted new tags: {sorted(highlighted_tags - plain_tags - {'mark'})}"
+    )
+
+
+def test_highlight_query_with_unknown_regex_escape_returns_200(client, tmp_path):
+    """A query like ``a\\x`` must not 500.
+
+    With a string replacement, ``re.sub`` rejects unknown template escapes
+    (``bad escape \\x``) — content-independent, triggered by the query alone.
+    """
+    import sqlite3 as _sqlite3
+
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.close()
+
+    r = client.get(f"/article/{aid}", params={"q": "a\\x"})
+    assert r.status_code == 200
+
+
 def test_aggregate_page_renders(client):
     """0.6.1: 文章彙整 is a standalone page, mirroring /ask."""
     r = client.get("/aggregate")

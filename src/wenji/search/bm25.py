@@ -19,6 +19,13 @@ from wenji.core.errors import SearchError
 logger = logging.getLogger(__name__)
 
 
+#: Upper bound on MATCH terms, shared by both query builders. A natural-
+#: language question yields well under 30 content terms; the cap stops a
+#: pathologically long ``q`` from turning one request into a multi-thousand-
+#: term FTS5 expression (measured: 3200 terms → 22.9 s per request).
+MAX_OR_TERMS = 64
+
+
 def build_fts_query(raw: str, *, column: str | None = None) -> str:
     """Build FTS5 phrase MATCH query from user input.
 
@@ -36,9 +43,14 @@ def build_fts_query(raw: str, *, column: str | None = None) -> str:
 
     This avoids both char-AND false matches (which char-only without phrase
     suffers from) and jieba segmentation drift between query and ingest time.
+
+    Terms beyond :data:`MAX_OR_TERMS` are dropped (order preserved), matching
+    :func:`build_fts_query_or`.
     """
     quoted: list[str] = []
     for term in raw.split():
+        if len(quoted) >= MAX_OR_TERMS:
+            break
         chars = " ".join(c for c in term if not c.isspace() and c != '"')
         if chars:
             phrase = f'"{chars}"'
@@ -73,12 +85,6 @@ INTERROGATIVE_STOPWORDS = frozenset(
         "呢",
     }
 )
-
-
-#: Upper bound on OR terms. A natural-language question yields well under 30
-#: content terms; the cap stops a pathologically long ``q`` from turning one
-#: request into a multi-thousand-term FTS5 expression.
-MAX_OR_TERMS = 64
 
 
 def build_fts_query_or(raw: str, *, column: str | None = None) -> str:
