@@ -13,9 +13,16 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and summaries reach the page through `innerHTML`, so a `<script>` or
   `onerror=` payload in an LLM response — which corpus text can steer via
   indirect prompt injection — previously executed in the visitor's
-  browser. Corpus content keeps its existing renderer. Sanitising happens
-  at render time, so answers already in the cache are neutralised on
-  replay.
+  browser. Escaping happens at render time, so answers already in the
+  cache are neutralised on replay.
+- `normalize()` now decodes HTML entities before stripping tags, the order
+  its own docstring specifies. Reversed, an entity-encoded `&lt;script&gt;`
+  in a source document passed the strip and was then decoded into live
+  markup in stored content.
+- Corpus content is rendered with raw HTML escaped as well. Ingest already
+  removes markup, so this changes nothing visible; it covers rows that
+  reach the database by another route, since the article template renders
+  them with `|safe`.
 - Responses carry `X-Content-Type-Options`, `X-Frame-Options`, and
   `Referrer-Policy`.
 

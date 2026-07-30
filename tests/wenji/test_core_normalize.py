@@ -20,6 +20,20 @@ def test_html_entity_decode():
     assert normalize("&amp; &lt; &gt;") == "& < >"
 
 
+def test_entity_encoded_tags_are_stripped_too():
+    """Decoding has to happen before the tag strip, not after.
+
+    With the passes in the wrong order an entity-encoded tag survives the
+    strip and is then decoded into live markup — a poisoned markdown file
+    would land real ``<script>`` in stored content.
+    """
+    assert normalize("&lt;script&gt;alert(1)&lt;/script&gt;") == "alert(1)"
+    assert normalize("&lt;img src=x onerror=alert(1)&gt;") == ""
+    for probe in ("&lt;b&gt;粗&lt;/b&gt;", "<p>hi</p>", "&amp; text"):
+        once = normalize(probe)
+        assert normalize(once) == once, f"not idempotent for {probe!r}"
+
+
 def test_horizontal_whitespace_collapse():
     assert normalize("a    b\tc　d") == "a b c d"
 

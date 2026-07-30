@@ -24,8 +24,11 @@ def normalize(text: str | None) -> str:
     if not text:
         return ""
     text = unicodedata.normalize("NFC", text)
-    text = _HTML_TAG_RE.sub("", text)
+    # Decode before stripping, per the documented pipeline order. The reverse
+    # lets an entity-encoded tag (``&lt;script&gt;``) slip through the strip
+    # and come out the far side as live markup.
     text = html.unescape(text)
+    text = _HTML_TAG_RE.sub("", text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = _TRAILING_WS_RE.sub("\n", text)
     text = _HORIZ_WS_RUN_RE.sub(" ", text)

@@ -84,12 +84,18 @@ def _safe_link(url: str) -> bool:
 
 
 def _markdown_renderer():
-    """Renderer for corpus content — passes raw HTML through.
+    """Renderer for corpus content — escapes raw HTML.
 
-    Ingested markdown legitimately carries inline HTML (``<br>`` inside
-    table cells, for one), so this renderer keeps ``html: True``. It must
-    only ever see text the deployment itself ingested; anything derived
-    from an LLM goes through :func:`_llm_markdown_renderer` instead.
+    Ingest strips HTML on the way in (:func:`wenji.core.normalize.normalize`),
+    so stored corpus text holds no markup to preserve and ``html: False``
+    costs nothing visually. What it buys is that any row reaching the page
+    by another route — a hand-written import, a migration, a downstream
+    tool — renders as inert text rather than live markup, since the article
+    template emits this with ``|safe``.
+
+    Kept separate from :func:`_llm_markdown_renderer` because this one
+    carries the front-matter and footnote plugins, which are meaningless
+    on model output.
     """
     global _MD_RENDERER
     if _MD_RENDERER is None:
@@ -104,7 +110,7 @@ def _markdown_renderer():
 
         _MD_RENDERER = MarkdownIt(
             "default",
-            {"html": True, "breaks": True, "linkify": True, "validateLink": _safe_link},
+            {"html": False, "breaks": True, "linkify": True, "validateLink": _safe_link},
         )
         if front_matter_plugin:
             _MD_RENDERER.use(front_matter_plugin)
@@ -169,6 +175,8 @@ def _highlight_in_html(html_text: str, query: str) -> str:
 def _render_chunk(text: str, query: str) -> str:
     """Render markdown ``text`` to HTML and highlight ``query`` terms inside text nodes."""
     rendered = _markdown_renderer().render(text)
+    # Highlighting runs last so the <mark> elements it injects are ours,
+    # never something the renderer had to vet.
     return _highlight_in_html(rendered, query)
 
 
