@@ -62,6 +62,7 @@ STATIC_DIR = WEB_DIR / "static"
 
 
 _MD_RENDERER = None
+_LLM_MD_RENDERER = None
 _TAG_SPLIT_RE = re.compile(r"(<[^>]*>)")
 
 
@@ -78,11 +79,30 @@ def _check_trusted_path(path_str: str, db_dir: Path) -> Path | None:
 
 
 def _safe_link(url: str) -> bool:
-    """Allow only http/https/mailto links."""
-    return url.startswith(("http://", "https://", "mailto:"))
+    """Allow only http/https/mailto links (a whitelist, unlike the package
+    default, which merely blacklists a few dangerous protocols).
+
+    Wire it by assigning ``md.validateLink`` — markdown-it-py reads that
+    instance attribute, not a constructor-options key of the same name.
+    Rejected links stay as literal text.
+    """
+    return url.strip().lower().startswith(("http://", "https://", "mailto:"))
 
 
 def _markdown_renderer():
+    """Renderer for corpus content — escapes raw HTML.
+
+    Ingest strips HTML on the way in (:func:`wenji.core.normalize.normalize`),
+    so stored corpus text holds no markup to preserve and ``html: False``
+    costs nothing visually. What it buys is that any row reaching the page
+    by another route — a hand-written import, a migration, a downstream
+    tool — renders as inert text rather than live markup, since the article
+    template emits this with ``|safe``.
+
+    Kept separate from :func:`_llm_markdown_renderer` because this one
+    carries the front-matter and footnote plugins, which are meaningless
+    on model output.
+    """
     global _MD_RENDERER
     if _MD_RENDERER is None:
         from markdown_it import MarkdownIt
@@ -96,14 +116,38 @@ def _markdown_renderer():
 
         _MD_RENDERER = MarkdownIt(
             "default",
-            {"html": True, "breaks": True, "linkify": True, "validateLink": _safe_link},
+            {"html": False, "breaks": True, "linkify": True},
         )
+        _MD_RENDERER.validateLink = _safe_link
         if front_matter_plugin:
             _MD_RENDERER.use(front_matter_plugin)
         if footnote_plugin:
             _MD_RENDERER.use(footnote_plugin)
 
     return _MD_RENDERER
+
+
+def _llm_markdown_renderer():
+    """Renderer for model-generated text — escapes raw HTML.
+
+    Answers and summaries are rendered into the page with ``innerHTML``,
+    and a model's output is not trusted input: corpus text can steer it
+    (indirect prompt injection) and the endpoint itself is remote. With
+    ``html: False`` a ``<script>`` or ``onerror=`` payload comes out as
+    visible text; ordinary markdown (bold, code, lists, links) is
+    unaffected.
+    """
+    global _LLM_MD_RENDERER
+    if _LLM_MD_RENDERER is None:
+        from markdown_it import MarkdownIt
+
+        _LLM_MD_RENDERER = MarkdownIt(
+            "default",
+            {"html": False, "breaks": True, "linkify": True},
+        )
+        _LLM_MD_RENDERER.validateLink = _safe_link
+
+    return _LLM_MD_RENDERER
 
 
 _ALLOWED_LLM_BASE_URL_PREFIXES = (
@@ -131,7 +175,12 @@ def _highlight_in_html(html_text: str, query: str) -> str:
         for term in terms:
             safe_term = html.escape(term)
             pattern = re.compile(re.escape(safe_term))
-            p = pattern.sub(f"<mark>{safe_term}</mark>", p)
+            # Replacement must be a callable: a string here is a template
+            # whose backslash escapes re.sub expands, letting corpus text
+            # like ``\074`` re-materialise as ``<`` after escaping (and
+            # unknown escapes such as ``\x`` raise).
+            replacement = f"<mark>{safe_term}</mark>"
+            p = pattern.sub(lambda _m, _r=replacement: _r, p)
         out.append(p)
     return "".join(out)
 
@@ -139,6 +188,8 @@ def _highlight_in_html(html_text: str, query: str) -> str:
 def _render_chunk(text: str, query: str) -> str:
     """Render markdown ``text`` to HTML and highlight ``query`` terms inside text nodes."""
     rendered = _markdown_renderer().render(text)
+    # Highlighting runs last so the <mark> elements it injects are ours,
+    # never something the renderer had to vet.
     return _highlight_in_html(rendered, query)
 
 
@@ -269,6 +320,24 @@ def create_app(
             return await call_next(request)
 
     app.add_middleware(APIKeyMiddleware)
+
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        """Baseline hardening headers.
+
+        No CSP yet: the templates carry inline ``<script>`` blocks, so a
+        useful policy needs per-request nonces. These three cost nothing
+        and close off MIME sniffing, framing, and referrer leakage to
+        third parties.
+        """
+
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+            response.headers.setdefault("Referrer-Policy", "same-origin")
+            return response
+
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Rate-limit is NOT YET IMPLEMENTED.  Deploy behind a reverse-proxy
     # (Cloudflare, nginx) for per-IP throttling.
@@ -518,9 +587,16 @@ def create_app(
         return [r for r in results if r["article_id"] in allowed]
 
     def _render_narrative(narrative: str | None) -> str | None:
+        """Render model-generated markdown. Escapes raw HTML — see
+        :func:`_llm_markdown_renderer`.
+
+        Sanitising here rather than before the cache write is deliberate:
+        the cache stores the raw text, so already-cached answers are
+        neutralised on replay too.
+        """
         if not narrative:
             return None
-        return _markdown_renderer().render(narrative)
+        return _llm_markdown_renderer().render(narrative)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -540,9 +616,10 @@ def create_app(
             "User-agent: *\n"
             "Allow: /\n"
             "Disallow: /api/\n"
-            # Generated answers are not indexable content, and ?q= would mint
-            # unlimited crawlable URLs.
+            # Generated answers/reports are not indexable content, and ?q=
+            # would mint unlimited crawlable URLs.
             "Disallow: /ask\n"
+            "Disallow: /aggregate\n"
             "\n"
             "# AI Bots\n"
             "User-agent: GPTBot\nAllow: /\n"
@@ -863,6 +940,8 @@ def create_app(
             agg.db.close()
         payload = asdict(result)
         payload["narrative_html"] = _render_narrative(result.narrative)
+        # 讓前端能區分「部署未啟用 LLM」（恆常）與「LLM 這次失敗」（暫時）。
+        payload["llm_configured"] = state["llm_client"] is not None
         return JSONResponse(payload)
 
     @app.post("/api/ask")
@@ -937,6 +1016,7 @@ def create_app(
         def _events():
             # close() lives here, not in the route body: the generator outlives
             # the request handler and a caller can disconnect mid-stream.
+            text_parts: list[str] = []
             try:
                 for ev in asker.ask_stream(
                     q,
@@ -955,9 +1035,17 @@ def create_app(
                             },
                         )
                     elif ev.kind == "delta":
+                        text_parts.append(ev.text or "")
                         yield _sse("delta", {"text": ev.text})
                     else:
-                        yield _sse("done", {})
+                        # Deltas render progressively as plain text; the final
+                        # event carries the markdown-rendered whole so the
+                        # client can swap it in (same renderer as POST /api/ask).
+                        done_payload: dict[str, Any] = {}
+                        full_text = "".join(text_parts)
+                        if full_text:
+                            done_payload["narrative_html"] = _render_narrative(full_text)
+                        yield _sse("done", done_payload)
             except WenjiError as exc:
                 logger.warning("ask stream aborted: %s", exc)
                 yield _sse("error", {"detail": str(exc)})
@@ -1009,6 +1097,7 @@ def create_app(
         payload["narrative_html"] = _render_narrative(result.narrative)
         payload["consensus_html"] = [_render_narrative(c) for c in (result.consensus or [])]
         payload["disagreements_html"] = [_render_narrative(d) for d in (result.disagreements or [])]
+        payload["llm_configured"] = state["llm_client"] is not None
         return JSONResponse(payload)
 
     @app.get("/tags", response_class=HTMLResponse)
@@ -1045,6 +1134,15 @@ def create_app(
         a readable page without JS); answers and citations arrive over SSE.
         """
         return templates.TemplateResponse(request, "ask.html", {"query": q})
+
+    @app.get("/aggregate", response_class=HTMLResponse)
+    def aggregate_page(request: Request) -> HTMLResponse:
+        """Standalone aggregation page (topic summary / concept comparison).
+
+        Server-renders the shell only; reports arrive via the JSON aggregate
+        endpoints from aggregate.js.
+        """
+        return templates.TemplateResponse(request, "aggregate.html", {"query": ""})
 
     @app.get("/", response_class=HTMLResponse)
     def index(

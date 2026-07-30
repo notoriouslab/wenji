@@ -57,8 +57,9 @@
 {% endblock %}
 
 {% block scripts %}
-{# base.html already loads /static/ask.js (deferred) on every page — do not
-   load it again here. This inline script runs at parse time, so the flag is
-   set before the deferred script executes. #}
+{# ask.js is loaded here only — the side panel it used to drive site-wide is
+   gone (single entry point). The inline flag runs at parse time, so it is set
+   before the deferred script executes. #}
 <script>window.WENJI_ASK_AUTOSUBMIT = {{ 'true' if query else 'false' }};</script>
+<script src="/static/ask.js?v=0.6.1" defer></script>
 {% endblock %}

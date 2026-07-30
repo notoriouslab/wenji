@@ -55,3 +55,4 @@ coverage.xml
 .spectra/
 openspec/.vector-search.db*
 .gstack/
+.claude/worktrees/

@@ -20,6 +20,38 @@ def test_html_entity_decode():
     assert normalize("&amp; &lt; &gt;") == "& < >"
 
 
+def test_entity_encoded_tags_are_stripped_too():
+    """Decoding has to happen before the tag strip, not after.
+
+    With the passes in the wrong order an entity-encoded tag survives the
+    strip and is then decoded into live markup — a poisoned markdown file
+    would land real ``<script>`` in stored content.
+    """
+    assert normalize("&lt;script&gt;alert(1)&lt;/script&gt;") == "alert(1)"
+    assert normalize("&lt;img src=x onerror=alert(1)&gt;") == ""
+    for probe in ("&lt;b&gt;粗&lt;/b&gt;", "<p>hi</p>", "&amp; text"):
+        once = normalize(probe)
+        assert normalize(once) == once, f"not idempotent for {probe!r}"
+
+
+def test_double_encoded_input_decodes_one_layer_per_call():
+    """normalize() is NOT idempotent for multi-encoded input — by design.
+
+    One call decodes exactly one entity layer. Decoding to a fixpoint would
+    mangle text that legitimately talks about entities (``寫 &amp;amp; 代表
+    &amp;``). The one-layer contract is safe because both call sites apply
+    exactly one pass to raw source text, and the surviving ``&lt;script&gt;``
+    text is inert downstream — every renderer escapes on output. If this
+    test starts failing, the layer contract changed: update the module
+    docstring and re-audit content hashes and both call sites.
+    """
+    double = "&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;"
+    once = normalize(double)
+    assert once == "&lt;script&gt;alert(1)&lt;/script&gt;"
+    # A second pass decodes the next layer and strips the now-live tags.
+    assert normalize(once) == "alert(1)"
+
+
 def test_horizontal_whitespace_collapse():
     assert normalize("a    b\tc　d") == "a b c d"
 

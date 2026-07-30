@@ -11,10 +11,13 @@ import httpx
 import pytest
 
 from wenji.aggregate import (
+    MAX_CHUNKS_PER_TOPIC_SOURCE,
+    TOPIC_SOURCES_CHAR_BUDGET,
     Aggregator,
     ConceptPerspectives,
     Filter,
     TopicSummary,
+    _assemble_source_blocks,
 )
 from wenji.aggregate.cache import cache_clear, cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
@@ -107,8 +110,51 @@ def aggregate_db(aggregate_corpus: Path, mock_embedder) -> sqlite3.Connection:
 
 
 @pytest.fixture
+def chunked_db(tmp_path_factory, mock_embedder) -> sqlite3.Connection:
+    """A corpus whose articles are actually chunked.
+
+    ``aggregate_db`` holds only ~50-character articles with no chunk
+    strategy, so every chunk table stays empty there and any test written
+    against it silently exercises the whole-content fallback instead of the
+    chunk path.
+    """
+    root = tmp_path_factory.mktemp("chunked_corpus")
+    laws = root / "laws"
+    laws.mkdir()
+    (laws / "long-labor.md").write_text(
+        "---\ntitle: 勞動條件彙編\ntags: [勞動]\npubDate: 2023-06-01\n---\n"
+        + "前言段落與本題無關的鋪陳文字。\n\n" * 8
+        + "工資給付段落：雇主應於每月五日前給付工資，延遲者依法加計利息。\n\n"
+        + "休假段落：勞工每七日中應有二日之休息，其中一日為例假。\n\n"
+        + "尾段補充說明，與查詢詞無關的收尾文字。\n",
+        encoding="utf-8",
+    )
+    conn = connect(":memory:")
+    initialise_schema(conn)
+    ingest_dir(
+        root,
+        conn,
+        mock_embedder,
+        directory_map={"laws": "law"},
+        chunk_strategies={"law": {"strategy": "paragraph", "min_chars": 1, "max_chars": 120}},
+    )
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
 def mock_llm_client():
     return _MockLLMClient
+
+
+def test_prompts_are_domain_neutral() -> None:
+    """wenji is a generic framework: aggregation prompts must not assume a
+    theological (or any other) corpus domain."""
+    from wenji.aggregate.prompts import CONCEPT_PROMPT, TOPIC_PROMPT
+
+    for template in (TOPIC_PROMPT, CONCEPT_PROMPT):
+        assert "神學" not in template
+        assert "基督教" not in template
 
 
 def test_aggregate_db_fixture_populates(aggregate_db: sqlite3.Connection) -> None:
@@ -437,6 +483,55 @@ class TestCache:
 # ---------------------------------------------------------------------------
 
 
+class TestAssembleSourceBlocks:
+    """Direct tests for the shared source-block assembler.
+
+    sanitize_prompt_input caps its input at 10,000 chars, silently dropping
+    the tail. The assembler must keep the whole block (titles + framing +
+    bodies) under that ceiling so no source is lost — the failure the
+    per-body-only budget kept re-introducing.
+    """
+
+    SANITIZE_LIMIT = 10_000
+
+    @pytest.mark.parametrize(
+        "n,title_len,chunk_len,chunks",
+        [
+            (1, 4, 5000, 1),
+            (5, 40, 5000, 1),
+            (50, 4, 5000, 1),
+            (50, 40, 5000, 1),  # 長標題 × 大 k：先前修法在這裡破表
+            (20, 40, 1200, 10),  # concept 上限：top_sources=20, per_source=10
+        ],
+    )
+    def test_total_stays_under_sanitize_limit(self, n, title_len, chunk_len, chunks):
+        items = [("標" * title_len + str(i), ["文" * chunk_len] * chunks) for i in range(n)]
+        block = _assemble_source_blocks(items)
+        assert len(block) < self.SANITIZE_LIMIT, f"n={n} 破表：{len(block)}"
+        # 餘裕：軟上限之上再加一點 rounding，但務必遠低於硬上限。
+        assert len(block) <= TOPIC_SOURCES_CHAR_BUDGET + 200
+        for i in range(1, n + 1):
+            assert f"來源 {i}:" in block, f"來源 {i} 不見了（會被 sanitize 靜默丟）"
+
+    def test_bodies_front_loaded_when_budget_is_tight(self):
+        # 50 篇長標題：預算不足以人人一段，內文集中給排名最前者，尾端只列標頭。
+        items = [("勞動基準法函釋彙編第" + f"{i:02d}條", ["內" * 5000]) for i in range(50)]
+        block = _assemble_source_blocks(items)
+        first = block.split("來源 2:")[0]
+        last = block.split("來源 50:")[1]
+        assert "\n- " in first, "排名第一的來源必須帶內文"
+        assert "\n- " not in last, "預算吃緊時尾端來源應只列標頭"
+        assert "來源 50:" in block, "但尾端來源的標頭仍須保留"
+
+    def test_edge_cases(self):
+        assert _assemble_source_blocks([]) == ""
+        # 空 / 空白 texts → 只列標頭，不炸。
+        out = _assemble_source_blocks([("甲", []), ("乙", ["   ", ""])])
+        assert "來源 1: 甲" in out
+        assert "來源 2: 乙" in out
+        assert "\n- " not in out
+
+
 class TestTopicSummary:
     def test_no_llm_returns_structured_only(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
@@ -475,6 +570,111 @@ class TestTopicSummary:
         second = agg.topic_summary("禱告", k=5)
         assert first.narrative == second.narrative == "一次性 narrative"
         assert len(client.calls) == 1  # second call hit cache
+
+    def test_prompt_revision_bump_busts_cache(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, monkeypatch
+    ) -> None:
+        """「餵入策略或模板改動時 PROMPT_REVISION MUST 加一」的規則靠這條
+        守住：revision 若沒進 cache key，既有部署會在 30 天 TTL 內繼續回
+        舊快取，prompt 改動等於沒上線。"""
+        import wenji.aggregate as aggregate_module
+
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.topic_summary("禱告", k=5)
+        monkeypatch.setattr(
+            aggregate_module, "PROMPT_REVISION", aggregate_module.PROMPT_REVISION + 1
+        )
+        agg.topic_summary("禱告", k=5)
+        assert len(client.calls) == 2, "revision 加一必須繞過既有快取、重新呼叫 LLM"
+
+    def test_llm_failure_is_not_cached(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
+    ) -> None:
+        """429/超時是暫時的；快取殘缺結果會釘死 30 天（與 ask 同判準）。"""
+        client = mock_llm_client(response=LLMClientError("boom"))
+        agg = Aggregator(aggregate_db, llm_client=client)
+        with caplog.at_level("WARNING", logger="wenji.aggregate"):
+            agg.topic_summary("禱告", k=5)
+            agg.topic_summary("禱告", k=5)
+        assert len(client.calls) == 2, "failed result must not be served from cache"
+
+    def test_narrative_grounds_on_whole_content_when_unchunked(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """未分塊的短文走全文後援，餵的仍是真原文而非 <mark> snippet。"""
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.topic_summary("勞動", k=5)
+        prompt = client.calls[0][0]["content"]
+        assert "雇主未依規定者依本法處罰" in prompt
+        assert "<mark>" not in prompt
+
+    def test_narrative_grounds_on_matching_chunks(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """分塊語料要走 chunk 分支：餵命中段落，而非文章開頭。
+
+        用真的有 chunk 的語料，否則 chunk 查詢整條改成空字串測試也不會紅
+        （aggregate_db 的文章全部沒有 chunk）。
+        """
+        assert chunked_db.execute("SELECT COUNT(*) FROM chunks_fts").fetchone()[0] > 0
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        agg.topic_summary("工資", k=5)
+        prompt = client.calls[0][0]["content"]
+        assert "雇主應於每月五日前給付工資" in prompt, "命中段落必須進 prompt"
+        assert "前言段落與本題無關的鋪陳文字" not in prompt, "不該退回文章開頭"
+
+    def test_chunk_feed_respects_per_source_cap(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        agg.topic_summary("段落", k=5)
+        body = client.calls[0][0]["content"]
+        sources_block = body.split("<sources>")[1].split("</sources>")[0]
+        assert sources_block.count("\n- ") <= MAX_CHUNKS_PER_TOPIC_SOURCE
+
+    def test_prompt_stays_within_sanitize_limit(
+        self, chunked_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """來源多＋標題長時，組裝的 sources 區塊不得被 sanitize 靜默截斷。
+
+        k 開到上限 50，且標題用真實長度（30 字）——這正是先前修法漏掉的
+        失效區：預算只算 chunk 本體、不算標題與「來源 N:」框架，標題一長
+        總量就破 sanitize 的 10,000 上限，尾端來源連標頭一起被砍。用短標題
+        （如「長文0」）會剛好卡在界內、測不到，所以這裡刻意放長。
+        """
+        # FTS 的 content 欄存的是斷詞後以空白分隔的文字（中文逐字，見 ingest）。
+        tokenised = "工 資 " + "填 充 " * 3000
+        raw = "工資" + "填充" * 3000
+        k = 50
+        long_title = "勞動基準法施行細則暨相關函釋彙編第"  # 30 字級真實標題
+        for i in range(k):
+            aid = f"synthetic-{i}"
+            title = f"{long_title}{i:02d}條"
+            chunked_db.execute(
+                "INSERT INTO articles_fts (article_id,title,title_raw,content,content_raw,tags,"
+                "tags_raw) VALUES (?,?,?,?,?,?,?)",
+                (aid, title, title, tokenised, raw, "勞動", "勞動"),
+            )
+            chunked_db.execute(
+                "INSERT INTO articles_meta (article_id,path,title,source_type,chunk_count) "
+                "VALUES (?,?,?,?,0)",
+                (aid, f"/tmp/{aid}.md", title, "law"),
+            )
+        chunked_db.commit()
+        client = mock_llm_client(response="ok")
+        agg = Aggregator(chunked_db, llm_client=client)
+        result = agg.topic_summary("工資", k=k)
+        assert len(result.top_sources) == k, "fixture 必須真的產生 k 個來源，否則測不到失效區"
+        sources = client.calls[0][0]["content"].split("<sources>")[1].split("</sources>")[0]
+        # 每個來源的標頭都在 = 尾端沒有被 sanitize 靜默截掉。
+        for i in range(1, k + 1):
+            assert f"來源 {i}:" in sources, f"來源 {i} 被靜默丟棄"
+        # 排名最前的來源要真的帶到內文（header-only 只該落在尾端）。
+        assert "\n- " in sources.split("來源 2:")[0], "排名第一的來源沒帶到內文"
 
     def test_filter_excludes_weekly(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)
@@ -551,6 +751,22 @@ class TestConceptPerspectives:
         assert any("路德" in d for d in result.disagreements)
         assert len(client.calls) == 1
 
+    def test_source_block_routes_through_bounded_assembler(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client
+    ) -> None:
+        """concept 的 sources 區塊必須走共用組裝器（受總量預算約束）。
+
+        先前 concept 完全沒編總預算，靠 sanitize 硬砍尾端。上限拉到最大
+        （top_sources=20, per_source=10）也要留在 sanitize 的 10,000 內；
+        並鎖住它產出的是組裝器格式，避免有人日後繞過。"""
+        client = mock_llm_client(response=_CONCEPT_LLM_REPLY)
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.concept_perspectives("因信稱義", top_sources=20, per_source=10)
+        prompt = client.calls[0][0]["content"]
+        sources = prompt.split("<per_source_views>")[1].split("</per_source_views>")[0]
+        assert len(sources) < 10_000
+        assert "來源 1:" in sources
+
     def test_llm_failure_falls_back(
         self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
     ) -> None:
@@ -571,6 +787,31 @@ class TestConceptPerspectives:
         assert first.narrative == second.narrative
         assert first.consensus == second.consensus
         assert len(client.calls) == 1
+
+    def test_prompt_revision_bump_busts_cache(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, monkeypatch
+    ) -> None:
+        """concept 路徑的 cache key 也帶 PROMPT_REVISION，同 topic 一起守。"""
+        import wenji.aggregate as aggregate_module
+
+        client = mock_llm_client(response=_CONCEPT_LLM_REPLY)
+        agg = Aggregator(aggregate_db, llm_client=client)
+        agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        monkeypatch.setattr(
+            aggregate_module, "PROMPT_REVISION", aggregate_module.PROMPT_REVISION + 1
+        )
+        agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        assert len(client.calls) == 2, "revision 加一必須繞過既有快取、重新呼叫 LLM"
+
+    def test_llm_failure_is_not_cached(
+        self, aggregate_db: sqlite3.Connection, mock_llm_client, caplog
+    ) -> None:
+        client = mock_llm_client(response=LLMClientError("boom"))
+        agg = Aggregator(aggregate_db, llm_client=client)
+        with caplog.at_level("WARNING", logger="wenji.aggregate"):
+            agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+            agg.concept_perspectives("因信稱義", top_sources=2, per_source=2)
+        assert len(client.calls) == 2, "failed result must not be served from cache"
 
     def test_per_source_excerpt_cap(self, aggregate_db: sqlite3.Connection) -> None:
         agg = Aggregator(aggregate_db, llm_client=None)

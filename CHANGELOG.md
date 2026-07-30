@@ -5,6 +5,70 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-07-31
+
+### Security
+
+- Model-generated markdown is now rendered with raw HTML escaped. Answers
+  and summaries reach the page through `innerHTML`, so a `<script>` or
+  `onerror=` payload in an LLM response — which corpus text can steer via
+  indirect prompt injection — previously executed in the visitor's
+  browser. Escaping happens at render time, so answers already in the
+  cache are neutralised on replay.
+- `normalize()` now decodes HTML entities before stripping tags, the order
+  its own docstring specifies. Reversed, an entity-encoded `&lt;script&gt;`
+  in a source document passed the strip and was then decoded into live
+  markup in stored content.
+- Corpus content is rendered with raw HTML escaped as well. Ingest already
+  removes markup, so this changes nothing visible; it covers rows that
+  reach the database by another route, since the article template renders
+  them with `|safe`.
+- Responses carry `X-Content-Type-Options`, `X-Frame-Options`, and
+  `Referrer-Policy`.
+- Search-term highlighting no longer expands backslash escapes from
+  corpus text (which could re-materialise escaped markup as live
+  elements), and queries containing stray backslashes no longer error.
+- Aggregate-page source snippets are HTML-escaped before insertion,
+  allowing only the `<mark>` highlight tags through.
+- The markdown link whitelist (http/https/mailto only) is now actually
+  applied. It was passed as a constructor option markdown-it-py ignores,
+  so the package's laxer default silently governed rendered links.
+
+### Added
+
+- `/aggregate` page: topic summaries and concept comparisons move out of
+  the side panel onto a page of their own, with the subtype-exclusion
+  filter now reachable. `/ask` likewise becomes the single entry point
+  for Q&A; both side panels are retired.
+- Article pages get a back button when there is same-origin history to
+  return to.
+
+### Changed
+
+- Citation markers `[n]` in answers link to the matching citation card;
+  cards the answer never cites are dimmed. Newest turn renders on top,
+  and citations open in a new tab so the transcript is never lost.
+- Streamed answers now render as markdown once complete, instead of
+  showing raw `###` markup.
+- Topic summaries are grounded on matching chunk text rather than
+  16-token snippets, with a character budget shared across sources.
+  Aggregation prompts are domain-neutral, failed LLM calls are no longer
+  cached, and the cache key tracks the prompt revision so feeding changes
+  take effect without waiting out the 30-day TTL.
+
+### Fixed
+
+- Aggregate results distinguish "this site has no LLM configured" from
+  "the LLM call failed", instead of one message covering both.
+- Search queries are capped at 64 terms, matching the natural-language
+  query builder; an unbounded pasted wall of terms could slow the whole
+  server down.
+- Topic and concept aggregation now bound the whole assembled source
+  block — titles and framing included, not just chunk bodies — so at high
+  fan-out (large `k`, or long titles) the tail sources are no longer
+  silently truncated away by the prompt sanitiser. Cached reports are
+  rebuilt (prompt revision bump).
+
 ## [0.6.0] — 2026-07-29
 
 ### Added

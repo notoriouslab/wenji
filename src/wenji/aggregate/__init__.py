@@ -26,9 +26,69 @@ from wenji.aggregate.cache import cache_get, cache_key, cache_put
 from wenji.aggregate.llm import LLMClient, LLMClientError
 from wenji.aggregate.prompts import CONCEPT_PROMPT, TOPIC_PROMPT
 from wenji.core.safety import sanitize_prompt_input
-from wenji.search.bm25 import build_fts_query
+from wenji.search.bm25 import build_fts_query, build_fts_query_or
 
 logger = logging.getLogger(__name__)
+
+# 主題彙總餵入層的邊界，與 ask 的引用餵入同標準（每段 1200 字元）。
+MAX_CHUNKS_PER_TOPIC_SOURCE = 2
+MAX_CHUNK_CHARS_IN_PROMPT = 1200
+# 整個 sources 區塊的總字數上限（含標題與框架字元，不只 chunk 本體）。
+# 留在 sanitize_prompt_input 的 10,000 之下並保留餘裕：sanitize 會攔腰截斷
+# 超長輸入，尾端來源連標頭都靜默消失。只算 chunk 本體、不算標題與「來源 N:」
+# 框架，正是這裡踩過的坑（k 大＋標題稍長就破表）。
+TOPIC_SOURCES_CHAR_BUDGET = 9_000
+# 每段 chunk 的目標下限：某來源分到的額度連一段都湊不出這個長度時，
+# 該來源只餵標題（header-only），而不是硬塞一小截或把總量墊爆。
+MIN_CHUNK_CHARS_IN_PROMPT = 200
+
+# Prompt 形狀的版本號。餵入策略或模板改動時 MUST 加一，否則既有部署會在
+# 30 天 TTL 內繼續回舊快取，改動等於沒上線。
+# rev 4: sources 組裝改為總量預算（標題＋框架計入），topic/concept 共用。
+PROMPT_REVISION = 4
+
+
+def _truncate_chunk(text: str, limit: int = MAX_CHUNK_CHARS_IN_PROMPT) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "…"
+
+
+def _assemble_source_blocks(items: list[tuple[str, list[str]]]) -> str:
+    """把 ``(標題, chunk 文字清單)`` 組成 ``來源 N: 標題 / - chunk`` 區塊，
+    並保證**整段**長度（標題＋框架＋本體）落在 TOPIC_SOURCES_CHAR_BUDGET 內。
+
+    sanitize_prompt_input 會對組好的字串攔腰截斷，所以只替 chunk 本體編預算、
+    不算標題與「來源 N:」框架，來源一多就會超過 sanitize 上限、尾端來源整批
+    （連標頭）被靜默丟掉。這裡把上限平均分給每個來源，先扣掉該來源標頭的固定
+    成本，剩下的才留給本體；湊不到一段下限就只餵標頭，總量因此永遠不破表。
+    """
+    kept = [(title, [t for t in texts if t and t.strip()]) for title, texts in items]
+    n = len(kept)
+    if n == 0:
+        return ""
+    headers = [f"來源 {i + 1}: {title}" for i, (title, _) in enumerate(kept)]
+    # 標頭與區塊間隔是固定成本，先扣掉；剩下的才是本體可用預算。
+    fixed = sum(len(h) for h in headers) + max(0, n - 1) * len("\n\n")
+    body_budget = max(0, TOPIC_SOURCES_CHAR_BUDGET - fixed)
+    # 預算擠不下人人一段時，集中餵給排名最前、每篇仍能拿到 ≥ 下限的來源，
+    # 其餘只列標頭：勝過人人分到碎屑，更勝過來源多到人人都是 header-only。
+    fundable = min(n, body_budget // MIN_CHUNK_CHARS_IN_PROMPT) if body_budget else 0
+    per_source_body = body_budget // fundable if fundable else 0
+
+    blocks: list[str] = []
+    for i, (_title, texts) in enumerate(kept):
+        header = headers[i]
+        if i < fundable and texts:
+            keep = max(1, min(len(texts), per_source_body // MIN_CHUNK_CHARS_IN_PROMPT))
+            per_text = per_source_body // keep - len("\n- ")  # 扣掉每行框架
+            if per_text > 0:
+                lines = "\n".join(f"- {_truncate_chunk(t, per_text)}" for t in texts[:keep])
+                blocks.append(f"{header}\n{lines}")
+                continue
+        blocks.append(header)
+    return "\n\n".join(blocks)
+
 
 __all__ = [
     "Aggregator",
@@ -207,6 +267,7 @@ class Aggregator:
             "tag": tag,
             "filter": filter.canonical_dict() if filter is not None else None,
             "k": k,
+            "prompt_revision": PROMPT_REVISION,
         }
         key = cache_key("topic_summary", args)
         cached = cache_get(self.db, key)
@@ -214,8 +275,16 @@ class Aggregator:
             return _topic_summary_from_dict(cached)
 
         result = self._topic_summary_structured(tag, filter, k)
-        if self.llm_client is not None:
-            result.narrative = self._topic_summary_narrative(result)
+        try:
+            if self.llm_client is not None:
+                result.narrative = self._topic_summary_narrative(result)
+        except LLMClientError as exc:
+            # LLM 失敗不入快取：429/超時是暫時的，寫進 30 天快取會把殘缺
+            # 結果釘死（與 ask 同判準）。降級回傳結構化結果。
+            logger.warning(
+                "topic_summary LLM call failed (%s); falling back to narrative=None", exc
+            )
+            return result
         cache_put(self.db, key, _topic_summary_to_dict(result))
         return result
 
@@ -281,22 +350,65 @@ class Aggregator:
         return TopicSummary(tag=tag, top_sources=top_sources, statistics=statistics)
 
     def _topic_summary_narrative(self, summary: TopicSummary) -> str | None:
+        """May raise LLMClientError — the caller decides whether to cache."""
         if self.llm_client is None or not summary.top_sources:
             return None
-        sources_block = "\n\n".join(
-            f"來源 {i + 1}: {s.title}\n摘要: {s.snippet}" for i, s in enumerate(summary.top_sources)
+        # 餵 chunk 原文而非 16-token snippet：標題＋摘要級的餵入答不出
+        # 內文細節（ask 對照實驗實測）。chunk 無命中時退全文（截斷），
+        # snippet 只是 content 也拿不到時的最後手段。
+        chunks_by_id = self._topic_chunk_texts(
+            summary.tag, [s.article_id for s in summary.top_sources]
         )
+        items = [
+            (s.title, chunks_by_id.get(s.article_id) or ([s.snippet] if s.snippet else []))
+            for s in summary.top_sources
+        ]
+        sources_block = _assemble_source_blocks(items)
         prompt = TOPIC_PROMPT.format(
             tag=sanitize_prompt_input(summary.tag),
             sources=sanitize_prompt_input(sources_block),
         )
-        try:
-            return self.llm_client.chat([{"role": "user", "content": prompt}])
-        except LLMClientError as exc:
-            logger.warning(
-                "topic_summary LLM call failed (%s); falling back to narrative=None", exc
-            )
-            return None
+        return self.llm_client.chat([{"role": "user", "content": prompt}])
+
+    def _topic_chunk_texts(
+        self, tag: str, article_ids: list[str], per_source: int = MAX_CHUNKS_PER_TOPIC_SOURCE
+    ) -> dict[str, list[str]]:
+        """Best-matching chunk texts per top source.
+
+        OR-combined query bounded to the already-selected top-k articles —
+        the bounded scope is what makes OR safe here (unbounded OR against
+        the whole corpus measurably hurt ranking on the 80q baseline).
+        """
+        out: dict[str, list[str]] = {aid: [] for aid in article_ids}
+        if not article_ids:
+            return out
+        chunk_query = build_fts_query_or(tag, column="chunk_text")
+        if chunk_query:
+            placeholders = ",".join("?" for _ in article_ids)
+            rows = self.db.execute(
+                f"SELECT article_id, chunk_text_raw, bm25(chunks_fts) AS rs "
+                f"FROM chunks_fts "
+                f"WHERE chunks_fts MATCH ? AND article_id IN ({placeholders}) "
+                f"ORDER BY rs ASC",
+                (chunk_query, *article_ids),
+            ).fetchall()
+            for aid, text, _rs in rows:
+                if len(out[aid]) < per_source:
+                    out[aid].append(text or "")
+        # 沒有 chunk 命中的來源（未分塊的短文，或 OR 查詢在該篇無命中）
+        # 退回全文（截斷）：仍然是真原文，勝過 16-token snippet。
+        missing = [aid for aid, texts in out.items() if not texts]
+        if missing:
+            placeholders = ",".join("?" for _ in missing)
+            content_rows = self.db.execute(
+                f"SELECT article_id, content_raw FROM articles_fts "
+                f"WHERE article_id IN ({placeholders})",
+                missing,
+            ).fetchall()
+            for aid, content in content_rows:
+                if content:
+                    out[aid].append(content)
+        return out
 
     def concept_perspectives(
         self,
@@ -311,6 +423,7 @@ class Aggregator:
             "filter": filter.canonical_dict() if filter is not None else None,
             "top_sources": top_sources,
             "per_source": per_source,
+            "prompt_revision": PROMPT_REVISION,
         }
         key = cache_key("concept_perspectives", args)
         cached = cache_get(self.db, key)
@@ -318,8 +431,13 @@ class Aggregator:
             return _concept_perspectives_from_dict(cached)
 
         result = self._concept_perspectives_structured(concept, filter, top_sources, per_source)
-        if self.llm_client is not None:
-            self._concept_perspectives_apply_llm(result)
+        try:
+            if self.llm_client is not None:
+                self._concept_perspectives_apply_llm(result)
+        except LLMClientError as exc:
+            # 同 topic_summary：LLM 失敗不入快取。
+            logger.warning("concept_perspectives LLM call failed (%s); narrative=None", exc)
+            return result
         cache_put(self.db, key, _concept_perspectives_to_dict(result))
         return result
 
@@ -389,21 +507,16 @@ class Aggregator:
         return ConceptPerspectives(concept=concept, per_source_views=per_source_views)
 
     def _concept_perspectives_apply_llm(self, result: ConceptPerspectives) -> None:
+        """May raise LLMClientError — the caller decides whether to cache."""
         if self.llm_client is None or not result.per_source_views:
             return
-        per_source_block = "\n\n".join(
-            f"來源 {i + 1}: {v.source_ref.title}\n" + "\n".join(f"- {ex}" for ex in v.excerpts)
-            for i, v in enumerate(result.per_source_views)
-        )
+        items = [(v.source_ref.title, list(v.excerpts)) for v in result.per_source_views]
+        per_source_block = _assemble_source_blocks(items)
         prompt = CONCEPT_PROMPT.format(
             concept=sanitize_prompt_input(result.concept),
             per_source_views=sanitize_prompt_input(per_source_block),
         )
-        try:
-            text = self.llm_client.chat([{"role": "user", "content": prompt}])
-        except LLMClientError as exc:
-            logger.warning("concept_perspectives LLM call failed (%s); narrative=None", exc)
-            return
+        text = self.llm_client.chat([{"role": "user", "content": prompt}])
         result.narrative = text
         result.consensus, result.disagreements = _parse_consensus_disagreements(text)
 

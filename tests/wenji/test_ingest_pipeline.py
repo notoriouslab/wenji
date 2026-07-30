@@ -97,6 +97,38 @@ def test_ingest_one_idempotent(fresh_conn, corpus):
     assert n_vec == 1
 
 
+def test_ingest_strips_html_from_stored_content(fresh_conn, tmp_path):
+    """Stored corpus text carries no markup — the first line of defence.
+
+    The article template renders this content with ``|safe``, so if raw
+    HTML could reach ``content_raw`` a poisoned document would become
+    stored XSS. The web layer escapes on output as well, but this is
+    where markup is supposed to die.
+    """
+    src = tmp_path / "sermons"
+    src.mkdir()
+    (src / "poisoned.md").write_text(
+        "---\ntitle: 測試\n---\n"
+        "保留這段文字\n\n"
+        '<img src=x onerror="alert(1)">\n\n'
+        "<script>alert(document.domain)</script>\n",
+        encoding="utf-8",
+    )
+    article_id = ingest_one(
+        src / "poisoned.md",
+        fresh_conn,
+        DeterministicMockEmbedder(),
+        directory_map={"sermons": "sermon"},
+    )
+    fresh_conn.commit()
+    stored = fresh_conn.execute(
+        "SELECT content_raw FROM articles_fts WHERE article_id=?", (article_id,)
+    ).fetchone()[0]
+    assert "保留這段文字" in stored, "ordinary prose must survive"
+    for markup in ("<img", "onerror", "<script>", "</script>"):
+        assert markup not in stored, f"{markup} must not reach storage"
+
+
 def test_ingest_one_chunks_when_strategy_configured(fresh_conn, corpus):
     article_id = ingest_one(
         corpus / "sermons" / "s1.md",

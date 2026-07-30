@@ -176,3 +176,16 @@ def test_build_fts_query_or_caps_term_count():
     long_query = "".join(f"規章{i}辦法{i} " for i in range(500))
     out = build_fts_query_or(long_query, column="chunk_text")
     assert out.count(" OR ") + 1 == MAX_OR_TERMS
+
+
+def test_build_fts_query_caps_term_count():
+    """The AND builder shares the same cap as the OR builder.
+
+    Uncapped, a pasted wall of terms becomes a phrase-per-term MATCH
+    expression whose cost grows superlinearly (measured: 3200 terms →
+    22.9 s per request, degrading concurrent searches 0.03 s → 1.7 s).
+    """
+    long_query = " ".join(f"規章{i}" for i in range(500))
+    out = build_fts_query(long_query)
+    # Each surviving term becomes exactly one quoted phrase.
+    assert out.count('"') == MAX_OR_TERMS * 2
