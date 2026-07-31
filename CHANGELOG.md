@@ -5,6 +5,17 @@ All notable changes to **wenji** will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] — 2026-07-31
+
+### Added
+
+- Optional Traditional-Chinese conversion of model output. Set
+  `WENJI_LLM_OUTPUT_S2TWP=1` (and install the `s2twp` extra:
+  `pip install 'wenji[s2twp]'`) to run answers and summaries through OpenCC
+  `s2twp`, so output stays Traditional even when a model occasionally emits
+  Simplified. Off by default to keep the framework domain-neutral; applies
+  to both Q&A and aggregation, streaming and non-streaming.
+
 ## [0.6.1] — 2026-07-31
 
 ### Security

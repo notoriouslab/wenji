@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wenji"
-version = "0.6.1"
+version = "0.6.2"
 description = "Generic Chinese markdown RAG framework: hybrid BM25 + vector search, axis-aware classification, jitter-aware eval."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -45,6 +45,11 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.15,<0.16",
     "build>=1.2",
+]
+# Traditional-Chinese output conversion (WENJI_LLM_OUTPUT_S2TWP). Optional so
+# the core install stays domain-neutral and dependency-light.
+s2twp = [
+    "opencc>=1.1",
 ]
 
 [project.scripts]
