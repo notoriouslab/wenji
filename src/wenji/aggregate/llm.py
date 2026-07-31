@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 import httpx
@@ -27,10 +27,17 @@ class LLMClient:
     model: str
     api_key: str
     timeout: float = 10.0
+    #: Optional post-processor applied to every returned/yielded text piece.
+    #: Kept generic (a plain callable) so the client stays domain-neutral; the
+    #: web layer wires Traditional-Chinese conversion here when configured.
+    output_transform: Callable[[str], str] | None = field(default=None, repr=False)
     _transport: httpx.BaseTransport | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         self.timeout = min(self.timeout, 30.0)
+
+    def _transform(self, text: str) -> str:
+        return self.output_transform(text) if self.output_transform else text
 
     def chat(self, messages: list[dict]) -> str:
         url = self.base_url.rstrip("/") + "/chat/completions"
@@ -53,7 +60,7 @@ class LLMClient:
 
         if not isinstance(content, str) or not content.strip():
             raise LLMClientError("LLM returned empty response")
-        return content
+        return self._transform(content)
 
     def chat_stream(self, messages: list[dict]) -> Iterator[str]:
         """Yield answer fragments as the model produces them.
@@ -94,7 +101,7 @@ class LLMClient:
                         piece = delta.get("content")
                         if piece:
                             produced = True
-                            yield piece
+                            yield self._transform(piece)
         except httpx.HTTPError as exc:
             msg = re.sub(r"Bearer [A-Za-z0-9._-]+", "Bearer ***", str(exc))
             raise LLMClientError(f"LLM stream failed: {msg}") from exc

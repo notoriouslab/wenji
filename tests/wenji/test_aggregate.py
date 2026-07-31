@@ -355,6 +355,41 @@ class TestLLMClient:
         client.chat([{"role": "user", "content": "hi"}])
         assert captured["url"] == "https://example.test/v1/chat/completions"
 
+    def test_output_transform_applied_to_chat(self) -> None:
+        """chat() runs its result through output_transform (used for s2twp)."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "这来"}}]})
+
+        client = LLMClient(
+            base_url="https://example.test/v1",
+            model="m",
+            api_key="k",
+            # A transform that visibly changes the text — not str.upper, which
+            # is a no-op on Chinese and would make this assertion tautological.
+            output_transform=lambda s: f"[[{s}]]",
+            _transport=httpx.MockTransport(handler),
+        )
+        assert client.chat([{"role": "user", "content": "hi"}]) == "[[这来]]"
+
+    def test_output_transform_applied_to_each_stream_piece(self) -> None:
+        pieces = ["因信", "稱義"]
+        body = TestLLMClientStream._sse_body(pieces)
+        client = LLMClient(
+            base_url="https://example.test/v1",
+            model="m",
+            api_key="k",
+            output_transform=lambda s: f"[{s}]",
+            _transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body)),
+        )
+        assert list(client.chat_stream([{"role": "user", "content": "q"}])) == ["[因信]", "[稱義]"]
+
+    def test_no_transform_is_identity(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "原文"}}]})
+
+        assert _make_client(handler).chat([{"role": "user", "content": "hi"}]) == "原文"
+
     def test_module_import_does_not_hit_network(self) -> None:
         """Executing the module body must not perform any network call.
 

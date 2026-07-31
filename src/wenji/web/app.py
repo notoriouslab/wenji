@@ -221,7 +221,21 @@ def _llm_client_from_env() -> LLMClient | None:
         )
         return None
     timeout = min(float(os.environ.get("WENJI_LLM_TIMEOUT", "10.0")), 30.0)
-    return LLMClient(base_url=base_url, model=model, api_key=api_key, timeout=timeout)
+    output_transform = None
+    if os.environ.get("WENJI_LLM_OUTPUT_S2TWP", "").strip().lower() in {"1", "true", "yes", "on"}:
+        # Force model output to Taiwan-standard Traditional Chinese. Opt-in
+        # because wenji is domain-neutral; some models occasionally slip into
+        # Simplified even when asked for Traditional.
+        from wenji.core.zh import to_traditional
+
+        output_transform = to_traditional
+    return LLMClient(
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        timeout=timeout,
+        output_transform=output_transform,
+    )
 
 
 def _axes_config_from_env() -> AxesConfig | None:
